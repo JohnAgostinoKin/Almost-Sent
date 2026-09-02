@@ -1,0 +1,10 @@
+{
+  "name": "almostsent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "the draft they never sent",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "npx serve ."
+  }
+}

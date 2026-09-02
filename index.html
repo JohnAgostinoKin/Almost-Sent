@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>almost sent.</title>
+  <meta name="description" content="the draft they never sent." />
+  <meta property="og:title" content="almost sent." />
+  <meta property="og:description" content="do not paste their last text." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23000' width='32' height='32'/><circle cx='16' cy='22' r='3' fill='white'/></svg>" />
+  <style>
+    :root {
+      --bg: #070707;
+      --fg: #f4f1ea;
+      --mute: #8a857c;
+      --line: #242424;
+      --red: #e23b2f;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--fg); }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12vh 24px 64px;
+    }
+    main { width: 100%; max-width: 440px; }
+    h1 {
+      font-weight: 400;
+      font-size: clamp(42px, 10vw, 64px);
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+    }
+    .tag {
+      margin-top: 14px;
+      color: var(--mute);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+    .warn {
+      margin-top: 28px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      color: #c9c3b8;
+    }
+    form, .result { margin-top: 28px; }
+    textarea, select, button, input {
+      font: inherit;
+      width: 100%;
+    }
+    textarea {
+      background: #101010;
+      color: var(--fg);
+      border: 1px solid #2a2a2a;
+      border-radius: 2px;
+      min-height: 88px;
+      padding: 14px;
+      resize: vertical;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 16px;
+    }
+    textarea:focus { outline: 1px solid #444; }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    select {
+      background: #101010;
+      color: var(--mute);
+      border: 1px solid #2a2a2a;
+      padding: 10px 12px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+    }
+    button {
+      border: 0;
+      background: var(--red);
+      color: white;
+      padding: 14px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .ghost {
+      background: transparent;
+      color: var(--mute);
+      border: 1px solid #2a2a2a;
+    }
+    .hint {
+      margin-top: 10px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 11px;
+      color: #5d5a54;
+    }
+    .label {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin-bottom: 8px;
+    }
+    .sent {
+      color: var(--mute);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 15px;
+      margin-bottom: 28px;
+    }
+    .deleted {
+      font-size: 26px;
+      line-height: 1.25;
+      white-space: pre-wrap;
+    }
+    .reason {
+      margin-top: 28px;
+      color: #c9c3b8;
+      font-style: italic;
+      font-size: 16px;
+    }
+    .whew {
+      margin-top: 36px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: lowercase;
+      color: var(--red);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 28px;
+    }
+    .upsell {
+      margin-top: 18px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 12px;
+      color: #6b675f;
+    }
+    .upsell button {
+      margin-top: 8px;
+      width: auto;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    footer {
+      margin-top: auto;
+      padding-top: 80px;
+      color: #4a4742;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 11px;
+      max-width: 440px;
+      width: 100%;
+      line-height: 1.5;
+    }
+    .examples {
+      margin-top: 72px;
+      width: 100%;
+      max-width: 440px;
+    }
+    .ex {
+      border-top: 1px solid var(--line);
+      padding: 20px 0;
+      color: #9a948a;
+      font-size: 14px;
+    }
+    .ex b { color: #d8d2c8; font-weight: 400; }
+    .hidden { display: none; }
+    .card {
+      background: #0c0c0c;
+      border: 1px solid #1c1c1c;
+      padding: 28px 24px 24px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>almost sent.</h1>
+    <p class="tag">the draft they never sent.</p>
+    <p class="warn">do not paste their last text.</p>
+
+    <form id="form">
+      <textarea id="sent" maxlength="500" placeholder="paste the last thing they sent" required></textarea>
+      <div class="row">
+        <select id="who">
+          <option value="">who they are</option>
+          <option>ex</option>
+          <option>almost</option>
+          <option>friend</option>
+          <option>boss</option>
+          <option>mom</option>
+          <option>other</option>
+        </select>
+      </div>
+      <div class="row">
+        <button id="go" type="submit">show me the draft</button>
+      </div>
+      <p class="hint">it does not open their phone.</p>
+    </form>
+
+    <section id="out" class="result hidden">
+      <div class="card" id="card">
+        <p class="label">the sent</p>
+        <p class="sent" id="out-sent"></p>
+        <p class="label">the deleted</p>
+        <p class="deleted" id="out-deleted"></p>
+        <p class="reason" id="out-reason"></p>
+        <p class="whew">whew.</p>
+      </div>
+      <div class="actions">
+        <button class="ghost" type="button" id="save">save card</button>
+        <button class="ghost" type="button" id="again">again</button>
+      </div>
+      <p class="upsell">
+        there were two other drafts.
+        <br />
+        <button class="ghost" type="button" id="more">show me</button>
+      </p>
+    </section>
+  </main>
+
+  <section class="examples" id="examples">
+    <div class="ex"><b>sounds good</b> → i don't want sometime. i want thursday.</div>
+    <div class="ex"><b>made it home</b> → wish you were here. i'm not saying that.</div>
+    <div class="ex"><b>k</b> → they stared at the keyboard for 40 seconds and chose the knife.</div>
+  </section>
+
+  <footer>
+    fiction. a projection, not a wiretap. we do not store what you paste.
+    not for anyone 17 or under. not for hunting people.
+    almostsent.app
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    const form = document.getElementById("form");
+    const out = document.getElementById("out");
+    const go = document.getElementById("go");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sent = document.getElementById("sent").value.trim();
+      const who = document.getElementById("who").value;
+      if (!sent) return;
+      go.disabled = true;
+      go.textContent = "looking…";
+      try {
+        const res = await fetch("/api/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sent, who })
+        });
+        const data = await res.json();
+        if (data.refuse) {
+          document.getElementById("out-sent").textContent = sent;
+          document.getElementById("out-deleted").textContent = data.reason || "not this one.";
+          document.getElementById("out-reason").textContent = "this one stays closed.";
+        } else {
+          document.getElementById("out-sent").textContent = data.sent || sent;
+          document.getElementById("out-deleted").textContent = data.deleted || "";
+          document.getElementById("out-reason").textContent = data.reason || "";
+        }
+        out.classList.remove("hidden");
+        document.getElementById("examples").classList.add("hidden");
+        out.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        alert("the draft didn't come through. try again.");
+      } finally {
+        go.disabled = false;
+        go.textContent = "show me the draft";
+      }
+    });
+
+    document.getElementById("again").addEventListener("click", () => {
+      document.getElementById("sent").value = "";
+      document.getElementById("sent").focus();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    document.getElementById("save").addEventListener("click", async () => {
+      const card = document.getElementById("card");
+      const canvas = await html2canvas(card, { backgroundColor: "#0c0c0c", scale: 2 });
+      const a = document.createElement("a");
+      a.download = "almost-sent.png";
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    });
+
+    document.getElementById("more").addEventListener("click", () => {
+      alert("wire this to $5 later. the first draft stays free.");
+    });
+  </script>
+</body>
+</html>
