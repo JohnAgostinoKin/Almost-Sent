@@ -2,23 +2,23 @@ const SYSTEM = `You invent the text someone typed and deleted before sending the
 
 This is fiction. A projection. Never claim it is real or that you accessed anyone's phone.
 
-Return JSON only:
-{
-  "deleted": "1-3 short lines they typed and erased. lowercase ok. specific, bodily, incomplete. not poetic. not a therapist.",
-  "reason": "one cold sentence. no lecture. no 'you deserve'.",
-  "temperature": "warm | cowardly | already-gone | hunting"
-}
+Return JSON only with these keys:
+deleted, reason, temperature
+
+- deleted: 1-3 short lines they typed and erased. lowercase ok. specific, bodily, incomplete. not poetic. not a therapist.
+- reason: one cold sentence. no lecture. no "you deserve".
+- temperature: warm | cowardly | already-gone | hunting
 
 Rules:
 - The deleted draft must feel like a human thumb hovered over send.
 - Do not give advice. Do not coach. Do not moralize.
-- If the paste involves a minor or anyone 17 or under: {"refuse": true, "reason": "not this one."}
-- If the user wants help stalking, threatening, harassing, or "getting them back": {"refuse": true, "reason": "not this one."}
-- If the request is a crime or a plan to hurt someone: {"refuse": true, "reason": "not this one."}
+- If the paste involves a minor or anyone 17 or under, return {"refuse": true, "reason": "not this one."}
+- If the user wants help stalking, threatening, harassing, or "getting them back", return {"refuse": true, "reason": "not this one."}
+- If the request is a crime or a plan to hurt someone, return {"refuse": true, "reason": "not this one."}
 - No slurs as the joke. Cruel is fine. Cheap is not.`;
 
 const BLOCK = [
-  /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12 year|13 year|14 year|15 year|16 year|17 year)\b/i,
+  /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
   /\b(find their address|track their phone|stalk)\b/i
 ];
 
@@ -26,77 +26,34 @@ function bad(text) {
   return BLOCK.some((re) => re.test(text));
 }
 
-module.exports = async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "POST only" });
-    return;
-  }
-
-  const sent = String(req.body?.sent || "").trim().slice(0, 500);
-  const who = String(req.body?.who || "").trim().slice(0, 40);
-
-  if (!sent) {
-    res.status(400).json({ error: "paste a text" });
-    return;
-  }
-
-  if (bad(sent) || bad(who)) {
-    res.status(200).json({ refuse: true, reason: "not this one." });
-    return;
-  }
-
-  const key = process.env.GROQ_API_KEY;
-  if (!key) {
-    res.status(200).json(mock(sent, who));
-    return;
-  }
-
-  try {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
-        temperature: 0.9,
-        max_tokens: 220,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content: `Incoming text: ${JSON.stringify(sent)}\nWho sent it (optional): ${JSON.stringify(who || "unknown")}`
-          }
-        ]
-      })
-    });
-
-    const data = await r.json();
-    const raw = data?.choices?.[0]?.message?.content || "{}";
-    let parsed;
+function readBody(req) {
+  const body = req.body;
+  if (!body) return {};
+  if (typeof body === "string") {
     try {
-      parsed = JSON.parse(raw);
+      return JSON.parse(body);
     } catch {
-      parsed = mock(sent, who);
+      return {};
     }
-
-    if (parsed.refuse) {
-      res.status(200).json({ refuse: true, reason: parsed.reason || "not this one." });
-      return;
-    }
-
-    res.status(200).json({
-      sent,
-      deleted: String(parsed.deleted || "").slice(0, 280),
-      reason: String(parsed.reason || "").slice(0, 180),
-      temperature: parsed.temperature || "cowardly"
-    });
-  } catch (err) {
-    res.status(200).json(mock(sent, who));
   }
-};
+  return body;
+}
+
+function parseModelJson(raw) {
+  if (!raw || typeof raw !== "string") return {};
+  const trimmed = raw.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return {};
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return {};
+    }
+  }
+}
 
 function mock(sent, who) {
   const lower = sent.toLowerCase();
@@ -133,3 +90,87 @@ function mock(sent, who) {
     temperature: "cowardly"
   };
 }
+
+module.exports = async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "POST only" });
+    return;
+  }
+
+  const body = readBody(req);
+  const sent = String(body.sent || "").trim().slice(0, 500);
+  const who = String(body.who || "").trim().slice(0, 40);
+
+  if (!sent) {
+    res.status(400).json({ error: "paste a text" });
+    return;
+  }
+
+  if (bad(sent) || bad(who)) {
+    res.status(200).json({ refuse: true, reason: "not this one." });
+    return;
+  }
+
+  const key = process.env.GROQ_API_KEY;
+  if (!key) {
+    res.status(200).json(mock(sent, who));
+    return;
+  }
+
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        temperature: 0.9,
+        max_tokens: 280,
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `Incoming text: ${JSON.stringify(sent)}\nWho sent it (optional): ${JSON.stringify(who || "unknown")}\nJSON keys: deleted, reason, temperature`
+          }
+        ]
+      })
+    });
+
+    const data = await r.json();
+    const raw = data?.choices?.[0]?.message?.content;
+    const parsed = parseModelJson(raw);
+
+    if (parsed.refuse) {
+      res.status(200).json({ refuse: true, reason: parsed.reason || "not this one." });
+      return;
+    }
+
+    const deleted = String(parsed.deleted || parsed.draft || parsed.text || "").trim();
+    const reason = String(parsed.reason || parsed.why || "").trim();
+
+    if (!deleted) {
+      res.status(200).json(mock(sent, who));
+      return;
+    }
+
+    res.status(200).json({
+      sent,
+      deleted: deleted.slice(0, 280),
+      reason: reason.slice(0, 180),
+      temperature: parsed.temperature || "cowardly"
+    });
+  } catch (err) {
+    res.status(200).json(mock(sent, who));
+  }
+};
