@@ -147,17 +147,17 @@ module.exports = async function handler(req, res) {
       })
     });
 
-    const data = await r.json();
-    if (!data?.choices?.[0]?.message?.content) {
-  res.status(200).json({
-    sent,
-    deleted: "GROQ_ERROR",
-    reason: JSON.stringify(data).slice(0, 180),
-    temperature: "cowardly"
-  });
-  return;
-}
-    const raw = data?.choices?.[0]?.message?.content;
+       const data = await r.json();
+    const msg = data?.choices?.[0]?.message || {};
+    const raw = [msg.content, msg.reasoning, data?.choices?.[0]?.text]
+      .flat()
+      .map((part) => {
+        if (!part) return "";
+        if (typeof part === "string") return part;
+        if (typeof part.text === "string") return part.text;
+        return "";
+      })
+      .join("\n");
     const parsed = parseModelJson(raw);
 
     if (parsed.refuse) {
