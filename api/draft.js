@@ -39,6 +39,16 @@ function readBody(req) {
   return body;
 }
 
+function flattenText(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(flattenText).join("\n");
+  if (typeof value === "object") {
+    return [value.text, value.content, value.reasoning].map(flattenText).join("\n");
+  }
+  return "";
+}
+
 function parseModelJson(raw) {
   if (!raw || typeof raw !== "string") return {};
   const trimmed = raw.trim();
@@ -81,12 +91,11 @@ function mock(sent, who) {
       temperature: "cowardly"
     };
   }
+  const whoBit = who ? `they chose the version that keeps ${who} close and unreachable.` : "they wanted the door open without walking through it.";
   return {
     sent,
     deleted: "i almost said the real thing.\nthen i sent this.",
-    reason: who
-      ? `they chose the version that keeps a ${who} in the room and out of reach.`
-      : "they wanted the door open without walking through it.",
+    reason: whoBit,
     temperature: "cowardly"
   };
 }
@@ -134,30 +143,22 @@ module.exports = async function handler(req, res) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
         temperature: 0.9,
-        max_tokens: 280,
+        max_tokens: 400,
         messages: [
           { role: "system", content: SYSTEM },
           {
             role: "user",
-            content: `Incoming text: ${JSON.stringify(sent)}\nWho sent it (optional): ${JSON.stringify(who || "unknown")}\nJSON keys: deleted, reason, temperature`
+            content: `Incoming text: ${JSON.stringify(sent)}\nWho sent it (optional): ${JSON.stringify(who || "unknown")}\nReply with JSON only. Keys: deleted, reason, temperature`
           }
         ]
       })
     });
 
-       const data = await r.json();
+    const data = await r.json();
     const msg = data?.choices?.[0]?.message || {};
-    const raw = [msg.content, msg.reasoning, data?.choices?.[0]?.text]
-      .flat()
-      .map((part) => {
-        if (!part) return "";
-        if (typeof part === "string") return part;
-        if (typeof part.text === "string") return part.text;
-        return "";
-      })
-      .join("\n");
+    const raw = flattenText([msg.content, msg.reasoning, data?.choices?.[0]?.text]);
     const parsed = parseModelJson(raw);
 
     if (parsed.refuse) {
@@ -165,8 +166,16 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const deleted = String(parsed.deleted || parsed.draft || parsed.text || "").trim();
-    const reason = String(parsed.reason || parsed.why || "").trim();
+    let deleted = String(parsed.deleted || parsed.draft || parsed.text || "").trim();
+    let reason = String(parsed.reason || parsed.why || "").trim();
+
+    if (!deleted && raw) {
+      const lines = raw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("{") && !line.startsWith("}"));
+      deleted = lines.slice(-3).join("\n").slice(0, 280);
+    }
 
     if (!deleted) {
       res.status(200).json(mock(sent, who));
@@ -176,7 +185,7 @@ module.exports = async function handler(req, res) {
     res.status(200).json({
       sent,
       deleted: deleted.slice(0, 280),
-      reason: reason.slice(0, 180),
+      reason: (reason || "they sent the safer sentence.").slice(0, 180),
       temperature: parsed.temperature || "cowardly"
     });
   } catch (err) {
