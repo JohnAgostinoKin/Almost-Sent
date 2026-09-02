@@ -27,6 +27,18 @@
       padding: 12vh 24px 64px;
     }
     main { width: 100%; max-width: 440px; }
+    @media (min-width: 800px) {
+      main, footer, .examples { max-width: 560px; }
+      body { padding-top: 16vh; }
+      h1 { font-size: 80px; }
+      .tag, .warn { font-size: 16px; }
+      .deleted { font-size: 32px; }
+      .reason { font-size: 20px; }
+      .sent { font-size: 18px; }
+      textarea { font-size: 18px; min-height: 110px; }
+      button { font-size: 16px; padding: 16px; }
+      footer { font-size: 13px; }
+    }
     h1 {
       font-weight: 400;
       font-size: clamp(42px, 10vw, 64px);
@@ -232,7 +244,7 @@
 
   <footer>
     fiction. a projection, not a wiretap. we do not store what you paste.
-    not for anyone 17 or under. not for hunting people.
+    18+ only. not for hunting people.
     almostsent.app
   </footer>
 
