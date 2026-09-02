@@ -148,6 +148,15 @@ module.exports = async function handler(req, res) {
     });
 
     const data = await r.json();
+    if (!data?.choices?.[0]?.message?.content) {
+  res.status(200).json({
+    sent,
+    deleted: "GROQ_ERROR",
+    reason: JSON.stringify(data).slice(0, 180),
+    temperature: "cowardly"
+  });
+  return;
+}
     const raw = data?.choices?.[0]?.message?.content;
     const parsed = parseModelJson(raw);
 
