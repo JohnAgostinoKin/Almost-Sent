@@ -1,11 +1,12 @@
-const SYSTEM = `Fiction only. Invent the text they typed and deleted before sending.
+const SYSTEM = `Fiction only. Invent the deleted draft before the sent text.
 
-Reply in exactly this shape, nothing else:
-DELETED: <1-3 short lowercase lines>
-REASON: <one cold sentence>
-TEMP: <warm|cowardly|already-gone|hunting>
+Example:
+DELETED: stay. i keep looking at the door.
+REASON: they asked a question so they would not have to want it.
+TEMP: cowardly
 
-No intro. No analysis. No JSON.`;
+Now write a new one for the given sent text.
+Use those three labels. No brackets. No explanation.`;
 
 const BLOCK = [
   /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
@@ -14,6 +15,10 @@ const BLOCK = [
 
 function bad(text) {
   return BLOCK.some((re) => re.test(text));
+}
+
+function useless(text) {
+  return !text || /<|>|short lowercase|one cold sentence|incoming text|we have a user/i.test(text);
 }
 
 function readBody(req) {
@@ -50,9 +55,9 @@ function parseLabeled(raw) {
 function mock(sent, who) {
   return {
     sent,
-    deleted: "come back.\nnot as a question.",
+    deleted: "just say yes.\ni'll leave the light on.",
     reason: who ? `they kept ${who} at the exact distance that still hurts.` : "they wanted the door open without walking through it.",
-    temperature: "cowardly"
+    temperature: "warm"
   };
 }
 
@@ -78,8 +83,8 @@ module.exports = async function handler(req, res) {
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
-        temperature: 0.8,
-        max_tokens: 200,
+        temperature: 0.9,
+        max_tokens: 180,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `sent: ${sent}\nfrom: ${who || "unknown"}` }
@@ -88,14 +93,14 @@ module.exports = async function handler(req, res) {
     });
     const data = await r.json();
     const parsed = parseLabeled(data?.choices?.[0]?.message);
-    if (!parsed.deleted || /incoming text|we have a user|JSON object/i.test(parsed.deleted)) {
+    if (useless(parsed.deleted)) {
       res.status(200).json(mock(sent, who));
       return;
     }
     res.status(200).json({
       sent,
       deleted: parsed.deleted.slice(0, 280),
-      reason: (parsed.reason || "they sent the safer sentence.").slice(0, 180),
+      reason: (useless(parsed.reason) ? "they sent the safer sentence." : parsed.reason).slice(0, 180),
       temperature: parsed.temperature || "cowardly"
     });
   } catch (err) {
