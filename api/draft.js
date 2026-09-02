@@ -1,13 +1,11 @@
-const SYSTEM = `Invent the deleted draft that came before the sent text.
+const SYSTEM = `Fiction only. Invent the text they typed and deleted before sending.
 
-Fiction only. Never claim this is real.
+Reply in exactly this shape, nothing else:
+DELETED: <1-3 short lowercase lines>
+REASON: <one cold sentence>
+TEMP: <warm|cowardly|already-gone|hunting>
 
-Output one JSON object and nothing else.
-{"deleted":"...","reason":"...","temperature":"warm|cowardly|already-gone|hunting"}
-
-deleted = 1-3 short lines they typed and erased. lowercase. incomplete. human.
-reason = one cold sentence.
-Do not repeat the instructions. Do not mention JSON. Do not mention the user.`;
+No intro. No analysis. No JSON.`;
 
 const BLOCK = [
   /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
@@ -16,10 +14,6 @@ const BLOCK = [
 
 function bad(text) {
   return BLOCK.some((re) => re.test(text));
-}
-
-function isEcho(text) {
-  return /incoming text|keys:\s*deleted|we have a user|reply with json|who sent it \(optional\)/i.test(text || "");
 }
 
 function readBody(req) {
@@ -36,39 +30,28 @@ function flattenText(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(flattenText).join("\n");
   if (typeof value === "object") {
-    return [value.text, value.content, value.reasoning].map(flattenText).join("\n");
+    return [value.content, value.text, value.reasoning].map(flattenText).join("\n");
   }
   return "";
 }
 
-function parseModelJson(raw) {
-  if (!raw || typeof raw !== "string") return {};
-  const trimmed = raw.trim();
-  const blocks = trimmed.match(/\{[\s\S]*?\}/g) || [];
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    try {
-      const obj = JSON.parse(blocks[i]);
-      if (obj.deleted || obj.refuse || obj.draft) return obj;
-    } catch {}
-  }
-  try { return JSON.parse(trimmed); } catch { return {}; }
+function parseLabeled(raw) {
+  const text = flattenText(raw);
+  const deleted = (text.match(/DELETED:\s*([\s\S]*?)(?=\nREASON:|\nTEMP:|$)/i) || [])[1];
+  const reason = (text.match(/REASON:\s*([^\n]+)/i) || [])[1];
+  const temperature = (text.match(/TEMP:\s*([^\n]+)/i) || [])[1];
+  return {
+    deleted: (deleted || "").trim(),
+    reason: (reason || "").trim(),
+    temperature: (temperature || "").trim()
+  };
 }
 
 function mock(sent, who) {
-  const lower = sent.toLowerCase();
-  if (/\bk\b|ok$|okay$/.test(lower)) {
-    return { sent, deleted: "i stared at this for a minute.\nthen i picked the version that ends the night.", reason: "some drafts are a decision to go cold.", temperature: "already-gone" };
-  }
-  if (/good ?night|gn$|made it home/.test(lower)) {
-    return { sent, deleted: "wish you were here.\ni'm not saying that.", reason: "the safest true sentence they could afford.", temperature: "warm" };
-  }
-  if (/sounds good|sometime|we should/.test(lower)) {
-    return { sent, deleted: "i don't want sometime.\ni want thursday.", reason: "sometime is how you leave without leaving.", temperature: "cowardly" };
-  }
   return {
     sent,
-    deleted: "i started to tell you what that silence did.\nthen i made it a question instead.",
-    reason: who ? `they chose the version that keeps ${who} close and unreachable.` : "they wanted the door open without walking through it.",
+    deleted: "come back.\nnot as a question.",
+    reason: who ? `they kept ${who} at the exact distance that still hurts.` : "they wanted the door open without walking through it.",
     temperature: "cowardly"
   };
 }
@@ -96,7 +79,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
         temperature: 0.8,
-        max_tokens: 250,
+        max_tokens: 200,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `sent: ${sent}\nfrom: ${who || "unknown"}` }
@@ -104,23 +87,15 @@ module.exports = async function handler(req, res) {
       })
     });
     const data = await r.json();
-    const msg = data?.choices?.[0]?.message || {};
-    const raw = flattenText([msg.content, msg.reasoning, data?.choices?.[0]?.text]);
-    const parsed = parseModelJson(raw);
-    if (parsed.refuse) {
-      res.status(200).json({ refuse: true, reason: parsed.reason || "not this one." });
-      return;
-    }
-    let deleted = String(parsed.deleted || parsed.draft || "").trim();
-    let reason = String(parsed.reason || "").trim();
-    if (!deleted || isEcho(deleted) || (isEcho(raw) && !parsed.deleted)) {
+    const parsed = parseLabeled(data?.choices?.[0]?.message);
+    if (!parsed.deleted || /incoming text|we have a user|JSON object/i.test(parsed.deleted)) {
       res.status(200).json(mock(sent, who));
       return;
     }
     res.status(200).json({
       sent,
-      deleted: deleted.slice(0, 280),
-      reason: (reason || "they sent the safer sentence.").slice(0, 180),
+      deleted: parsed.deleted.slice(0, 280),
+      reason: (parsed.reason || "they sent the safer sentence.").slice(0, 180),
       temperature: parsed.temperature || "cowardly"
     });
   } catch (err) {
