@@ -5,6 +5,7 @@
   "description": "the draft they never sent",
   "scripts": {
     "dev": "vercel dev",
-    "start": "npx serve ."
+    "start": "npx serve .",
+    "bake": "node scripts/bake.js"
   }
 }
