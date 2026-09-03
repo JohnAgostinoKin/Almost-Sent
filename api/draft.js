@@ -104,13 +104,77 @@ const LINES = {
   "yw": "wtf"
 };
 
-function lookup(sent) {
+const KEYS = [
+  { re: /homework|assignment|essay|study/, line: "take it up with the teacher who assigned this" },
+  { re: /teacher|class|school/, line: "detention starts when you hit send" },
+  { re: /busy|working|at work/, line: "work is the costume for not wanting you" },
+  { re: /later|tomorrow|next week|sometime/, line: "later is a polite never" },
+  { re: /sorry/, line: "you're not. you're cornered." },
+  { re: /love you/, line: "now do it without the safety net" },
+  { re: /miss you/, line: "then stop performing distance" },
+  { re: /drunk|drinking|wine|beer/, line: "alcohol wrote this. you just held the phone." },
+  { re: /drive|driving|uber|lyft/, line: "texting this was the unsafe part" },
+  { re: /food|dinner|lunch|eat/, line: "hunger is doing the emotional labor" },
+  { re: /job|interview|boss|office/, line: "corporate voice in a personal crime" },
+  { re: /mom|dad|mother|father/, line: "family is the alibi again" },
+  { re: /dog|cat|pet/, line: "the animal has better boundaries" },
+  { re: /tired|sleep|nap/, line: "exhaustion is the nicest way to leave" },
+  { re: /rain|weather/, line: "the sky is not why you cancelled" }
+];
+
+function exact(sent) {
   const raw = String(sent || "").trim();
   const key = norm(raw);
   if (raw === "?") return LINES["?"];
   if (raw === "??") return LINES["??"];
-  if (LINES[key]) return LINES[key];
-  return null;
+  return LINES[key] || null;
+}
+
+function keyword(sent) {
+  const hit = KEYS.find((k) => k.re.test(sent));
+  return hit ? hit.line : null;
+}
+
+function fromWord(sent) {
+  const words = String(sent).toLowerCase().match(/[a-z']{4,}/g) || ["that"];
+  const word = words.sort((a, b) => b.length - a.length)[0];
+  return word + " is doing too much work in a text that small";
+}
+
+async function fromAi(sent) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + key,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+        temperature: 0.8,
+        max_tokens: 60,
+        messages: [
+          {
+            role: "system",
+            content: "Roast the incoming text in ONE short lowercase line. Mean, funny, specific. If it mentions homework or school, blame a bad teacher. No quotes. No labels. No explanation."
+          },
+          { role: "user", content: sent }
+        ]
+      })
+    });
+    const data = await r.json();
+    const msg = data?.choices?.[0]?.message || {};
+    let text = msg.content || msg.reasoning || "";
+    if (Array.isArray(text)) text = text.map((p) => p.text || "").join(" ");
+    text = String(text).trim().split("\n").filter(Boolean).pop() || "";
+    text = text.replace(/^["']|["']$/g, "").slice(0, 120);
+    if (!text || /DELETED|REASON|homework or school/i.test(text)) return null;
+    return text;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function remember(sent) {
@@ -119,10 +183,9 @@ async function remember(sent) {
   if (!url || !key) return;
   const k = norm(sent) || sent.trim();
   try {
-    const get = await fetch(
-      url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k),
-      { headers: { apikey: key, Authorization: "Bearer " + key } }
-    );
+    const get = await fetch(url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k), {
+      headers: { apikey: key, Authorization: "Bearer " + key }
+    });
     const rows = await get.json();
     if (rows && rows[0]) {
       await fetch(url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k), {
@@ -166,10 +229,21 @@ module.exports = async function handler(req, res) {
   if (bad(sent)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
 
   remember(sent);
-  const deleted = lookup(sent);
-  res.status(200).json({
-    sent,
-    deleted: deleted || "",
-    fromBank: Boolean(deleted)
-  });
+
+  let deleted = exact(sent);
+  let source = "bank";
+  if (!deleted) {
+    deleted = keyword(sent);
+    source = deleted ? "keyword" : source;
+  }
+  if (!deleted) {
+    deleted = await fromAi(sent);
+    source = deleted ? "ai" : source;
+  }
+  if (!deleted) {
+    deleted = fromWord(sent);
+    source = "word";
+  }
+
+  res.status(200).json({ sent, deleted, source });
 };

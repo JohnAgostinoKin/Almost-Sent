@@ -10,11 +10,7 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    @media (min-width:800px) {
-      main, footer, .examples { max-width:560px; }
-      h1 { font-size:80px; }
-      .deleted, #write { font-size:32px; }
-    }
+    @media (min-width:800px) { main, footer, .examples { max-width:560px; } h1 { font-size:80px; } .deleted { font-size:32px; } }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.04em; line-height:0.9; }
     .tag, .warn, .hint, .label, .yours, footer, .ex, button, select, .sent { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:14px; color:var(--mute); font-size:13px; }
@@ -31,11 +27,11 @@
     .label { font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--mute); margin-bottom:8px; }
     .sent { color:var(--mute); font-size:15px; margin-bottom:28px; }
     .deleted { font-size:26px; line-height:1.25; white-space:pre-wrap; }
-    .yours { font-size:13px; color:#c9c3b8; margin-bottom:12px; line-height:1.45; }
-    #write { background:transparent; border:0; border-bottom:1px solid #2a2a2a; color:var(--fg); font-family:Georgia,"Times New Roman",serif; font-size:26px; line-height:1.25; padding:0 0 8px; min-height:64px; resize:none; }
+    .yours { margin-top:28px; font-size:13px; color:#c9c3b8; }
+    #write { margin-top:10px; min-height:72px; }
     .whew { margin-top:36px; font-size:12px; letter-spacing:0.18em; color:var(--red); }
     .actions { display:flex; gap:8px; margin-top:28px; }
-    footer { margin-top:auto; padding-top:80px; color:#4a4742; font-size:11px; max-width:440px; width:100%; line-height:1.5; }
+    footer { margin-top:auto; padding-top:80px; color:#4a4742; font-size:11px; max-width:440px; width:100%; }
     .examples { margin-top:72px; width:100%; max-width:440px; }
     .ex { border-top:1px solid var(--line); padding:20px 0; color:#9a948a; font-size:14px; }
     .ex b { color:#d8d2c8; font-weight:400; }
@@ -69,14 +65,13 @@
         <p class="label">the sent</p>
         <p class="sent" id="out-sent"></p>
         <p class="label">the deleted</p>
-        <p class="yours hidden" id="yours">this one's on you. tell us what you really think.<br />if it's good we'll frame it and put it on the wall.</p>
         <p class="deleted" id="out-deleted"></p>
-        <textarea id="write" class="hidden" maxlength="180" placeholder="say it."></textarea>
         <p class="whew">whew.</p>
+        <p class="yours">think you could do better?</p>
+        <textarea id="write" maxlength="180" placeholder="say it."></textarea>
       </div>
       <div class="actions">
         <button class="ghost" type="button" id="save">save card</button>
-        <button class="ghost hidden" type="button" id="frame">frame it</button>
         <button class="ghost" type="button" id="again">again</button>
       </div>
     </section>
@@ -89,16 +84,13 @@
   <footer>we keep the incoming line so we can write a better roast. we do not keep your reply or your name. 18+ only. almostsent.app</footer>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
-    const form = document.getElementById("form");
-    const out = document.getElementById("out");
     const go = document.getElementById("go");
-    form.addEventListener("submit", async (e) => {
+    document.getElementById("form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const sent = document.getElementById("sent").value.trim();
       const who = document.getElementById("who").value;
       if (!sent) return;
       go.disabled = true;
-      go.textContent = "looking…";
       try {
         const res = await fetch("/api/draft", {
           method: "POST",
@@ -108,31 +100,14 @@
         const data = await res.json();
         document.getElementById("sent").readOnly = true;
         document.getElementById("out-sent").textContent = data.sent || sent;
-        const bank = document.getElementById("out-deleted");
-        const write = document.getElementById("write");
-        const yours = document.getElementById("yours");
-        const frame = document.getElementById("frame");
-        if (data.fromBank) {
-          bank.textContent = data.deleted || "";
-          bank.classList.remove("hidden");
-          write.classList.add("hidden");
-          yours.classList.add("hidden");
-          frame.classList.add("hidden");
-        } else {
-          bank.classList.add("hidden");
-          yours.classList.remove("hidden");
-          write.classList.remove("hidden");
-          write.value = "";
-          frame.classList.remove("hidden");
-          write.focus();
-        }
-        out.classList.remove("hidden");
+        document.getElementById("out-deleted").textContent = data.deleted || "not this one.";
+        document.getElementById("write").value = "";
+        document.getElementById("out").classList.remove("hidden");
         document.getElementById("examples").classList.add("hidden");
       } catch {
         alert("the draft didn't come through. try again.");
       } finally {
         go.disabled = false;
-        go.textContent = "show me the draft";
       }
     });
     document.getElementById("again").addEventListener("click", () => {
@@ -147,15 +122,6 @@
       a.download = "almost-sent.png";
       a.href = canvas.toDataURL("image/png");
       a.click();
-    });
-    document.getElementById("frame").addEventListener("click", () => {
-      const line = document.getElementById("write").value.trim();
-      if (!line) { document.getElementById("write").focus(); return; }
-      document.getElementById("out-deleted").textContent = line;
-      document.getElementById("out-deleted").classList.remove("hidden");
-      document.getElementById("write").classList.add("hidden");
-      document.getElementById("yours").textContent = "if it's good, it goes on the wall.";
-      alert("wall comes next. save the card for now.");
     });
   </script>
 </body>
