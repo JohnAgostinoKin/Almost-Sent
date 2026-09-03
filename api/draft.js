@@ -104,18 +104,53 @@ const LINES = {
   "yw": "wtf"
 };
 
-const FALLBACK = [
-  "that wasn't nothing",
-  "say what you meant",
-  "this is the costume version"
-];
-
-function draft(sent) {
-  const key = norm(sent);
+function lookup(sent) {
+  const raw = String(sent || "").trim();
+  const key = norm(raw);
+  if (raw === "?") return LINES["?"];
+  if (raw === "??") return LINES["??"];
   if (LINES[key]) return LINES[key];
-  if (sent.trim() === "?") return LINES["?"];
-  if (sent.trim() === "??") return LINES["??"];
-  return FALLBACK[key.length % FALLBACK.length];
+  return null;
+}
+
+async function remember(sent) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return;
+  const k = norm(sent) || sent.trim();
+  try {
+    const get = await fetch(
+      url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k),
+      { headers: { apikey: key, Authorization: "Bearer " + key } }
+    );
+    const rows = await get.json();
+    if (rows && rows[0]) {
+      await fetch(url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k), {
+        method: "PATCH",
+        headers: {
+          apikey: key,
+          Authorization: "Bearer " + key,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          hits: (rows[0].hits || 1) + 1,
+          last_seen: new Date().toISOString(),
+          sent: sent.trim().slice(0, 500)
+        })
+      });
+    } else {
+      await fetch(url + "/rest/v1/inbox", {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: "Bearer " + key,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        },
+        body: JSON.stringify({ key: k, sent: sent.trim().slice(0, 500), hits: 1 })
+      });
+    }
+  } catch (e) {}
 }
 
 module.exports = async function handler(req, res) {
@@ -130,9 +165,11 @@ module.exports = async function handler(req, res) {
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
   if (bad(sent)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
 
+  remember(sent);
+  const deleted = lookup(sent);
   res.status(200).json({
     sent,
-    deleted: draft(sent),
-    temperature: "cowardly"
+    deleted: deleted || "",
+    fromBank: Boolean(deleted)
   });
 };
