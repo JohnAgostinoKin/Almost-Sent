@@ -26,10 +26,10 @@
     .hint { margin-top:10px; font-size:11px; color:#5d5a54; }
     .label { font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--mute); margin-bottom:8px; }
     .sent { color:var(--mute); font-size:15px; margin-bottom:28px; }
-    .deleted { font-size:26px; line-height:1.25; white-space:pre-wrap; }
-    .yours { margin-top:28px; font-size:13px; color:#c9c3b8; }
+    .deleted { font-size:26px; line-height:1.25; margin:0 0 18px; }
+    .yours { margin-top:12px; font-size:13px; color:#c9c3b8; }
     #write { margin-top:10px; min-height:72px; }
-    .whew { margin-top:36px; font-size:12px; letter-spacing:0.18em; color:var(--red); }
+    .whew { margin-top:20px; font-size:12px; letter-spacing:0.18em; color:var(--red); }
     .actions { display:flex; gap:8px; margin-top:28px; }
     footer { margin-top:auto; padding-top:80px; color:#4a4742; font-size:11px; max-width:440px; width:100%; }
     .examples { margin-top:72px; width:100%; max-width:440px; }
@@ -65,7 +65,7 @@
         <p class="label">the sent</p>
         <p class="sent" id="out-sent"></p>
         <p class="label">the deleted</p>
-        <p class="deleted" id="out-deleted"></p>
+        <div id="out-drafts"></div>
         <p class="whew">whew.</p>
         <p class="yours">think you could do better?</p>
         <textarea id="write" maxlength="180" placeholder="say it."></textarea>
@@ -100,11 +100,19 @@
         const data = await res.json();
         document.getElementById("sent").readOnly = true;
         document.getElementById("out-sent").textContent = data.sent || sent;
-        document.getElementById("out-deleted").textContent = data.deleted || "not this one.";
+        const box = document.getElementById("out-drafts");
+        box.innerHTML = "";
+        const drafts = data.drafts && data.drafts.length ? data.drafts : [data.deleted || "not this one."];
+        drafts.forEach(function (line) {
+          const p = document.createElement("p");
+          p.className = "deleted";
+          p.textContent = line;
+          box.appendChild(p);
+        });
         document.getElementById("write").value = "";
         document.getElementById("out").classList.remove("hidden");
         document.getElementById("examples").classList.add("hidden");
-      } catch {
+      } catch (err) {
         alert("the draft didn't come through. try again.");
       } finally {
         go.disabled = false;
