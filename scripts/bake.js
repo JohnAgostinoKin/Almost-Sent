@@ -155,6 +155,33 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Diagnostic-only: callLLM's own AbortController-based 12s timeout has been
+// observed to not fire — the underlying fetch just never settles, hanging
+// the whole run indefinitely. This is a hard outer backstop, independent of
+// that mechanism: if a model call hasn't resolved within WATCHDOG_MS, stop
+// waiting on it and record a watchdog-kill row instead so the run can keep
+// going. The abandoned promise is left to settle (or not) on its own.
+const WATCHDOG_MS = 60000;
+function withWatchdog(promise, model) {
+  let timer;
+  const watchdog = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      resolve({
+        model,
+        ok: false,
+        lines: [],
+        droppedLength: 0,
+        droppedSuspicious: 0,
+        droppedCrutch: 0,
+        latencyMs: WATCHDOG_MS,
+        note: `watchdog kill after ${WATCHDOG_MS}ms`,
+        watchdogKilled: true
+      });
+    }, WATCHDOG_MS);
+  });
+  return Promise.race([promise, watchdog]).finally(() => clearTimeout(timer));
+}
+
 // Models are called one at a time with a 1-second gap between every call,
 // never in parallel — Groq's 8000 TPM cap made parallel calls fall over
 // mid-run, and a fixed gap between sequential calls is the version of this
@@ -181,7 +208,7 @@ async function runInput(models, input) {
 
   const results = [];
   for (const model of models) {
-    results.push(await runOneModel(model, input));
+    results.push(await withWatchdog(runOneModel(model, input), model));
     await sleep(1000);
   }
   const usable = results.filter((r) => r.ok);
@@ -288,7 +315,9 @@ async function main() {
   console.log("\nwrote bake-results.md");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0)) // a watchdog-killed call may leave a fetch that never settles; don't wait on it
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
