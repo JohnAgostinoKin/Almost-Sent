@@ -101,10 +101,13 @@ const LINES = {
   "no worries": "that's a lie, everyone worries",
   "all good": "is that even possible",
   "np": "what about murphy's law",
-  "yw": "wtf"
+  "yw": "wtf",
+  "what's my name": "you already used it to disappoint me",
+  "whats my name": "you already used it to disappoint me"
 };
 
 const KEYS = [
+  { re: /what'?s my name|whats my name|my name/, line: "you already used it to disappoint me" },
   { re: /homework|assignment|essay|study/, line: "take it up with the teacher who assigned this" },
   { re: /teacher|class|school/, line: "detention starts when you hit send" },
   { re: /busy|working|at work/, line: "work is the costume for not wanting you" },
@@ -120,7 +123,6 @@ const KEYS = [
   { re: /dog|cat|pet/, line: "the animal has better boundaries" },
   { re: /tired|sleep|nap/, line: "exhaustion is the nicest way to leave" },
   { re: /rain|weather/, line: "the sky is not why you cancelled" }
-  { re: /what'?s my name|whats my name|my name/, line: "you already used it to disappoint me" },
 ];
 
 function exact(sent) {
@@ -132,7 +134,7 @@ function exact(sent) {
 }
 
 function keyword(sent) {
-  const hit = KEYS.find((k) => k.re.test(sent));
+  const hit = KEYS.find((row) => row.re.test(sent));
   return hit ? hit.line : null;
 }
 
@@ -143,13 +145,13 @@ function fromWord(sent) {
 }
 
 async function fromAi(sent) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return null;
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return null;
   try {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: "Bearer " + key,
+        Authorization: "Bearer " + groqKey,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -165,15 +167,19 @@ async function fromAi(sent) {
       })
     });
     const data = await r.json();
-    const msg = data?.choices?.[0]?.message || {};
+    const msg = data && data.choices && data.choices[0] && data.choices[0].message
+      ? data.choices[0].message
+      : {};
     let text = msg.content || "";
-    if (Array.isArray(text)) text = text.map((p) => p.text || "").join(" ");
+    if (Array.isArray(text)) {
+      text = text.map(function (part) { return part.text || ""; }).join(" ");
+    }
     text = String(text).trim().split("\n").filter(Boolean).pop() || "";
     text = text.replace(/^["']|["']$/g, "").slice(0, 90);
     const dirty = /developer|instruction|the user asks|roast the incoming|according to|system prompt|DELETED|REASON/i.test(text);
     if (!text || dirty || text.length < 3) return null;
     return text;
-  } catch (e) {
+  } catch (err) {
     return null;
   }
 }
@@ -214,37 +220,39 @@ async function remember(sent) {
         body: JSON.stringify({ key: k, sent: sent.trim().slice(0, 500), hits: 1 })
       });
     }
-  } catch (e) {}
+  } catch (err) {}
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") { res.status(200).end(); return; }
-  if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "POST only" });
+    return;
+  }
 
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
-  if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
-  if (bad(sent)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
+  if (!sent) {
+    res.status(400).json({ error: "paste a text" });
+    return;
+  }
+  if (bad(sent)) {
+    res.status(200).json({ refuse: true, deleted: "not this one." });
+    return;
+  }
 
   remember(sent);
 
   let deleted = exact(sent);
-  let source = "bank";
-  if (!deleted) {
-    deleted = keyword(sent);
-    source = deleted ? "keyword" : source;
-  }
-  if (!deleted) {
-    deleted = await fromAi(sent);
-    source = deleted ? "ai" : source;
-  }
-  if (!deleted) {
-    deleted = fromWord(sent);
-    source = "word";
-  }
+  if (!deleted) deleted = keyword(sent);
+  if (!deleted) deleted = await fromAi(sent);
+  if (!deleted) deleted = fromWord(sent);
 
-  res.status(200).json({ sent, deleted, source });
+  res.status(200).json({ sent: sent, deleted: deleted });
 };
