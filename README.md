@@ -10,14 +10,14 @@ This is fiction. It does not open anyone's phone.
 
 - `index.html` — the whole site
 - `api/draft.js` — Vercel serverless function
-- Groq for the model (free tier). No key? It still runs on built-in mocks so you can design.
+- OpenRouter for the model. No key? It still runs on built-in mocks so you can design.
 
 ## Local
 
 ```bash
 npm i -g vercel
 cp .env.example .env
-# paste GROQ_API_KEY
+# paste LLM_API_KEY
 vercel dev
 ```
 
@@ -35,7 +35,7 @@ The page will load. `/api/draft` only works with `vercel dev` or after deploy.
 
 1. Push this folder to a GitHub repo.
 2. Import the repo in Vercel.
-3. Add env var `GROQ_API_KEY`.
+3. Add env var `LLM_API_KEY` (and `LLM_MODEL` once you've picked one via `npm run bake`).
 4. In the domain registrar, point `almostsent.app` to Vercel.
 5. In Vercel → Project → Domains → add `almostsent.app`.
 

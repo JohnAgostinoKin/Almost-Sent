@@ -2,7 +2,7 @@
 
 const { norm } = require("../lib/normalize");
 const { exactMatch } = require("../lib/bank");
-const { callGroq } = require("../lib/groq");
+const { callLLM } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
 const { keywordFallback, wordFallback } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
@@ -15,12 +15,12 @@ function readBody(req) {
 }
 
 async function fromAi(sent) {
-  const key = process.env.GROQ_API_KEY;
+  const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
-  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+  const model = process.env.LLM_MODEL || "openai/gpt-oss-120b";
   try {
-    const result = await callGroq(key, model, sent);
+    const result = await callLLM(key, model, sent);
     const parsed = extractArray(result.text);
     if (!parsed) {
       if (result.finishReason === "length") return { lines: [], why: "hit token limit" };

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Runs the 30-input harness through three Groq models and writes
+// Runs the 30-input harness through three OpenRouter models and writes
 // bake-results.md. Run it three times (temperature is 1.0, so results
 // vary) and read the table yourself — this script doesn't pick a winner.
 //
-//   GROQ_API_KEY=...  npm run bake
+//   LLM_API_KEY=...  npm run bake
 //   BAKE_MODELS=a,b,c npm run bake      # override the default three models
 //
 // Requires Node 18+ (uses global fetch). No dependencies.
@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { exactMatch } = require("../lib/bank");
-const { callGroq } = require("../lib/groq");
+const { callLLM, BASE_URL } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
 const { keywordFallback, wordFallback } = require("../lib/fallback");
 
@@ -36,7 +36,7 @@ loadDotEnv();
 
 const DEFAULT_MODELS = [
   "openai/gpt-oss-120b",
-  "llama-3.3-70b-versatile",
+  "meta-llama/llama-3.3-70b-instruct",
   "qwen/qwen3-32b"
 ];
 const REQUESTED_MODELS = (process.env.BAKE_MODELS
@@ -46,42 +46,47 @@ const REQUESTED_MODELS = (process.env.BAKE_MODELS
 
 // The 30-input harness. Mixed length, every relationship type, no
 // category label passed — the model has to infer relationship from text.
+//
+// None of these may duplicate (or closely echo) a "before" example from
+// the system prompt in lib/prompt.js — the model would just be pattern
+// matching an example it was already handed the answer to, not writing
+// one. If you add an input, check it against lib/prompt.js first.
 const INPUTS = [
   "k",
   "ok",
   "lol",
   "sounds good",
   "made it home",
-  "just checking in",
-  "we should catch up soon",
-  "happy birthday!",
-  "drive safe",
-  "how are you",
+  "you around later",
+  "let's grab a coffee sometime",
+  "congrats on the promotion",
+  "text me when you land",
+  "how's it going",
   "i'm fine",
-  "no worries",
+  "all good",
   "we'll see",
   "i'll let you know",
-  "you up",
-  "miss you",
-  "love you too",
-  "sorry i've been distant",
+  "you awake",
+  "wish you were here",
+  "love ya",
+  "i haven't reached out in a while",
   "can we talk",
   "let's circle back on this",
-  "per my last email",
+  "as previously discussed",
   "thanks for your patience",
-  "it's not you it's me",
+  "this isn't working out",
   "i'm not mad",
   "do what you want",
   "get home safe",
-  "thinking of you",
+  "you crossed my mind today",
   "that was fun",
   "morning",
   "we good?"
 ];
 
-const apiKey = process.env.GROQ_API_KEY;
+const apiKey = process.env.LLM_API_KEY;
 if (!apiKey) {
-  console.error("GROQ_API_KEY is not set. Put it in .env or export it, then re-run.");
+  console.error("LLM_API_KEY is not set. Put it in .env or export it, then re-run.");
   process.exit(1);
 }
 
@@ -90,43 +95,29 @@ function md(cell) {
 }
 
 // --- model availability -------------------------------------------------
-// Groq's lineup changes. Check what's actually there today and swap in the
-// closest current equivalent for anything missing, rather than failing the
-// whole run or silently reporting errors for a model that no longer exists.
-async function resolveModels(requested) {
-  let available = null;
+// Just informational: fetch what OpenRouter currently serves and print the
+// ids so a human can set BAKE_MODELS. No substitution — swapping in a
+// "closest name match" has previously landed on a completely wrong class
+// of model (a moderation/guard model standing in for a chat model) and
+// produced results nobody should read. If a requested model turns out not
+// to exist, the call to it fails per-row like any other error and that's
+// the correct signal to go fix BAKE_MODELS.
+async function listAvailableModels() {
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/models", {
+    const res = await fetch(BASE_URL + "/models", {
       headers: { Authorization: "Bearer " + apiKey }
     });
-    if (res.ok) {
-      const data = await res.json();
-      available = new Set((data.data || []).map((m) => m.id));
-    }
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.data || []).map((m) => m.id).sort();
   } catch (err) {
-    // Can't reach the models endpoint — proceed with what was asked for
-    // and let the actual completion calls surface any problem per-row.
+    return null;
   }
-  if (!available || !available.size) return { models: requested, notes: [] };
-
-  const notes = [];
-  const resolved = requested.map((model) => {
-    if (available.has(model)) return model;
-    const tokens = model.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2);
-    let sub = [...available].find((id) => {
-      const idl = id.toLowerCase();
-      return tokens.some((t) => idl.includes(t));
-    });
-    if (!sub) sub = [...available][0];
-    notes.push(`"${model}" is not on Groq today — substituting "${sub}".`);
-    return sub;
-  });
-  return { models: resolved, notes };
 }
 
 async function runOneModel(model, input) {
   try {
-    const { text, latencyMs, finishReason } = await callGroq(apiKey, model, input);
+    const { text, latencyMs, finishReason } = await callLLM(apiKey, model, input);
     const parsed = extractArray(text);
     if (!parsed) {
       const note = finishReason === "length" ? "hit token limit" : "unparsable response";
@@ -158,6 +149,14 @@ async function runOneModel(model, input) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Models are called one at a time with a 1-second gap between every call,
+// never in parallel — Groq's 8000 TPM cap made parallel calls fall over
+// mid-run, and a fixed gap between sequential calls is the version of this
+// that keeps working regardless of which provider's limits are in play.
 async function runInput(models, input) {
   const bankHit = exactMatch(input);
   if (bankHit) {
@@ -177,7 +176,11 @@ async function runInput(models, input) {
     };
   }
 
-  const results = await Promise.all(models.map((model) => runOneModel(model, input)));
+  const results = [];
+  for (const model of models) {
+    results.push(await runOneModel(model, input));
+    await sleep(1000);
+  }
   const usable = results.filter((r) => r.ok);
 
   if (usable.length > 0) {
@@ -192,19 +195,25 @@ async function runInput(models, input) {
   return { input, results, source: "fallback", why: `word fallback: "${word}"` };
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function main() {
-  const { models: MODELS, notes: substitutions } = await resolveModels(REQUESTED_MODELS);
+  const MODELS = REQUESTED_MODELS;
+
+  const available = await listAvailableModels();
+  if (available) {
+    console.log(`${available.length} models available at ${BASE_URL}/models — set BAKE_MODELS from these:`);
+    available.forEach((id) => console.log("  " + id));
+    const missing = MODELS.filter((m) => !available.includes(m));
+    if (missing.length) {
+      console.log("");
+      missing.forEach((m) => console.log(`  ! "${m}" is not in that list — the call below will likely fail, not get substituted.`));
+    }
+  } else {
+    console.log(`couldn't fetch ${BASE_URL}/models — proceeding with the requested models as-is.`);
+  }
+  console.log("");
 
   console.log(`bake-off: ${MODELS.length} models × ${INPUTS.length} inputs`);
   console.log(MODELS.map((m, i) => `  ${["A", "B", "C"][i]}: ${m}`).join("\n"));
-  if (substitutions.length) {
-    console.log("");
-    substitutions.forEach((n) => console.log("  ! " + n));
-  }
   console.log("");
 
   const rows = [];
@@ -213,7 +222,6 @@ async function main() {
     process.stdout.write(`  [${i + 1}/${INPUTS.length}] ${input}\n`);
     const row = await runInput(MODELS, input);
     rows.push(row);
-    if (i < INPUTS.length - 1) await sleep(250); // be polite to the rate limit
   }
 
   // --- summary ----------------------------------------------------------
@@ -271,11 +279,7 @@ async function main() {
   summaryMd += `\n"k", "sounds good", and "made it home" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. The brief's "source: model on at least 28 of 30" bar is written against a 30-row harness with no bank hits; with these ${bankRows} bank rows fixed, the reachable ceiling for source: model is ${rows.length - bankRows}/${rows.length} — read the bar as model on (nearly) all of the non-bank rows, not literally 28/30.\n`;
   summaryMd += "\nTemperature is 1.0 — run this three times before deciding anything. This script does not pick a winner; read the table.\n";
 
-  const substitutionsMd = substitutions.length
-    ? "\n## Model substitutions\n\n" + substitutions.map((n) => `- ${n}`).join("\n") + "\n"
-    : "";
-
-  const out = `# bake-off results\n\nRun at ${new Date().toISOString()}\n${substitutionsMd}\n${table}${summaryMd}`;
+  const out = `# bake-off results\n\nRun at ${new Date().toISOString()}\n\n${table}${summaryMd}`;
   fs.writeFileSync(path.join(__dirname, "..", "bake-results.md"), out);
   console.log("\nwrote bake-results.md");
 }
