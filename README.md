@@ -41,7 +41,7 @@ The page will load. `/api/draft` only works with `vercel dev` or after deploy.
 
 ## Prompt quality
 
-The product lives or dies in `api/draft.js` (`SYSTEM`).
+The product lives or dies in `lib/prompt.js` (`systemPrompt`/`EXAMPLES`).
 Write 20 real texts through it before you show anyone.
 If a line sounds like therapy, change the prompt, not the page.
 
