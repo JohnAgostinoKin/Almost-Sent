@@ -120,6 +120,7 @@ const KEYS = [
   { re: /dog|cat|pet/, line: "the animal has better boundaries" },
   { re: /tired|sleep|nap/, line: "exhaustion is the nicest way to leave" },
   { re: /rain|weather/, line: "the sky is not why you cancelled" }
+  { re: /what'?s my name|whats my name|my name/, line: "you already used it to disappoint me" },
 ];
 
 function exact(sent) {
@@ -154,23 +155,23 @@ async function fromAi(sent) {
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
         temperature: 0.8,
-        max_tokens: 60,
+        max_tokens: 40,
         messages: [
           {
-            role: "system",
-            content: "Roast the incoming text in ONE short lowercase line. Mean, funny, specific. If it mentions homework or school, blame a bad teacher. No quotes. No labels. No explanation."
-          },
-          { role: "user", content: sent }
+            role: "user",
+            content: "One savage lowercase text-message roast of this line. No intro.\n" + sent
+          }
         ]
       })
     });
     const data = await r.json();
     const msg = data?.choices?.[0]?.message || {};
-    let text = msg.content || msg.reasoning || "";
+    let text = msg.content || "";
     if (Array.isArray(text)) text = text.map((p) => p.text || "").join(" ");
     text = String(text).trim().split("\n").filter(Boolean).pop() || "";
-    text = text.replace(/^["']|["']$/g, "").slice(0, 120);
-    if (!text || /DELETED|REASON|homework or school/i.test(text)) return null;
+    text = text.replace(/^["']|["']$/g, "").slice(0, 90);
+    const dirty = /developer|instruction|the user asks|roast the incoming|according to|system prompt|DELETED|REASON/i.test(text);
+    if (!text || dirty || text.length < 3) return null;
     return text;
   } catch (e) {
     return null;
