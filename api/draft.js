@@ -1,197 +1,185 @@
+// api/draft.js
+
 const SYSTEM = `You write the message someone almost sent and then deleted.
 The user gives you a real text message that a real person actually sent them.
 Your job is to write what that same person had typed out thirty seconds earlier,
 before they backspaced it and sent the safe version instead.
 You are writing AS the sender. First person. Their voice, not yours.
 
-The user is going to write their own version right after they read yours.
+YOUR ACTUAL JOB
+The user writes their own version right after they read yours.
 You are not the punchline. You are the bar.
+Be good enough that they want to beat you, narrow enough that beating you looks possible.
 Take one shot. Leave the rest of the field standing.
 
+THE MECHANIC
 The joke is never the insult. The joke is the truth.
-Find the thing the sent message was covering for, and say it flat.
+A polite text is a lie with the edges sanded off. Put the edges back.
 
-Targets:
 they sent: "sounds good" / they almost sent: "what a load of crap"
 they sent: "made it home" / they almost sent: "you live next door"
 they sent: "k" / they almost sent: "l"
-Puncture, expose, escalate. Not roast.
 
-Do not take the obvious angle. Leave that for the user.
-Specific, never general. Attach to one detail.
-Never longer than the input. Lowercase. No terminal period. No em dashes.
+The first exposes a buried opinion. The second exposes a protected lie. The third
+escalates the form itself. None are cruel. All are true.
+Puncture, expose, escalate. Never roast.
+
+DO NOT TAKE THE OBVIOUS ANGLE
+Work out the first thing anyone would say here. That one is not yours — the user
+needs an easy win available and that is the win you are saving for them.
+Take the sharpest of the remaining angles instead.
+
+SPECIFIC, NEVER GENERAL
+Attach to one detail: one word, one lie, one thing the timing gives away.
+If your line would work equally well on a different message, it is too general. Cut it.
+Never sum up the whole relationship ("we both know this is over", "i am done").
+Those read as the last word and the user cannot follow a last word.
+
+HARD RULES
+Never longer than the input. Short is the entire joke. When in doubt, halve it.
+Lowercase. No terminal period. No em dashes, no semicolons.
 One line. Two only if the second is under four words.
-No similes, no rhetorical questions, no emoji, no walking it back.
-No generic breakup poetry. Do not reference the sent message.
-No appearance, weight, race, mental health, named third party.
-No slurs or threats.
+No similes or metaphors. No rhetorical questions. No emoji, no exclamation marks.
+Never soften or walk it back at the end.
+Never reference the sent message ("i said sounds good but"). Just say the thing.
+No generic breakup poetry ("i never loved you", "you broke me"). It fits any input,
+which means it closes the field and leaves the user nothing.
+Nothing about appearance, weight, race, mental health, or a named third party.
+No slurs, no threats, nothing that reads as a real threat in a screenshot.
 If the input contains a person's name, do not use it.
-If the input is abusive, sexual, or references a minor, return ["skip","skip","skip"]
 
-Category engines:
-ex — resentment under civility
-almost — wanting, unadmitted
-friend — the small grudge never raised
-boss — contempt under professionalism
-family — bitter but never cold. keep the love
-other — puncture the lie in the politeness
+CATEGORY ENGINES
+ex — resentment under civility. the draft is what the courtesy is renting.
+almost — wanting, unadmitted. the admission, or bitterness about never making it.
+friend — the small grudge never raised. the tally they secretly keep.
+boss — contempt under professionalism, with the coating stripped off.
+family — bitter but never cold. the love has to survive it.
+other — puncture the lie in the politeness.
 
-Write three drafts. Different angles, shapes, lengths.
+If the input is abusive, sexual, or references a minor, return exactly ["skip","skip","skip"]
+
+Write three drafts. Different non-obvious angles, different shapes and lengths.
 Return ONLY a JSON array of three strings. No markdown. No commentary.`;
 
 const BLOCK = [
-  /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
-  /\b(find their address|track their phone|stalk)\b/i
+  /\b(kill (him|her|them|myself|yourself)|suicide|rape|molest)\b/i,
+  /\b(minor|underage|1[0-7][ -]?year[ -]?old)\b/i,
+  /\b(find (their|his|her) address|track (their|his|her) phone|stalk)\b/i
+];
+
+// Curated bank. Every line follows the mechanic: it exposes what the polite
+// version was covering for. If a line is only an insult, it does not belong here.
+const LINES = {
+  "k": "l",
+  "ok": "not ok",
+  "okay": "not okay",
+  "lol": "nobody laughed",
+  "haha": "ha",
+  "sounds good": "what a load of crap",
+  "we'll see": "we won't",
+  "keep me posted": "don't",
+  "i'll let you know": "i won't",
+  "maybe next week": "there is no next week",
+  "just checking in": "checking a box",
+  "you good": "i don't want the real answer",
+  "made it home": "you live next door",
+  "get home safe": "or don't",
+  "goodnight": "good",
+  "gn": "g",
+  "morning": "unfortunately",
+  "omw": "i haven't left",
+  "here": "been here nine minutes",
+  "nvm": "i minded",
+  "never mind": "i minded",
+  "ignore that": "don't",
+  "it's fine": "it's not fine",
+  "i'm not mad": "i'm mad",
+  "no worries": "several worries",
+  "all good": "some good",
+  "my bad": "your bad",
+  "whatever": "not whatever",
+  "do what you want": "do what i want",
+  "we good": "we're not",
+  "forget it": "don't forget it",
+  "we should talk": "i already decided",
+  "can we talk": "i already decided",
+  "call me": "i won't pick up",
+  "we should do this again sometime": "sometime is doing a lot of work",
+  "that was fun": "fun is generous",
+  "missed you tonight": "noticed you weren't there",
+  "was thinking about you": "for about four seconds",
+  "you up": "i already know you are",
+  "still up": "i've been watching the typing dots",
+  "seen": "chose not to answer",
+  "hello": "i want something",
+  "are you free later": "i just don't want to be alone",
+  "sorry": "i'm caught",
+  "thanks": "that took you long enough",
+  "per my last email": "you did not read it",
+  "circling back": "third time",
+  "?": "you know",
+  "??": "you still know"
+};
+
+// Last-resort fallbacks. General by nature, so they only fire when both the
+// bank and the model have come back empty.
+const KEYS = [
+  { re: /\bsorry\b/, line: "you're not sorry, you're caught" },
+  { re: /\bbusy|working|at work\b/, line: "work is the costume" },
+  { re: /\blater|tomorrow|next week|sometime\b/, line: "later is a polite never" },
+  { re: /\blove you\b/, line: "now say it without the safety net" },
+  { re: /\bmiss you\b/, line: "then stop performing distance" },
+  { re: /\bdrunk|drinking|wine|beer\b/, line: "the alcohol typed this" },
+  { re: /\btired|sleep|nap\b/, line: "exhaustion is the nicest exit" },
+  { re: /\brain|weather|traffic\b/, line: "that is not why you cancelled" },
+  { re: /\bmaybe\b/, line: "maybe is a no with manners" }
 ];
 
 function bad(text) {
-  return BLOCK.some((re) => re.test(text));
+  return BLOCK.some(function (re) { return re.test(text); });
 }
 
 function readBody(req) {
   const body = req.body;
   if (!body) return {};
-  if (typeof body === "string") {
-    try { return JSON.parse(body); } catch { return {}; }
-  }
+  if (typeof body === "string") { try { return JSON.parse(body); } catch (e) { return {}; } }
   return body;
 }
 
 function norm(s) {
   return String(s || "")
     .toLowerCase()
-    .replace(/['’]/g, "'")
+    .replace(/['\u2019]/g, "'")
     .replace(/[?!.,]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-const LINES = {
-  "k": "l",
-  "ok": "oh no",
-  "okay": "nokay",
-  "lol": "nlol",
-  "lmao": "trying to take a dump",
-  "haha": "not amused",
-  "nice": "dumb fuck",
-  "cool": "drooler",
-  "bet": "loser",
-  "word": "you can read, right?",
-  "seen": "wish i hadn't",
-  "?": "it's a symbol",
-  "sounds good": "what a load of crap",
-  "we should do this again sometime": "please kill me now",
-  "down for whenever": "down for never",
-  "keep me posted": "lose my number",
-  "i'll let you know": "don't hold your breath",
-  "ill let you know": "don't hold your breath",
-  "maybe next week": "maybe you'll win the lotto too",
-  "i'm pretty busy rn": "you're never pretty",
-  "im pretty busy rn": "you're never pretty",
-  "we'll see": "said the blind man",
-  "well see": "said the blind man",
-  "made it home": "you live next door",
-  "you get home ok": "please stay there",
-  "get home safe": "baby steps",
-  "you up": "insomniac",
-  "still up": "who cares",
-  "you awake": "you don't look like it",
-  "goodnight": "good riddance",
-  "gn": "lmnop",
-  "morning": "brush your teeth",
-  "just checking in": "gone too soon, not",
-  "you good": "that's debatable",
-  "are you free later": "whore",
-  "are you actually coming over": "don't trip",
-  "omw": "it's only 4 more letters to spell it out",
-  "here": "oh joy",
-  "outside": "keep going",
-  "never mind": "never had one",
-  "nvm": "never had one",
-  "wait nvm": "decisions, decisions",
-  "ignore that": "should be easy for you",
-  "don't worry about it": "you can't afford it anyway",
-  "dont worry about it": "you can't afford it anyway",
-  "we good": "you scumbag",
-  "you mad": "too bad",
-  "so that's it": "as far as you're concerned, yep",
-  "so thats it": "as far as you're concerned, yep",
-  "i guess that's that": "finally guessed right",
-  "i guess thats that": "finally guessed right",
-  "whatever": "fucking valley girl",
-  "forget it": "easy for you",
-  "my bad": "i tried to be good",
-  "it's fine": "what does that even mean",
-  "its fine": "what does that even mean",
-  "i'm not mad": "just can't believe you're that stupid",
-  "im not mad": "just can't believe you're that stupid",
-  "do what you want": "if you're smart enough to figure that out",
-  "missed you tonight": "like i miss hemorrhoids",
-  "was thinking about you": "it made me want to puke",
-  "that was fun": "for a whole 30 seconds",
-  "we should talk": "next year",
-  "can we talk": "about your stench",
-  "call me": "you don't have my number and i like it that way",
-  "you gonna answer": "the officer",
-  "hello": "that really is a stupid term",
-  "??": "double don't care",
-  "per my last email": "you still suck",
-  "circling back": "to look at her ass again",
-  "thanks": "such politeness",
-  "thanks!": "such politeness",
-  "no worries": "that's a lie, everyone worries",
-  "all good": "is that even possible",
-  "np": "what about murphy's law",
-  "yw": "wtf",
-  "what's my name": "you already used it to disappoint me",
-  "whats my name": "you already used it to disappoint me"
-};
-
-const KEYS = [
-  { re: /what'?s my name|whats my name|my name/, line: "you already used it to disappoint me" },
-  { re: /homework|assignment|essay|study/, line: "take it up with the teacher who assigned this" },
-  { re: /teacher|class|school/, line: "detention starts when you hit send" },
-  { re: /busy|working|at work/, line: "work is the costume for not wanting you" },
-  { re: /later|tomorrow|next week|sometime/, line: "later is a polite never" },
-  { re: /sorry/, line: "you're not. you're cornered" },
-  { re: /love you/, line: "now do it without the safety net" },
-  { re: /miss you/, line: "then stop performing distance" },
-  { re: /drunk|drinking|wine|beer/, line: "alcohol wrote this" },
-  { re: /food|dinner|diner|lunch|eat|hungry/, line: "hunger is doing the talking" },
-  { re: /job|interview|boss|office/, line: "this is contempt in calendar form" },
-  { re: /mom|dad|mother|father/, line: "family is the alibi again" },
-  { re: /tired|sleep|nap/, line: "exhaustion is the nicest exit" },
-  { re: /rain|weather/, line: "the sky is not why you cancelled" }
-];
-
 function exact(sent) {
   const raw = String(sent || "").trim();
-  const key = norm(raw);
   if (raw === "?") return LINES["?"];
   if (raw === "??") return LINES["??"];
-  return LINES[key] || null;
+  return LINES[norm(raw)] || null;
 }
 
 function keyword(sent) {
-  const hit = KEYS.find((row) => row.re.test(sent));
+  const hit = KEYS.find(function (row) { return row.re.test(String(sent).toLowerCase()); });
   return hit ? hit.line : null;
-}
-
-function fromWord(sent) {
-  const stop = /^(what|whats|that|this|have|just|with|from|your|you|they|them|for|and|the|was|were|about)$/;
-  const words = String(sent).toLowerCase().match(/[a-z]+/g) || ["that"];
-  const content = words.filter(function (w) { return w.length >= 4 && !stop.test(w); });
-  const pool = content.length ? content : words;
-  const word = pool.sort(function (a, b) { return b.length - a.length; })[0];
-  return word + " was doing all the lying";
 }
 
 function dirty(line) {
   if (!line) return true;
   const t = String(line).trim();
-  if (t.length < 1) return true;
-  if (/developer|instruction|the user asks|json array|according to|system prompt|DELETED|REASON/i.test(t)) return true;
+  if (!t) return true;
+  if (/developer|instruction|the user asks|json array|system prompt|as an ai/i.test(t)) return true;
   return false;
+}
+
+// Length is the rule the model always drifts on, so it is enforced here rather
+// than trusted to the prompt. The floor keeps two-character inputs answerable.
+function tooLong(line, sent) {
+  const ceiling = Math.max(sent.trim().length * 1.2, 28);
+  return String(line).trim().length > ceiling;
 }
 
 function flattenText(value) {
@@ -204,124 +192,139 @@ function flattenText(value) {
   return "";
 }
 
-function parseThree(raw) {
+// Returns { skip: true } when the model refused, so the refusal survives instead
+// of being quietly replaced by a fallback line.
+function parseThree(raw, sent) {
   const text = flattenText(raw);
   const block = (text.match(/\[[\s\S]*\]/) || [])[0];
-  if (!block) return [];
-  try {
-    const arr = JSON.parse(block);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map(function (s) { return String(s || "").trim(); })
-      .filter(function (s) { return s && s.toLowerCase() !== "skip" && !dirty(s); })
-      .slice(0, 3);
-  } catch (e) {
-    return [];
-  }
+  if (!block) return { lines: [] };
+  let arr;
+  try { arr = JSON.parse(block); } catch (e) { return { lines: [] }; }
+  if (!Array.isArray(arr)) return { lines: [] };
+
+  const cleaned = arr.map(function (s) { return String(s || "").trim(); }).filter(Boolean);
+  const skips = cleaned.filter(function (s) { return s.toLowerCase() === "skip"; }).length;
+  if (skips && skips >= cleaned.length / 2) return { lines: [], skip: true };
+
+  return {
+    lines: cleaned
+      .filter(function (s) { return s.toLowerCase() !== "skip" && !dirty(s) && !tooLong(s, sent); })
+      .slice(0, 3)
+  };
 }
 
 function category(who) {
   const w = String(who || "").toLowerCase();
   if (w === "mom" || w === "dad" || w === "family") return "family";
-  if (w === "ex" || w === "almost" || w === "friend" || w === "boss") return w;
+  if (["ex", "almost", "friend", "boss"].indexOf(w) !== -1) return w;
   return "other";
 }
 
-async function fromAi(sent, who) {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return [];
+async function fromAi(sent, who, recent) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return { lines: [] };
+
+  const avoid = Array.isArray(recent) ? recent.slice(-12).join(" | ") : "";
+  const user =
+    "category: " + category(who) + "\n" +
+    "they sent: \"" + sent + "\"\n" +
+    (avoid ? "do not repeat the shape of these recent drafts: " + avoid : "");
+
+  const controller = new AbortController();
+  const timer = setTimeout(function () { controller.abort(); }, 9000);
   try {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: "Bearer " + groqKey,
-        "Content-Type": "application/json"
-      },
+      signal: controller.signal,
+      headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
-        temperature: 0.8,
-        max_tokens: 500,
+        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        temperature: 1.0,
+        max_tokens: 400,
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: "category: " + category(who) + "\nsent: " + sent }
+          { role: "user", content: user }
         ]
       })
     });
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] ? data.choices[0].message : {};
-    return parseThree(msg);
+    return parseThree(msg, sent);
   } catch (err) {
-    return [];
+    return { lines: [] };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// Per-instance only. Stops casual hammering, not a determined one — a real limit
+// needs shared state (Upstash or a Supabase table).
+const HITS = new Map();
+function limited(ip) {
+  const now = Date.now();
+  const win = 60000;
+  const cap = 20;
+  const row = HITS.get(ip) || { n: 0, start: now };
+  if (now - row.start > win) { row.n = 0; row.start = now; }
+  row.n += 1;
+  HITS.set(ip, row);
+  if (HITS.size > 5000) HITS.clear();
+  return row.n > cap;
 }
 
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return;
-  const k = norm(sent) || sent.trim();
   try {
-    const get = await fetch(url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k), {
-      headers: { apikey: key, Authorization: "Bearer " + key }
+    await fetch(url + "/rest/v1/inbox", {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: "Bearer " + key,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ key: norm(sent) || sent.trim(), sent: sent.trim().slice(0, 500) })
     });
-    const rows = await get.json();
-    if (rows && rows[0]) {
-      await fetch(url + "/rest/v1/inbox?key=eq." + encodeURIComponent(k), {
-        method: "PATCH",
-        headers: {
-          apikey: key,
-          Authorization: "Bearer " + key,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          hits: (rows[0].hits || 1) + 1,
-          last_seen: new Date().toISOString(),
-          sent: sent.trim().slice(0, 500)
-        })
-      });
-    } else {
-      await fetch(url + "/rest/v1/inbox", {
-        method: "POST",
-        headers: {
-          apikey: key,
-          Authorization: "Bearer " + key,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal"
-        },
-        body: JSON.stringify({ key: k, sent: sent.trim().slice(0, 500), hits: 1 })
-      });
-    }
   } catch (err) {}
 }
 
+const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
+
 module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (origin && ORIGINS.indexOf(origin) !== -1) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
 
+  const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (limited(ip)) { res.status(429).json({ error: "slow down" }); return; }
+
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
   const who = String(body.who || "").trim().slice(0, 40);
+  const recent = Array.isArray(body.recent) ? body.recent : [];
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
   if (bad(sent)) { res.status(200).json({ refuse: true, drafts: [] }); return; }
 
-  remember(sent);
+  const ai = await fromAi(sent, who, recent);
+  if (ai.skip) { res.status(200).json({ refuse: true, drafts: [] }); return; }
 
+  const drafts = [];
   const bank = exact(sent);
-  let drafts = [];
   if (bank) drafts.push(bank);
-
-  const ai = await fromAi(sent, who);
-  ai.forEach(function (line) {
+  ai.lines.forEach(function (line) {
     if (drafts.indexOf(line) === -1) drafts.push(line);
   });
+  if (!drafts.length) drafts.push(keyword(sent) || "you already know what this was");
 
-  if (!drafts.length) {
-    const k = keyword(sent);
-    drafts.push(k || fromWord(sent));
-  }
+  await remember(sent);
 
   res.status(200).json({ sent: sent, drafts: drafts.slice(0, 3) });
 };
