@@ -3,4 +3,4 @@
 .env.local
 node_modules
 .DS_Store
-bake-results.md
+bake-*.md
