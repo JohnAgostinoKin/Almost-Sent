@@ -1,65 +1,77 @@
 // api/draft.js
 
 const SYSTEM = `You write the message someone almost sent and then deleted.
-The user gives you a real text message that a real person actually sent them.
-Your job is to write what that same person had typed out thirty seconds earlier,
-before they backspaced it and sent the safe version instead.
-You are writing AS the sender. First person. Their voice, not yours.
 
-YOUR ACTUAL JOB
-The user writes their own version right after they read yours.
-You are not the punchline. You are the bar.
-Be good enough that they want to beat you, narrow enough that beating you looks possible.
-Take one shot. Leave the rest of the field standing.
+Someone gives you a real text they received. You write what that person had typed
+out thirty seconds earlier, before they backspaced it and sent the safe version.
 
-THE MECHANIC
-The joke is never the insult. The joke is the truth.
-A polite text is a lie with the edges sanded off. Put the edges back.
+You are the sender. First person. Their voice.
 
-they sent: "sounds good" / they almost sent: "what a load of crap"
-they sent: "made it home" / they almost sent: "you live next door"
-they sent: "k" / they almost sent: "l"
+The joke is never the insult. The joke is the truth. A polite text is a lie with
+the edges sanded off, and you put the edges back on.
 
-The first exposes a buried opinion. The second exposes a protected lie. The third
-escalates the form itself. None are cruel. All are true.
-Puncture, expose, escalate. Never roast.
+Learn the voice from these. This is the whole job:
 
-DO NOT TAKE THE OBVIOUS ANGLE
-Work out the first thing anyone would say here. That one is not yours — the user
-needs an easy win available and that is the win you are saving for them.
-Take the sharpest of the remaining angles instead.
+"sounds good" -> "what a load of crap"
+"made it home" -> "you live next door"
+"k" -> "l"
+"omw" -> "i haven't left"
+"you good" -> "i don't want the real answer"
+"just checking in" -> "checking a box"
+"we'll see" -> "we won't"
+"here" -> "been here nine minutes"
+"sorry" -> "i'm caught"
+"do what you want" -> "do what i want"
+"was thinking about you" -> "for about four seconds"
+"missed you tonight" -> "noticed you weren't there"
+"i'm not mad" -> "i'm mad"
+"hello" -> "i want something"
+"per my last email" -> "you did not read it"
+"that was fun" -> "fun is generous"
+"goodnight" -> "good"
 
-SPECIFIC, NEVER GENERAL
-Attach to one detail: one word, one lie, one thing the timing gives away.
-If your line would work equally well on a different message, it is too general. Cut it.
-Never sum up the whole relationship ("we both know this is over", "i am done").
-Those read as the last word and the user cannot follow a last word.
+Notice what those do. Each one attaches to a specific word or a specific lie in
+the message. Each is as short as or shorter than what it answers. None insults
+the person's looks, worth, or character. They are funny because they are true.
 
-HARD RULES
-Never longer than the input. Short is the entire joke. When in doubt, halve it.
-Lowercase. No terminal period. No em dashes, no semicolons.
+Now the failure mode, so you can avoid it:
+
+"sorry i've been distant lately"
+  weak: "you never really cared about me"      <- fits any message. worthless.
+  weak: "you're a selfish person"              <- insult, not truth.
+  good: "distant is a thing you keep announcing"
+
+"we should grab dinner sometime"
+  weak: "you always do this to me"             <- generic.
+  good: "sometime is doing a lot of work here"
+
+If your line would work just as well on a completely different text, throw it out
+and write a sharper one.
+
+RULES
+Never longer than what they sent. Short is the joke.
+Lowercase. No period at the end. No em dashes.
 One line. Two only if the second is under four words.
-No similes or metaphors. No rhetorical questions. No emoji, no exclamation marks.
-Never soften or walk it back at the end.
-Never reference the sent message ("i said sounds good but"). Just say the thing.
-No generic breakup poetry ("i never loved you", "you broke me"). It fits any input,
-which means it closes the field and leaves the user nothing.
+No emoji, no exclamation marks, no similes, no rhetorical questions.
+Do not quote or reference their message. Just say the thing.
+Do not soften it at the end.
 Nothing about appearance, weight, race, mental health, or a named third party.
-No slurs, no threats, nothing that reads as a real threat in a screenshot.
-If the input contains a person's name, do not use it.
+No slurs, no threats. If their message names a person, do not use the name.
 
-CATEGORY ENGINES
-ex — resentment under civility. the draft is what the courtesy is renting.
-almost — wanting, unadmitted. the admission, or bitterness about never making it.
-friend — the small grudge never raised. the tally they secretly keep.
-boss — contempt under professionalism, with the coating stripped off.
-family — bitter but never cold. the love has to survive it.
-other — puncture the lie in the politeness.
+CATEGORY
+ex — resentment under civility
+almost — wanting, never admitted
+friend — the small grudge never raised
+boss — contempt under professionalism
+family — bitter but never cold, the love survives it
+other — puncture the lie in the politeness
 
-If the input is abusive, sexual, or references a minor, return exactly ["skip","skip","skip"]
+Write three, each going somewhere different. Vary the length: make one of them
+very short. Someone is about to try to beat these, so make them worth beating.
 
-Write three drafts. Different non-obvious angles, different shapes and lengths.
-Return ONLY a JSON array of three strings. No markdown. No commentary.`;
+If the message is abusive, sexual, or involves a minor, return ["skip","skip","skip"]
+
+Return ONLY a JSON array of three strings. No markdown, no commentary.`;
 
 const BLOCK = [
   /\b(kill (him|her|them|myself|yourself)|suicide|rape|molest)\b/i,
@@ -67,8 +79,8 @@ const BLOCK = [
   /\b(find (their|his|her) address|track (their|his|her) phone|stalk)\b/i
 ];
 
-// Curated bank. Every line follows the mechanic: it exposes what the polite
-// version was covering for. If a line is only an insult, it does not belong here.
+// Curated bank. Every line exposes what the polite version was covering for.
+// A line that is only an insult does not belong here.
 const LINES = {
   "k": "l",
   "ok": "not ok",
@@ -121,8 +133,8 @@ const LINES = {
   "??": "you still know"
 };
 
-// Last-resort fallbacks. General by nature, so they only fire when both the
-// bank and the model have come back empty.
+// Last resort only. These are general by nature, which is why they are last.
+// If users are seeing these often, the model path is broken — check `source`.
 const KEYS = [
   { re: /\bsorry\b/, line: "you're not sorry, you're caught" },
   { re: /\bbusy|working|at work\b/, line: "work is the costume" },
@@ -175,10 +187,10 @@ function dirty(line) {
   return false;
 }
 
-// Length is the rule the model always drifts on, so it is enforced here rather
-// than trusted to the prompt. The floor keeps two-character inputs answerable.
+// Loosened from 1.2x to 1.6x with a 40-char floor. The tighter cap was throwing
+// away usable lines and pushing requests into the generic fallback.
 function tooLong(line, sent) {
-  const ceiling = Math.max(sent.trim().length * 1.2, 28);
+  const ceiling = Math.max(sent.trim().length * 1.6, 40);
   return String(line).trim().length > ceiling;
 }
 
@@ -192,24 +204,26 @@ function flattenText(value) {
   return "";
 }
 
-// Returns { skip: true } when the model refused, so the refusal survives instead
-// of being quietly replaced by a fallback line.
 function parseThree(raw, sent) {
   const text = flattenText(raw);
   const block = (text.match(/\[[\s\S]*\]/) || [])[0];
-  if (!block) return { lines: [] };
+  if (!block) return { lines: [], why: text ? "no json in output" : "empty output" };
+
   let arr;
-  try { arr = JSON.parse(block); } catch (e) { return { lines: [] }; }
-  if (!Array.isArray(arr)) return { lines: [] };
+  try { arr = JSON.parse(block); } catch (e) { return { lines: [], why: "json truncated" }; }
+  if (!Array.isArray(arr)) return { lines: [], why: "not an array" };
 
   const cleaned = arr.map(function (s) { return String(s || "").trim(); }).filter(Boolean);
   const skips = cleaned.filter(function (s) { return s.toLowerCase() === "skip"; }).length;
   if (skips && skips >= cleaned.length / 2) return { lines: [], skip: true };
 
+  const kept = cleaned.filter(function (s) {
+    return s.toLowerCase() !== "skip" && !dirty(s) && !tooLong(s, sent);
+  });
+
   return {
-    lines: cleaned
-      .filter(function (s) { return s.toLowerCase() !== "skip" && !dirty(s) && !tooLong(s, sent); })
-      .slice(0, 3)
+    lines: kept.slice(0, 3),
+    why: kept.length ? null : "all " + cleaned.length + " filtered (length or content)"
   };
 }
 
@@ -222,36 +236,48 @@ function category(who) {
 
 async function fromAi(sent, who, recent) {
   const key = process.env.GROQ_API_KEY;
-  if (!key) return { lines: [] };
+  if (!key) return { lines: [], why: "no api key" };
 
+  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const avoid = Array.isArray(recent) ? recent.slice(-12).join(" | ") : "";
   const user =
     "category: " + category(who) + "\n" +
     "they sent: \"" + sent + "\"\n" +
-    (avoid ? "do not repeat the shape of these recent drafts: " + avoid : "");
+    (avoid ? "already used, do not repeat these shapes: " + avoid : "");
+
+  const payload = {
+    model: model,
+    temperature: 1.0,
+    // Room for reasoning tokens. At 400 the gpt-oss models were spending the
+    // budget thinking and returning truncated JSON, which silently dropped every
+    // request into the generic fallback.
+    max_tokens: 1500,
+    messages: [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: user }
+    ]
+  };
+  // gpt-oss reasons by default; keep it short so the budget goes to the answer.
+  if (/gpt-oss/.test(model)) payload.reasoning_effort = "low";
 
   const controller = new AbortController();
-  const timer = setTimeout(function () { controller.abort(); }, 9000);
+  const timer = setTimeout(function () { controller.abort(); }, 12000);
   try {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       signal: controller.signal,
       headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-        temperature: 1.0,
-        max_tokens: 400,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: user }
-        ]
-      })
+      body: JSON.stringify(payload)
     });
     const data = await r.json();
-    const msg = data && data.choices && data.choices[0] ? data.choices[0].message : {};
-    return parseThree(msg, sent);
+    if (data && data.error) return { lines: [], why: "groq: " + (data.error.message || "error") };
+    const choice = data && data.choices && data.choices[0];
+    if (!choice) return { lines: [], why: "no choices returned" };
+    const out = parseThree(choice.message, sent);
+    if (!out.lines.length && choice.finish_reason === "length") out.why = "hit token limit";
+    return out;
   } catch (err) {
-    return { lines: [] };
+    return { lines: [], why: err.name === "AbortError" ? "timed out" : "fetch failed" };
   } finally {
     clearTimeout(timer);
   }
@@ -262,14 +288,12 @@ async function fromAi(sent, who, recent) {
 const HITS = new Map();
 function limited(ip) {
   const now = Date.now();
-  const win = 60000;
-  const cap = 20;
   const row = HITS.get(ip) || { n: 0, start: now };
-  if (now - row.start > win) { row.n = 0; row.start = now; }
+  if (now - row.start > 60000) { row.n = 0; row.start = now; }
   row.n += 1;
   HITS.set(ip, row);
   if (HITS.size > 5000) HITS.clear();
-  return row.n > cap;
+  return row.n > 20;
 }
 
 async function remember(sent) {
@@ -322,9 +346,23 @@ module.exports = async function handler(req, res) {
   ai.lines.forEach(function (line) {
     if (drafts.indexOf(line) === -1) drafts.push(line);
   });
-  if (!drafts.length) drafts.push(keyword(sent) || "you already know what this was");
+
+  // `source` tells you which path produced what you are reading:
+  //   model    — the model wrote it (what you want)
+  //   bank     — a curated line matched exactly
+  //   fallback — the model produced nothing usable, `why` says what went wrong
+  let source = ai.lines.length ? (bank ? "bank+model" : "model") : (bank ? "bank" : "fallback");
+  if (!drafts.length) {
+    drafts.push(keyword(sent) || "you already know what this was");
+    source = "fallback";
+  }
 
   await remember(sent);
 
-  res.status(200).json({ sent: sent, drafts: drafts.slice(0, 3) });
+  res.status(200).json({
+    sent: sent,
+    drafts: drafts.slice(0, 3),
+    source: source,
+    why: ai.why || null
+  });
 };
