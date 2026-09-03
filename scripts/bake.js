@@ -121,12 +121,12 @@ async function runOneModel(model, input) {
     const parsed = extractArray(text);
     if (!parsed) {
       const note = finishReason === "length" ? "hit token limit" : "unparsable response";
-      return { model, ok: false, lines: [], droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, latencyMs, note };
+      return { model, ok: false, lines: [], droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, latencyMs, note };
     }
     if (isRefusal(parsed)) {
-      return { model, ok: false, refused: true, lines: [], droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, latencyMs, note: "refused" };
+      return { model, ok: false, refused: true, lines: [], droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, latencyMs, note: "refused" };
     }
-    const { kept, droppedLength, droppedSuspicious, droppedCrutch, droppedWall } = filterLines(parsed, input);
+    const { kept, droppedLength, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii } = filterLines(parsed, input);
     return {
       model,
       ok: kept.length > 0,
@@ -134,7 +134,7 @@ async function runOneModel(model, input) {
       droppedLength,
       droppedSuspicious,
       droppedCrutch,
-      droppedWall,
+      droppedWall, droppedAscii,
       latencyMs,
       note: kept.length ? "" : "all lines dropped"
     };
@@ -146,7 +146,7 @@ async function runOneModel(model, input) {
       droppedLength: 0,
       droppedSuspicious: 0,
       droppedCrutch: 0,
-      droppedWall: 0,
+      droppedWall: 0, droppedAscii: 0,
       latencyMs: err.latencyMs || 0,
       note: `error: ${err.message}`
     };
@@ -175,7 +175,7 @@ function withWatchdog(promise, model) {
         droppedLength: 0,
         droppedSuspicious: 0,
         droppedCrutch: 0,
-        droppedWall: 0,
+        droppedWall: 0, droppedAscii: 0,
         latencyMs: WATCHDOG_MS,
         note: `watchdog kill after ${WATCHDOG_MS}ms`,
         watchdogKilled: true
@@ -201,7 +201,7 @@ async function runInput(models, input) {
         droppedLength: 0,
         droppedSuspicious: 0,
         droppedCrutch: 0,
-        droppedWall: 0,
+        droppedWall: 0, droppedAscii: 0,
         latencyMs: 0,
         note: "bank hit — model not called"
       })),
@@ -260,7 +260,7 @@ async function main() {
 
   // --- summary ----------------------------------------------------------
   const summary = {};
-  for (const model of MODELS) summary[model] = { fallback: 0, droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, latencies: [] };
+  for (const model of MODELS) summary[model] = { fallback: 0, droppedLength: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, latencies: [] };
 
   for (const row of rows) {
     for (const r of row.results) {
@@ -269,6 +269,7 @@ async function main() {
       s.droppedSuspicious += r.droppedSuspicious || 0;
       s.droppedCrutch += r.droppedCrutch || 0;
       s.droppedWall += r.droppedWall || 0;
+      s.droppedAscii += r.droppedAscii || 0;
       if (r.latencyMs) s.latencies.push(r.latencyMs);
       if (!r.ok) s.fallback++;
     }
@@ -281,7 +282,7 @@ async function main() {
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
     console.log(
-      `${model}: ${s.fallback}/${rows.length} fell back, ${s.droppedLength} lines dropped for length, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, avg latency ${avg}ms`
+      `${model}: ${s.fallback}/${rows.length} fell back, ${s.droppedLength} lines dropped for length, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, avg latency ${avg}ms`
     );
   }
   const bankRows = rows.filter((r) => r.source === "bank").length;
@@ -303,13 +304,13 @@ async function main() {
   }
 
   let summaryMd = "\n## Summary\n\n";
-  summaryMd += "| model | fallback rows | dropped (length) | dropped (suspicious) | dropped (crutch) | dropped (wall) | avg latency |\n|---|---|---|---|---|---|---|\n";
+  summaryMd += "| model | fallback rows | dropped (length) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | avg latency |\n|---|---|---|---|---|---|---|---|\n";
   for (const model of MODELS) {
     const s = summary[model];
     const avg = s.latencies.length
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
-    summaryMd += `| ${model} | ${s.fallback}/${rows.length} | ${s.droppedLength} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${avg}ms |\n`;
+    summaryMd += `| ${model} | ${s.fallback}/${rows.length} | ${s.droppedLength} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${avg}ms |\n`;
   }
   summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **fallback** ${fallbackRows}.\n`;
   summaryMd += `\n"k", "sounds good", and "made it home" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. The brief's "source: model on at least 28 of 30" bar is written against a 30-row harness with no bank hits; with these ${bankRows} bank rows fixed, the reachable ceiling for source: model is ${rows.length - bankRows}/${rows.length} — read the bar as model on (nearly) all of the non-bank rows, not literally 28/30.\n`;
