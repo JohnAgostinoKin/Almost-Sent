@@ -119,7 +119,7 @@ module.exports = async function handler(req, res) {
     });
     const data = await r.json();
     const parsed = parseLabeled(data?.choices?.[0]?.message);
-    if (dirty(parsed.deleted) || stolen(parsed.deleted) || stolen(parsed.reason)) { {
+    if (dirty(parsed.deleted) || stolen(parsed.deleted) || stolen(parsed.reason)) {
       res.status(200).json(mock(sent, who));
       return;
     }
