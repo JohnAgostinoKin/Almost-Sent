@@ -268,6 +268,7 @@ async function main() {
     summaryMd += `| ${model} | ${s.fallback}/${rows.length} | ${s.droppedLength} | ${s.droppedSuspicious} | ${avg}ms |\n`;
   }
   summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **fallback** ${fallbackRows}.\n`;
+  summaryMd += `\n"k", "sounds good", and "made it home" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. The brief's "source: model on at least 28 of 30" bar is written against a 30-row harness with no bank hits; with these ${bankRows} bank rows fixed, the reachable ceiling for source: model is ${rows.length - bankRows}/${rows.length} — read the bar as model on (nearly) all of the non-bank rows, not literally 28/30.\n`;
   summaryMd += "\nTemperature is 1.0 — run this three times before deciding anything. This script does not pick a winner; read the table.\n";
 
   const substitutionsMd = substitutions.length
