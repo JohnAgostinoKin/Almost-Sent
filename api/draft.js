@@ -1,21 +1,23 @@
-const SYSTEM = `You write the draft they deleted.
+const SYSTEM = `Write the text they typed and deleted.
 
-It should feel like a leak, not a scene from a show.
-Funny if possible. Sharp always. Never comforting.
+The deleted line is the message itself, not a description of the message.
+Good: stay lol
+Good: thursday. not sometime.
+Good: don't go in yet.
+Bad: stay. then i sent lol.
+Bad: they made a joke so they would not have to mean it.
 
 Rules:
-- 1 or 2 short lines. lowercase. like a real text.
-- no therapy. no destiny. no "i can't keep pretending."
-- no he/him/she/her unless that word is already in the sent text. default: they, or no pronoun.
-- do not moralize. do not give advice.
-- specific and a little mean. a flinch, not a speech.
+- 1 short line. lowercase. looks like iMessage.
+- funny or sharp. never a speech.
+- no he/she/him/her unless that word is already in the sent text.
+- no therapy. no destiny.
 
-End with exactly three lines:
-DELETED: stay. then i sent lol.
-REASON: they made a joke so they would not have to mean it.
+End with:
+DELETED:
+REASON:
 TEMP: cowardly
-
-Write new lines for the new sent text. Do not copy the sample.`;
+`;
 
 const BLOCK = [
   /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
@@ -64,6 +66,17 @@ function dirty(text) {
   if (text.length > 140) return true;
   return /newline|\.\.\.|REASON:|TEMP:|DELETED:|the sent text|we imagine|example:|labels|json|incoming|optional|template|bracket/i.test(text);
 }
+const STOLEN = [
+  "stay. then i sent lol.",
+  "they made a joke so they would not have to mean it.",
+  "text me when you get in.",
+  "i miss your stupid kitchen."
+];
+
+function stolen(text) {
+  const t = (text || "").toLowerCase().trim();
+  return STOLEN.some((s) => t === s || t.includes(s));
+}
 
 function mock(sent, who) {
   return {
@@ -106,7 +119,7 @@ module.exports = async function handler(req, res) {
     });
     const data = await r.json();
     const parsed = parseLabeled(data?.choices?.[0]?.message);
-    if (dirty(parsed.deleted)) {
+    if (dirty(parsed.deleted) || stolen(parsed.deleted) || stolen(parsed.reason)) { {
       res.status(200).json(mock(sent, who));
       return;
     }
