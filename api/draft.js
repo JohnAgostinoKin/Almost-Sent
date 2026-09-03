@@ -1,24 +1,3 @@
-const SYSTEM = `Write the text they typed and deleted.
-
-The deleted line is the message itself, not a description of the message.
-Good: stay lol
-Good: thursday. not sometime.
-Good: don't go in yet.
-Bad: stay. then i sent lol.
-Bad: they made a joke so they would not have to mean it.
-
-Rules:
-- 1 short line. lowercase. looks like iMessage.
-- funny or sharp. never a speech.
-- no he/she/him/her unless that word is already in the sent text.
-- no therapy. no destiny.
-
-End with:
-DELETED:
-REASON:
-TEMP: cowardly
-`;
-
 const BLOCK = [
   /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
   /\b(find their address|track their phone|stalk)\b/i
@@ -37,53 +16,64 @@ function readBody(req) {
   return body;
 }
 
-function flattenText(value) {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(flattenText).join("\n");
-  if (typeof value === "object") {
-    return [value.content, value.text, value.reasoning].map(flattenText).join("\n");
-  }
-  return "";
+function hash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
 }
 
-function lastMatch(text, re) {
-  const all = [...String(text).matchAll(re)];
-  return all.length ? all[all.length - 1][1].trim() : "";
+function pick(list, seed) {
+  return list[hash(seed) % list.length];
 }
 
-function parseLabeled(raw) {
-  const text = flattenText(raw);
-  return {
-    deleted: lastMatch(text, /DELETED:\s*([^\n]+)/gi),
-    reason: lastMatch(text, /REASON:\s*([^\n]+)/gi),
-    temperature: lastMatch(text, /TEMP:\s*([^\n]+)/gi)
-  };
-}
+const BANK = {
+  cold: [
+    { deleted: "the one letter was on purpose.", reason: "they picked the smallest knife in the drawer." },
+    { deleted: "i saw it. i'm not making it a scene.", reason: "k already was the scene." }
+  ],
+  later: [
+    { deleted: "thursday. pick a time.", reason: "sometime is how you cancel without cancelling." },
+    { deleted: "say when. i'll actually show up.", reason: "sounds good is a polite no with a smile." }
+  ],
+  home: [
+    { deleted: "stay on the line till you turn the key.", reason: "they made it a check-in so it would not be a plea." },
+    { deleted: "text when the door shuts.", reason: "home is safer to ask about than the night." }
+  ],
+  night: [
+    { deleted: "don't sleep on this.", reason: "goodnight is how you leave a fight unfinished." },
+    { deleted: "i'm still in that text.", reason: "they ended the day instead of the sentence." }
+  ],
+  awake: [
+    { deleted: "if you're up, just say so.", reason: "a question is cheaper than i miss you." },
+    { deleted: "i can see you're online.", reason: "that's not an accusation. it is." }
+  ],
+  come: [
+    { deleted: "come over. no plan, just the door.", reason: "they asked if it was happening so they would not have to want it." },
+    { deleted: "i'll leave it unlocked.", reason: "coming over was too much wanting in one line." }
+  ],
+  generic: [
+    { deleted: "that wasn't nothing.", reason: "they sent the version that can be denied tomorrow." },
+    { deleted: "say what you meant.", reason: "they didn't. that's the point." },
+    { deleted: "i almost made this honest.", reason: "honesty does not screenshot as well as almost." },
+    { deleted: "this is me being a coward in public.", reason: "the sent text is the costume." }
+  ]
+};
 
-function dirty(text) {
-  if (!text) return true;
-  if (text.length > 140) return true;
-  return /newline|\.\.\.|REASON:|TEMP:|DELETED:|the sent text|we imagine|example:|labels|json|incoming|optional|template|bracket/i.test(text);
-}
-const STOLEN = [
-  "stay. then i sent lol.",
-  "they made a joke so they would not have to mean it.",
-  "text me when you get in.",
-  "i miss your stupid kitchen."
-];
-
-function stolen(text) {
-  const t = (text || "").toLowerCase().trim();
-  return STOLEN.some((s) => t === s || t.includes(s));
-}
-
-function mock(sent, who) {
+function bankDraft(sent, who) {
+  const s = sent.toLowerCase();
+  let pool = BANK.generic;
+  if (/\bk\b|ok$|okay$/.test(s)) pool = BANK.cold;
+  else if (/sound|sometime|we should|later/.test(s)) pool = BANK.later;
+  else if (/home|made it/.test(s)) pool = BANK.home;
+  else if (/good ?night|gn\b|sleep/.test(s)) pool = BANK.night;
+  else if (/awake|up\?|you up/.test(s)) pool = BANK.awake;
+  else if (/coming|come over|omw|on my way/.test(s)) pool = BANK.come;
+  const card = pick(pool, sent + "|" + who);
   return {
     sent,
-    deleted: "text me when you get in.\ni said it softer than that first.",
-    reason: who ? `they kept ${who} at the exact distance that still hurts.` : "they wanted the door open without walking through it.",
-    temperature: "warm"
+    deleted: card.deleted,
+    reason: card.reason,
+    temperature: "cowardly"
   };
 }
 
@@ -100,36 +90,5 @@ module.exports = async function handler(req, res) {
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
   if (bad(sent) || bad(who)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
 
-  const key = process.env.GROQ_API_KEY;
-  if (!key) { res.status(200).json(mock(sent, who)); return; }
-
-  try {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
-        temperature: 0.7,
-        max_tokens: 900,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: `sent: ${sent}\nfrom: ${who || "unknown"}` }
-        ]
-      })
-    });
-    const data = await r.json();
-    const parsed = parseLabeled(data?.choices?.[0]?.message);
-    if (dirty(parsed.deleted) || stolen(parsed.deleted) || stolen(parsed.reason)) {
-      res.status(200).json(mock(sent, who));
-      return;
-    }
-    res.status(200).json({
-      sent,
-      deleted: parsed.deleted.slice(0, 280),
-      reason: (dirty(parsed.reason) ? "they sent the safer sentence." : parsed.reason).slice(0, 180),
-      temperature: parsed.temperature || "cowardly"
-    });
-  } catch (err) {
-    res.status(200).json(mock(sent, who));
-  }
+  res.status(200).json(bankDraft(sent, who));
 };
