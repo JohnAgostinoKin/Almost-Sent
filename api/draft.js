@@ -16,65 +16,106 @@ function readBody(req) {
   return body;
 }
 
-function hash(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/['’]/g, "'")
+    .replace(/[?!.,]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function pick(list, seed) {
-  return list[hash(seed) % list.length];
-}
-
-const BANK = {
-  cold: [
-    { deleted: "the one letter was on purpose.", reason: "they picked the smallest knife in the drawer." },
-    { deleted: "i saw it. i'm not making it a scene.", reason: "k already was the scene." }
-  ],
-  later: [
-    { deleted: "thursday. pick a time.", reason: "sometime is how you cancel without cancelling." },
-    { deleted: "say when. i'll actually show up.", reason: "sounds good is a polite no with a smile." }
-  ],
-  home: [
-    { deleted: "stay on the line till you turn the key.", reason: "they made it a check-in so it would not be a plea." },
-    { deleted: "text when the door shuts.", reason: "home is safer to ask about than the night." }
-  ],
-  night: [
-    { deleted: "don't sleep on this.", reason: "goodnight is how you leave a fight unfinished." },
-    { deleted: "i'm still in that text.", reason: "they ended the day instead of the sentence." }
-  ],
-  awake: [
-    { deleted: "if you're up, just say so.", reason: "a question is cheaper than i miss you." },
-    { deleted: "i can see you're online.", reason: "that's not an accusation. it is." }
-  ],
-  come: [
-    { deleted: "come over. no plan, just the door.", reason: "they asked if it was happening so they would not have to want it." },
-    { deleted: "i'll leave it unlocked.", reason: "coming over was too much wanting in one line." }
-  ],
-  generic: [
-    { deleted: "that wasn't nothing.", reason: "they sent the version that can be denied tomorrow." },
-    { deleted: "say what you meant.", reason: "they didn't. that's the point." },
-    { deleted: "i almost made this honest.", reason: "honesty does not screenshot as well as almost." },
-    { deleted: "this is me being a coward in public.", reason: "the sent text is the costume." }
-  ]
+const LINES = {
+  "k": "l",
+  "ok": "oh no",
+  "okay": "nokay",
+  "lol": "nlol",
+  "lmao": "trying to take a dump",
+  "haha": "not amused",
+  "nice": "dumb fuck",
+  "cool": "drooler",
+  "bet": "loser",
+  "word": "you can read, right?",
+  "seen": "wish i hadn't",
+  "?": "it's a symbol",
+  "sounds good": "what a load of crap",
+  "we should do this again sometime": "please kill me now",
+  "down for whenever": "down for never",
+  "keep me posted": "lose my number",
+  "i'll let you know": "don't hold your breath",
+  "ill let you know": "don't hold your breath",
+  "maybe next week": "maybe you'll win the lotto too",
+  "i'm pretty busy rn": "you're never pretty",
+  "im pretty busy rn": "you're never pretty",
+  "we'll see": "said the blind man",
+  "well see": "said the blind man",
+  "made it home": "you live next door",
+  "you get home ok": "please stay there",
+  "get home safe": "baby steps",
+  "you up": "insomniac",
+  "still up": "who cares",
+  "you awake": "you don't look like it",
+  "goodnight": "good riddance",
+  "gn": "lmnop",
+  "morning": "brush your teeth",
+  "just checking in": "gone too soon, not",
+  "you good": "that's debatable",
+  "are you free later": "whore",
+  "are you actually coming over": "don't trip",
+  "omw": "it's only 4 more letters to spell it out",
+  "here": "oh joy",
+  "outside": "keep going",
+  "never mind": "never had one",
+  "nvm": "never had one",
+  "wait nvm": "decisions, decisions",
+  "ignore that": "should be easy for you",
+  "don't worry about it": "you can't afford it anyway",
+  "dont worry about it": "you can't afford it anyway",
+  "we good": "you scumbag",
+  "you mad": "too bad",
+  "so that's it": "as far as you're concerned, yep",
+  "so thats it": "as far as you're concerned, yep",
+  "i guess that's that": "finally guessed right",
+  "i guess thats that": "finally guessed right",
+  "whatever": "fucking valley girl",
+  "forget it": "easy for you",
+  "my bad": "i tried to be good",
+  "it's fine": "what does that even mean",
+  "its fine": "what does that even mean",
+  "i'm not mad": "just can't believe you're that stupid",
+  "im not mad": "just can't believe you're that stupid",
+  "do what you want": "if you're smart enough to figure that out",
+  "missed you tonight": "like i miss hemorrhoids",
+  "was thinking about you": "it made me want to puke",
+  "that was fun": "for a whole 30 seconds",
+  "we should talk": "next year",
+  "can we talk": "about your stench",
+  "call me": "you don't have my number and i like it that way",
+  "you gonna answer": "the officer",
+  "hello": "that really is a stupid term",
+  "??": "double don't care",
+  "per my last email": "you still suck",
+  "circling back": "to look at her ass again",
+  "thanks": "such politeness",
+  "thanks!": "such politeness",
+  "no worries": "that's a lie, everyone worries",
+  "all good": "is that even possible",
+  "np": "what about murphy's law",
+  "yw": "wtf"
 };
 
-function bankDraft(sent, who) {
-  const s = sent.toLowerCase();
-  let pool = BANK.generic;
-  if (/\bk\b|ok$|okay$/.test(s)) pool = BANK.cold;
-  else if (/sound|sometime|we should|later/.test(s)) pool = BANK.later;
-  else if (/home|made it/.test(s)) pool = BANK.home;
-  else if (/good ?night|gn\b|sleep/.test(s)) pool = BANK.night;
-  else if (/awake|up\?|you up/.test(s)) pool = BANK.awake;
-  else if (/coming|come over|omw|on my way/.test(s)) pool = BANK.come;
-  const card = pick(pool, sent + "|" + who);
-  return {
-    sent,
-    deleted: card.deleted,
-    reason: card.reason,
-    temperature: "cowardly"
-  };
+const FALLBACK = [
+  "that wasn't nothing",
+  "say what you meant",
+  "this is the costume version"
+];
+
+function draft(sent) {
+  const key = norm(sent);
+  if (LINES[key]) return LINES[key];
+  if (sent.trim() === "?") return LINES["?"];
+  if (sent.trim() === "??") return LINES["??"];
+  return FALLBACK[key.length % FALLBACK.length];
 }
 
 module.exports = async function handler(req, res) {
@@ -86,9 +127,12 @@ module.exports = async function handler(req, res) {
 
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
-  const who = String(body.who || "").trim().slice(0, 40);
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
-  if (bad(sent) || bad(who)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
+  if (bad(sent)) { res.status(200).json({ refuse: true, reason: "not this one." }); return; }
 
-  res.status(200).json(bankDraft(sent, who));
+  res.status(200).json({
+    sent,
+    deleted: draft(sent),
+    temperature: "cowardly"
+  });
 };
