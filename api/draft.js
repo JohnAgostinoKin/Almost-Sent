@@ -10,19 +10,12 @@ Rules:
 - do not moralize. do not give advice.
 - specific and a little mean. a flinch, not a speech.
 
-End with:
-DELETED: ...
-REASON: one cold sentence
-TEMP: warm|cowardly|already-gone|hunting
-
-Examples of the voice:
+End with exactly three lines:
 DELETED: stay. then i sent lol.
 REASON: they made a joke so they would not have to mean it.
-DELETED: i miss your stupid kitchen.
-REASON: the kitchen was safer than the person.
-DELETED: don't go home.
-REASON: they asked if they made it home instead.
-`;
+TEMP: cowardly
+
+Write new lines for the new sent text. Do not copy the sample.`;
 
 const BLOCK = [
   /\b(kill (him|her|them|myself)|suicide|rape|minor|underage|12[ -]?year|13[ -]?year|14[ -]?year|15[ -]?year|16[ -]?year|17[ -]?year)\b/i,
@@ -69,7 +62,7 @@ function parseLabeled(raw) {
 function dirty(text) {
   if (!text) return true;
   if (text.length > 140) return true;
-  return /the sent text|we imagine|example:|labels|json|incoming|optional|template|bracket/i.test(text);
+  return /newline|\.\.\.|REASON:|TEMP:|DELETED:|the sent text|we imagine|example:|labels|json|incoming|optional|template|bracket/i.test(text);
 }
 
 function mock(sent, who) {
