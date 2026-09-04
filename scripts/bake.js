@@ -14,7 +14,7 @@ const path = require("path");
 const { exactMatch } = require("../lib/bank");
 const { callLLM, BASE_URL } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
-const { keywordFallback, wordFallback } = require("../lib/fallback");
+const { stallLine } = require("../lib/fallback");
 
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {
@@ -221,12 +221,8 @@ async function runInput(models, input) {
     return { input, results, source: "model", why: `${usable.length}/${models.length} models returned usable lines` };
   }
 
-  const kw = keywordFallback(input);
-  if (kw) {
-    return { input, results, source: "fallback", why: `keyword fallback: "${kw}"` };
-  }
-  const word = wordFallback(input);
-  return { input, results, source: "fallback", why: `word fallback: "${word}"` };
+  const stall = stallLine();
+  return { input, results, source: "stall", why: `stall line: "${stall}"` };
 }
 
 async function main() {
@@ -260,7 +256,7 @@ async function main() {
 
   // --- summary ----------------------------------------------------------
   const summary = {};
-  for (const model of MODELS) summary[model] = { fallback: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0, latencies: [] };
+  for (const model of MODELS) summary[model] = { stalled: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0, latencies: [] };
 
   for (const row of rows) {
     for (const r of row.results) {
@@ -273,7 +269,7 @@ async function main() {
       s.droppedEcho += r.droppedEcho || 0;
       s.droppedAnswer += r.droppedAnswer || 0;
       if (r.latencyMs) s.latencies.push(r.latencyMs);
-      if (!r.ok) s.fallback++;
+      if (!r.ok) s.stalled++;
     }
   }
 
@@ -284,13 +280,13 @@ async function main() {
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
     console.log(
-      `${model}: ${s.fallback}/${rows.length} fell back, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedEcho} dropped as echo, ${s.droppedAnswer} dropped as answer, avg latency ${avg}ms`
+      `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedEcho} dropped as echo, ${s.droppedAnswer} dropped as answer, avg latency ${avg}ms`
     );
   }
   const bankRows = rows.filter((r) => r.source === "bank").length;
   const modelRows = rows.filter((r) => r.source === "model").length;
-  const fallbackRows = rows.filter((r) => r.source === "fallback").length;
-  console.log(`source split: bank=${bankRows} model=${modelRows} fallback=${fallbackRows}`);
+  const stallRows = rows.filter((r) => r.source === "stall").length;
+  console.log(`source split: bank=${bankRows} model=${modelRows} stall=${stallRows}`);
 
   // --- bake-results.md ----------------------------------------------------
   const header = `| input | ${["A", "B", "C"].slice(0, MODELS.length).map((l, i) => `${l}: ${MODELS[i]}`).join(" | ")} | source | why |\n`;
@@ -306,15 +302,15 @@ async function main() {
   }
 
   let summaryMd = "\n## Summary\n\n";
-  summaryMd += "| model | fallback rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (echo) | dropped (answer) | avg latency |\n|---|---|---|---|---|---|---|---|---|---|\n";
+  summaryMd += "| model | stall rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (echo) | dropped (answer) | avg latency |\n|---|---|---|---|---|---|---|---|---|---|\n";
   for (const model of MODELS) {
     const s = summary[model];
     const avg = s.latencies.length
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
-    summaryMd += `| ${model} | ${s.fallback}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedEcho} | ${s.droppedAnswer} | ${avg}ms |\n`;
+    summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedEcho} | ${s.droppedAnswer} | ${avg}ms |\n`;
   }
-  summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **fallback** ${fallbackRows}.\n`;
+  summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **stall** ${stallRows}.\n`;
   summaryMd += `\n"k", "sounds good", and "made it home" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. The brief's "source: model on at least 28 of 30" bar is written against a 30-row harness with no bank hits; with these ${bankRows} bank rows fixed, the reachable ceiling for source: model is ${rows.length - bankRows}/${rows.length} — read the bar as model on (nearly) all of the non-bank rows, not literally 28/30.\n`;
   summaryMd += "\nTemperature is 1.0 — run this three times before deciding anything. This script does not pick a winner; read the table.\n";
 

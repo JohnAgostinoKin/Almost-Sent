@@ -3,8 +3,8 @@
 const { norm } = require("../lib/normalize");
 const { exactMatch } = require("../lib/bank");
 const { callLLM } = require("../lib/llm");
-const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
-const { keywordFallback, wordFallback } = require("../lib/fallback");
+const { extractArray, isRefusal, filterLines, describeDrops } = require("../lib/postprocess");
+const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 
 function readBody(req) {
@@ -14,11 +14,12 @@ function readBody(req) {
   return body;
 }
 
-async function fromAi(sent) {
-  const key = process.env.LLM_API_KEY;
-  if (!key) return { lines: [], why: "no api key" };
-
-  const model = process.env.LLM_MODEL || "mistralai/mistral-large-2512";
+// One call to the model. `reason` on an empty result says why, so fromAi
+// below can tell "every line got filtered" (worth a retry) apart from
+// "no json" / "timed out" / etc. (not worth one — a malformed response
+// isn't going to fix itself on a second try the way an unlucky draw of
+// six filtered lines might).
+async function callOnce(key, model, sent) {
   try {
     const result = await callLLM(key, model, sent);
     // Tag every why with the upstream provider OpenRouter actually routed
@@ -28,16 +29,34 @@ async function fromAi(sent) {
     const providerTag = provider ? " [" + provider + "]" : "";
     const parsed = extractArray(result.text);
     if (!parsed) {
-      if (result.finishReason === "length") return { lines: [], why: "hit token limit" + providerTag, provider: provider };
-      return { lines: [], why: (result.text ? "no json in output" : "empty output") + providerTag, provider: provider };
+      const why = result.finishReason === "length" ? "hit token limit" : (result.text ? "no json in output" : "empty output");
+      return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable" };
     }
     if (isRefusal(parsed)) return { lines: [], skip: true };
-    const { kept } = filterLines(parsed, sent);
-    if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" + providerTag, provider: provider };
-    return { lines: kept.slice(0, 6), why: "ok" + providerTag, provider: provider };
+    const filtered = filterLines(parsed, sent);
+    if (!filtered.kept.length) {
+      const drops = describeDrops(filtered) || "all " + parsed.length + " filtered";
+      return { lines: [], why: drops + providerTag, provider: provider, reason: "filtered" };
+    }
+    return { lines: filtered.kept.slice(0, 6), why: "ok" + providerTag, provider: provider };
   } catch (err) {
-    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null };
+    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
+}
+
+async function fromAi(sent) {
+  const key = process.env.LLM_API_KEY;
+  if (!key) return { lines: [], why: "no api key" };
+
+  const model = process.env.LLM_MODEL || "mistralai/mistral-large-2512";
+  const first = await callOnce(key, model, sent);
+  if (first.skip || first.lines.length || first.reason !== "filtered") return first;
+
+  // Every line from the first call got filtered — one retry before giving
+  // up on the model. Temperature is 1.0, so a second draw is often clean
+  // even when the first wasn't; a parse failure or network error doesn't
+  // get this second chance, only a bad-content draw does.
+  return await callOnce(key, model, sent);
 }
 
 // Per-instance only. Stops casual hammering, not a determined one — a real limit
@@ -108,13 +127,14 @@ module.exports = async function handler(req, res) {
   });
 
   // `source` tells you which path produced what you are reading:
-  //   model    — the model wrote it (what you want)
-  //   bank     — a curated line matched exactly
-  //   fallback — the model produced nothing usable, `why` says what went wrong
-  let source = ai.lines.length ? (bank ? "bank+model" : "model") : (bank ? "bank" : "fallback");
+  //   model — the model wrote it (what you want)
+  //   bank  — a curated line matched exactly
+  //   stall — the model produced nothing usable even after the retry in
+  //           fromAi, `why` says what went wrong
+  let source = ai.lines.length ? (bank ? "bank+model" : "model") : (bank ? "bank" : "stall");
   if (!drafts.length) {
-    drafts.push(keywordFallback(sent) || wordFallback(sent));
-    source = "fallback";
+    drafts.push(stallLine());
+    source = "stall";
   }
 
   await remember(sent);
