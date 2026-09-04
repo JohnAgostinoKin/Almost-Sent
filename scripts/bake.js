@@ -15,6 +15,7 @@ const { exactMatch } = require("../lib/bank");
 const { callLLM, BASE_URL } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
+const { composeDraft } = require("../lib/compose");
 
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {
@@ -47,18 +48,22 @@ const REQUESTED_MODELS = (process.env.BAKE_MODELS
 // The 30-input harness. Mixed length, every relationship type, no
 // category label passed — the model has to infer relationship from text.
 //
-// None of these may duplicate (or closely echo) a "before" example from
-// the system prompt in lib/prompt.js — the model would just be pattern
-// matching an example it was already handed the answer to, not writing
-// one. If you add an input, check it against lib/prompt.js first.
+// None of these may duplicate (or closely echo) a "before" example from the
+// system prompt's EXAMPLES pool in lib/prompt.js — the model would just be
+// pattern matching an example it was already handed the answer to, not
+// writing one cold. If you add an input, check it against lib/prompt.js
+// first. ("made it home", "thanks for your patience", "let's grab a coffee
+// sometime", "you awake", and "love ya" were swapped out for exactly this
+// reason when the pool grew to cover the continuation mechanic's four
+// shapes — they collided with or closely echoed new pool entries.)
 const INPUTS = [
   "k",
   "ok",
   "lol",
   "got your message",
-  "made it home",
+  "back at my place",
   "you busy this weekend",
-  "let's grab a coffee sometime",
+  "we should catch a movie",
   "congrats on the promotion",
   "text me when you land",
   "how's it going",
@@ -66,14 +71,14 @@ const INPUTS = [
   "all good",
   "we'll see",
   "i'll let you know",
-  "you awake",
+  "can't sleep",
   "wish you were here",
-  "love ya",
+  "you mean a lot to me",
   "i haven't reached out in a while",
   "you free to chat",
   "let's circle back on this",
   "as previously discussed",
-  "thanks for your patience",
+  "running 10 minutes late",
   "this isn't working out",
   "i'm not mad",
   "do what you want",
@@ -115,18 +120,20 @@ async function listAvailableModels() {
   }
 }
 
+const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0 };
+
 async function runOneModel(model, input) {
   try {
     const { text, latencyMs, finishReason } = await callLLM(apiKey, model, input);
     const parsed = extractArray(text);
     if (!parsed) {
       const note = finishReason === "length" ? "hit token limit" : "unparsable response";
-      return { model, ok: false, lines: [], droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0, latencyMs, note };
+      return { model, ok: false, lines: [], ...EMPTY_DROPS, latencyMs, note };
     }
     if (isRefusal(parsed)) {
-      return { model, ok: false, refused: true, lines: [], droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0, latencyMs, note: "refused" };
+      return { model, ok: false, refused: true, lines: [], ...EMPTY_DROPS, latencyMs, note: "refused" };
     }
-    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedEcho, droppedAnswer } = filterLines(parsed, input);
+    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedOpener } = filterLines(parsed, input);
     return {
       model,
       ok: kept.length > 0,
@@ -134,7 +141,7 @@ async function runOneModel(model, input) {
       droppedWords,
       droppedSuspicious,
       droppedCrutch,
-      droppedWall, droppedAscii, droppedEcho, droppedAnswer,
+      droppedWall, droppedAscii, droppedOpener,
       latencyMs,
       note: kept.length ? "" : "all lines dropped"
     };
@@ -143,10 +150,7 @@ async function runOneModel(model, input) {
       model,
       ok: false,
       lines: [],
-      droppedWords: 0,
-      droppedSuspicious: 0,
-      droppedCrutch: 0,
-      droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0,
+      ...EMPTY_DROPS,
       latencyMs: err.latencyMs || 0,
       note: `error: ${err.message}`
     };
@@ -159,8 +163,8 @@ function sleep(ms) {
 
 // Diagnostic-only: callLLM's own AbortController-based 12s timeout has been
 // observed to not fire — the underlying fetch just never settles, hanging
-// the whole run indefinitely. This is a hard outer backstop, independent of
-// that mechanism: if a model call hasn't resolved within WATCHDOG_MS, stop
+// the whole process. This is a hard outer backstop, independent of that
+// mechanism: if a model call hasn't resolved within WATCHDOG_MS, stop
 // waiting on it and record a watchdog-kill row instead so the run can keep
 // going. The abandoned promise is left to settle (or not) on its own.
 const WATCHDOG_MS = 60000;
@@ -172,10 +176,7 @@ function withWatchdog(promise, model) {
         model,
         ok: false,
         lines: [],
-        droppedWords: 0,
-        droppedSuspicious: 0,
-        droppedCrutch: 0,
-        droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0,
+        ...EMPTY_DROPS,
         latencyMs: WATCHDOG_MS,
         note: `watchdog kill after ${WATCHDOG_MS}ms`,
         watchdogKilled: true
@@ -198,10 +199,7 @@ async function runInput(models, input) {
         model,
         ok: true,
         lines: [bankHit],
-        droppedWords: 0,
-        droppedSuspicious: 0,
-        droppedCrutch: 0,
-        droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0,
+        ...EMPTY_DROPS,
         latencyMs: 0,
         note: "bank hit — model not called"
       })),
@@ -256,7 +254,7 @@ async function main() {
 
   // --- summary ----------------------------------------------------------
   const summary = {};
-  for (const model of MODELS) summary[model] = { stalled: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedEcho: 0, droppedAnswer: 0, latencies: [] };
+  for (const model of MODELS) summary[model] = { stalled: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0, latencies: [] };
 
   for (const row of rows) {
     for (const r of row.results) {
@@ -266,8 +264,7 @@ async function main() {
       s.droppedCrutch += r.droppedCrutch || 0;
       s.droppedWall += r.droppedWall || 0;
       s.droppedAscii += r.droppedAscii || 0;
-      s.droppedEcho += r.droppedEcho || 0;
-      s.droppedAnswer += r.droppedAnswer || 0;
+      s.droppedOpener += r.droppedOpener || 0;
       if (r.latencyMs) s.latencies.push(r.latencyMs);
       if (!r.ok) s.stalled++;
     }
@@ -280,7 +277,7 @@ async function main() {
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
     console.log(
-      `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedEcho} dropped as echo, ${s.droppedAnswer} dropped as answer, avg latency ${avg}ms`
+      `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedOpener} dropped as no-opener, avg latency ${avg}ms`
     );
   }
   const bankRows = rows.filter((r) => r.source === "bank").length;
@@ -289,6 +286,9 @@ async function main() {
   console.log(`source split: bank=${bankRows} model=${modelRows} stall=${stallRows}`);
 
   // --- bake-results.md ----------------------------------------------------
+  // Cells show the full composed draft (sent + continuation), not the
+  // continuation alone — see lib/compose.js — so the table reads as
+  // complete drafts the way the page renders them, not fragments.
   const header = `| input | ${["A", "B", "C"].slice(0, MODELS.length).map((l, i) => `${l}: ${MODELS[i]}`).join(" | ")} | source | why |\n`;
   const divider = `|---|${MODELS.map(() => "---").join("|")}|---|---|\n`;
   let table = header + divider;
@@ -296,22 +296,22 @@ async function main() {
     const cells = row.results.map((r) => {
       if (r.refused) return "REFUSE";
       if (!r.ok) return `_${r.note}_`;
-      return r.lines.map((l) => `"${l}"`).join("<br>");
+      return r.lines.map((l) => `"${composeDraft(row.input, l)}"`).join("<br>");
     });
     table += `| ${md(row.input)} | ${cells.map(md).join(" | ")} | ${row.source} | ${md(row.why)} |\n`;
   }
 
   let summaryMd = "\n## Summary\n\n";
-  summaryMd += "| model | stall rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (echo) | dropped (answer) | avg latency |\n|---|---|---|---|---|---|---|---|---|---|\n";
+  summaryMd += "| model | stall rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (no opener) | avg latency |\n|---|---|---|---|---|---|---|---|---|\n";
   for (const model of MODELS) {
     const s = summary[model];
     const avg = s.latencies.length
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
-    summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedEcho} | ${s.droppedAnswer} | ${avg}ms |\n`;
+    summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedOpener} | ${avg}ms |\n`;
   }
   summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **stall** ${stallRows}.\n`;
-  summaryMd += `\n"k", "sounds good", and "made it home" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. The brief's "source: model on at least 28 of 30" bar is written against a 30-row harness with no bank hits; with these ${bankRows} bank rows fixed, the reachable ceiling for source: model is ${rows.length - bankRows}/${rows.length} — read the bar as model on (nearly) all of the non-bank rows, not literally 28/30.\n`;
+  summaryMd += `\n"k", "sounds good", "made it home", and "on my way" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. Read "source: model" against the reachable ceiling of ${rows.length - bankRows}/${rows.length} non-bank rows, not the raw ${rows.length}.\n`;
   summaryMd += "\nTemperature is 1.0 — run this three times before deciding anything. This script does not pick a winner; read the table.\n";
 
   const out = `# bake-off results\n\nRun at ${new Date().toISOString()}\n\n${table}${summaryMd}`;
