@@ -146,9 +146,15 @@ module.exports = async function handler(req, res) {
   // strong the model thought each line was (see postprocess.js's
   // orderByShape) — so the client just shows them in the order given. A
   // hero-bank hit is the one exception — it always leads.
+  //
+  // The `typeof text === "string"` guard is belt-and-suspenders on top of
+  // postprocess.js's own normalizeItem/normalizeText (which is where a
+  // non-string text field actually gets neutralized) — a draft only ever
+  // leaves this endpoint carrying real string text, never something that
+  // could render as "[object Object]" downstream.
   ai.lines.forEach(function (item) {
     const text = item && item.text;
-    if (!text) return;
+    if (typeof text !== "string" || !text) return;
     const dupe = drafts.some(function (d) { return d.text === text; });
     if (!dupe) drafts.push({ shape: (item && item.shape) || "unknown", text: text });
   });

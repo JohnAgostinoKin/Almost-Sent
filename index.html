@@ -139,9 +139,15 @@
     var OPENER_RE = /^[,.!?\s]/;
     var SENT_END_PUNCT_RE = /[.,!?]$/;
     var LEADING_DOT_COMMA_RE = /^[.,]/;
+    // draftText must already be the .text string off a {shape, text} draft
+    // (see pool below) — never the whole object. Coercing a non-string
+    // (typeof guard, not String(x)||"") is deliberate: String() on an
+    // object silently renders "[object Object]" instead of failing loudly,
+    // which is exactly how that bug used to reach the screen; an unexpected
+    // non-string here now renders as nothing instead.
     function renderDraft(sentText, draftText) {
       draftEl.textContent = "";
-      var text = String(draftText || "");
+      var text = typeof draftText === "string" ? draftText : "";
       if (OPENER_RE.test(text)) {
         if (SENT_END_PUNCT_RE.test(sentText) && LEADING_DOT_COMMA_RE.test(text)) {
           text = text.slice(1);
@@ -178,7 +184,7 @@
           var li = document.createElement("li");
           li.textContent = "[" + (d.shape || "?") + "] " +
             (d.dropped ? "dropped (" + (d.filter || "?") + ")" : "kept") +
-            " — " + d.text;
+            " — " + (typeof d.text === "string" ? d.text : "(non-text)");
           if (d.dropped) li.className = "dropped";
           list.appendChild(li);
         });
