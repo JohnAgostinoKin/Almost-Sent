@@ -33,6 +33,11 @@
     .label { display:block; font-size:13px; letter-spacing:0.06em; color:var(--mute); margin-bottom:8px; }
     .draft { font-size:30px; line-height:1.3; margin:0; text-wrap:pretty; }
     .draft .sent-part { color:var(--mute); }
+    .react { display:flex; gap:8px; margin-top:16px; }
+    .react button { width:auto; padding:8px 13px; font-size:20px; line-height:1; background:transparent; border:1px solid #2a2a2a; color:var(--fg); }
+    .react button:hover:not(:disabled) { border-color:#3d3d3d; }
+    .react button:disabled { opacity:0.3; cursor:default; }
+    .react button.picked { opacity:1; border-color:var(--red); }
     .debug { margin-top:8px; font-size:11px; color:#6e6960; }
     .debug ul { margin-top:6px; padding-left:16px; }
     .debug li { margin-top:2px; }
@@ -71,6 +76,11 @@
 
     <section id="out" class="result hidden">
       <p class="draft" id="out-draft"></p>
+      <div class="react" id="react">
+        <button type="button" data-value="hit" aria-label="landed">😂</button>
+        <button type="button" data-value="meh" aria-label="meh">😐</button>
+        <button type="button" data-value="far" aria-label="too far">😬</button>
+      </div>
       <div class="debug hidden" id="debug"></div>
       <div class="swap"><button class="ghost" type="button" id="another">another</button></div>
 
@@ -110,6 +120,8 @@
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
     var sentContextEl = document.getElementById("sent-context");
+    var reactEl = document.getElementById("react");
+    var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
 
     // Mirrors lib/postprocess.js's OPENER_RE and lib/compose.js's
     // composeDraft (duplicated — no build step here to require() them,
@@ -216,14 +228,16 @@
     }
     var DEVICE_ID = getDeviceId();
 
-    var pool = [];       // the (up to) six drafts from this call, in shape display order (server-side)
+    var pool = [];       // the (up to) six {shape, text} drafts from this call, in shape display order (server-side)
     var cursor = 0;      // which one is on screen
     var reveals = 0;     // "another" clicks used on this result, capped below
     var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
     var current = "";    // the input this result belongs to
     var currentSource = null;   // this result's data.source, reused in later draft_shown/another logs
     var currentProvider = null; // this result's data.provider, same reuse
+    var currentShape = null;    // pool[cursor]'s shape, read by the reaction buttons below
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
+    var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
 
     // "another" reveals the next line in display order while there's one
     // left to reveal and the free-reveal cap isn't hit; once either runs
@@ -231,6 +245,15 @@
     function refreshAnotherLabel() {
       var canReveal = reveals < MAX_REVEALS && cursor + 1 < pool.length;
       anotherBtn.textContent = canReveal ? "another" : "new text";
+    }
+
+    // Re-arms the 😂/😐/😬 row for a newly shown draft — one tap is allowed
+    // per draft (see the click handler below), so every time a different
+    // draft comes on screen (initial render or "another") the buttons need
+    // to un-grey and drop whichever one was picked for the last draft.
+    function resetReact() {
+      reacted = false;
+      reactButtons.forEach(function (b) { b.disabled = false; b.classList.remove("picked"); });
     }
 
     function reset() {
@@ -252,7 +275,9 @@
       reveals = 0;
       currentSource = null;
       currentProvider = null;
+      currentShape = null;
       ownLineLogged = false;
+      resetReact();
       anotherBtn.textContent = "another";
       sentEl.focus();
     }
@@ -273,7 +298,7 @@
         var data = await res.json();
 
         pool = (data.refuse || !data.drafts || !data.drafts.length)
-          ? ["even the draft wouldn't send that"]
+          ? [{ shape: "stall", text: "even the draft wouldn't send that" }]
           : data.drafts;
 
         current = sent;
@@ -281,8 +306,10 @@
         reveals = 0;
         currentSource = data.source || null;
         currentProvider = data.provider || null;
+        currentShape = pool[0].shape || null;
         ownLineLogged = false;
-        renderDraft(sent, pool[0]);
+        resetReact();
+        renderDraft(sent, pool[0].text);
         sentContextEl.textContent = sent;
         refreshAnotherLabel();
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
@@ -309,13 +336,29 @@
       if (reveals < MAX_REVEALS && cursor + 1 < pool.length) {
         cursor++;
         reveals++;
-        renderDraft(current, pool[cursor]);
+        currentShape = pool[cursor].shape || null;
+        resetReact();
+        renderDraft(current, pool[cursor].text);
         refreshAnotherLabel();
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
       } else {
         reset();
       }
+    });
+
+    // One tap on 😂/😐/😬, then the whole row greys out until the next draft
+    // is shown (resetReact, called on initial render and on "another").
+    // Never logs the draft text itself — only its shape, the tapped value,
+    // and which of the (at most 3 visible) positions it was in.
+    reactButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (reacted) return;
+        reacted = true;
+        reactButtons.forEach(function (b) { b.disabled = true; });
+        btn.classList.add("picked");
+        logEvent("rate", { shape: currentShape, value: btn.dataset.value, position: cursor + 1 });
+      });
     });
 
     writeEl.addEventListener("input", function () {

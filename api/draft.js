@@ -135,16 +135,22 @@ module.exports = async function handler(req, res) {
   // or the fallback lines below.
   if (ai.skip) { res.status(200).json({ refuse: true, drafts: [] }); return; }
 
+  // Each draft carries its shape along ({shape, text}) — the client needs
+  // it to log which shape a reaction tap (see index.html's #react buttons)
+  // was against. Bank and stall lines aren't one of the model's four
+  // shapes, so they're tagged with the source they came from instead.
   const drafts = [];
   const bank = exactMatch(sent);
-  if (bank) drafts.push(bank);
+  if (bank) drafts.push({ shape: "bank", text: bank });
   // ai.lines is already in display order — fixed by shape, not by how
   // strong the model thought each line was (see postprocess.js's
   // orderByShape) — so the client just shows them in the order given. A
   // hero-bank hit is the one exception — it always leads.
   ai.lines.forEach(function (item) {
     const text = item && item.text;
-    if (text && drafts.indexOf(text) === -1) drafts.push(text);
+    if (!text) return;
+    const dupe = drafts.some(function (d) { return d.text === text; });
+    if (!dupe) drafts.push({ shape: (item && item.shape) || "unknown", text: text });
   });
 
   // `source` tells you which path produced what you are reading:
@@ -154,7 +160,7 @@ module.exports = async function handler(req, res) {
   //           fromAi, `why` says what went wrong
   let source = ai.lines.length ? (bank ? "bank+model" : "model") : (bank ? "bank" : "stall");
   if (!drafts.length) {
-    drafts.push(stallLine());
+    drafts.push({ shape: "stall", text: stallLine() });
     source = "stall";
   }
 

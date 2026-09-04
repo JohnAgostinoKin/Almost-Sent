@@ -13,7 +13,12 @@ const { createLimiter } = require("../lib/rateLimit");
 // showed up via another device's share link (?r=<their device_id>) — see
 // index.html's getDeviceId(). meta carries { ref: <referrer's device_id> },
 // nothing else.
-const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival"];
+//
+// "rate" is the one-tap 😂/😐/😬 reaction under a draft (see index.html's
+// #react buttons). meta carries { shape, value: "hit"|"meh"|"far",
+// position: 1|2|3 } — never the draft text itself, same "no text stored"
+// rule as every other event here.
+const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {
