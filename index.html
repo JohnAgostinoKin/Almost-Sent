@@ -103,11 +103,46 @@
     // never rendered for a normal visitor, the param has to be there.
     var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
+    // A random id stored on this device on first visit — no personal data,
+    // nothing tied to an identity, never sent anywhere but /api/event.
+    function getDeviceId() {
+      try {
+        var id = localStorage.getItem("device_id");
+        if (!id) {
+          id = (crypto.randomUUID && crypto.randomUUID()) ||
+            (Date.now().toString(36) + Math.random().toString(36).slice(2));
+          localStorage.setItem("device_id", id);
+        }
+        return id;
+      } catch (err) {
+        return null; // storage blocked (private mode, etc.) — logEvent below just no-ops
+      }
+    }
+    var DEVICE_ID = getDeviceId();
+
+    // Fire-and-forget anonymous event log — device id, event name, and a
+    // small meta object only. Never the text itself (that's already in the
+    // inbox table, on its own, via api/draft.js). Never blocks or throws
+    // into the UI.
+    function logEvent(event, meta) {
+      if (!DEVICE_ID) return;
+      try {
+        fetch("/api/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: DEVICE_ID, event: event, meta: meta || {} })
+        }).catch(function () {});
+      } catch (err) {}
+    }
+
     var pool = [];       // the (up to) six drafts from this call, ranked strongest first
     var cursor = 0;      // which one is on screen
     var reveals = 0;     // "another" clicks used on this result, capped below
     var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
     var current = "";    // the input this result belongs to
+    var currentSource = null;   // this result's data.source, reused in later draft_shown/another logs
+    var currentProvider = null; // this result's data.provider, same reuse
+    var ownLineLogged = false;  // one own_line log per result, not one per keystroke
 
     // "another" reveals the next-ranked line while there's one left to
     // reveal and the free-reveal cap isn't hit; once either runs out the
@@ -131,6 +166,9 @@
       pool = [];
       cursor = 0;
       reveals = 0;
+      currentSource = null;
+      currentProvider = null;
+      ownLineLogged = false;
       anotherBtn.textContent = "another";
       sentEl.focus();
     }
@@ -139,6 +177,7 @@
       e.preventDefault();
       var sent = sentEl.value.trim();
       if (!sent || go.disabled) return;
+      logEvent("paste");
       go.disabled = true;
       go.textContent = "typing…";
       try {
@@ -156,8 +195,12 @@
         current = sent;
         cursor = 0;
         reveals = 0;
+        currentSource = data.source || null;
+        currentProvider = data.provider || null;
+        ownLineLogged = false;
         draftEl.textContent = pool[0];
         refreshAnotherLabel();
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         if (DEBUG) {
           debugEl.textContent =
             "source: " + (data.source || "—") +
@@ -186,6 +229,8 @@
         reveals++;
         draftEl.textContent = pool[cursor];
         refreshAnotherLabel();
+        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
       } else {
         reset();
       }
@@ -193,11 +238,16 @@
 
     writeEl.addEventListener("input", function () {
       shareBtn.disabled = writeEl.value.trim().length === 0;
+      if (!ownLineLogged && writeEl.value.trim().length > 0) {
+        ownLineLogged = true;
+        logEvent("own_line");
+      }
     });
 
     shareBtn.addEventListener("click", async function () {
       var mine = writeEl.value.trim();
       if (!mine) return;
+      logEvent("share");
       var text =
         "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n" +

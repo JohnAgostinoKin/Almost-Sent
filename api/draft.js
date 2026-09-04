@@ -6,6 +6,7 @@ const { callLLM } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines, describeDrops } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
+const { createLimiter } = require("../lib/rateLimit");
 
 function readBody(req) {
   const body = req.body;
@@ -59,18 +60,7 @@ async function fromAi(sent) {
   return await callOnce(key, model, sent);
 }
 
-// Per-instance only. Stops casual hammering, not a determined one — a real limit
-// needs shared state (Upstash or a Supabase table).
-const HITS = new Map();
-function limited(ip) {
-  const now = Date.now();
-  const row = HITS.get(ip) || { n: 0, start: now };
-  if (now - row.start > 60000) { row.n = 0; row.start = now; }
-  row.n += 1;
-  HITS.set(ip, row);
-  if (HITS.size > 5000) HITS.clear();
-  return row.n > 20;
-}
+const limited = createLimiter();
 
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
