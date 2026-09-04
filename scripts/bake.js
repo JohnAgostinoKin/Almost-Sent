@@ -120,7 +120,7 @@ async function listAvailableModels() {
   }
 }
 
-const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0 };
+const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0, droppedDiversity: 0 };
 
 async function runOneModel(model, input) {
   try {
@@ -133,7 +133,7 @@ async function runOneModel(model, input) {
     if (isRefusal(parsed)) {
       return { model, ok: false, refused: true, lines: [], ...EMPTY_DROPS, latencyMs, note: "refused" };
     }
-    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedOpener } = filterLines(parsed, input);
+    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedOpener, droppedDiversity } = filterLines(parsed, input);
     return {
       model,
       ok: kept.length > 0,
@@ -141,7 +141,7 @@ async function runOneModel(model, input) {
       droppedWords,
       droppedSuspicious,
       droppedCrutch,
-      droppedWall, droppedAscii, droppedOpener,
+      droppedWall, droppedAscii, droppedOpener, droppedDiversity,
       latencyMs,
       note: kept.length ? "" : "all lines dropped"
     };
@@ -254,7 +254,7 @@ async function main() {
 
   // --- summary ----------------------------------------------------------
   const summary = {};
-  for (const model of MODELS) summary[model] = { stalled: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0, latencies: [] };
+  for (const model of MODELS) summary[model] = { stalled: 0, droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, droppedWall: 0, droppedAscii: 0, droppedOpener: 0, droppedDiversity: 0, latencies: [] };
 
   for (const row of rows) {
     for (const r of row.results) {
@@ -265,6 +265,7 @@ async function main() {
       s.droppedWall += r.droppedWall || 0;
       s.droppedAscii += r.droppedAscii || 0;
       s.droppedOpener += r.droppedOpener || 0;
+      s.droppedDiversity += r.droppedDiversity || 0;
       if (r.latencyMs) s.latencies.push(r.latencyMs);
       if (!r.ok) s.stalled++;
     }
@@ -277,7 +278,7 @@ async function main() {
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
     console.log(
-      `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedOpener} dropped as no-opener, avg latency ${avg}ms`
+      `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedAscii} dropped as non-ascii, ${s.droppedOpener} dropped as no-opener, ${s.droppedDiversity} dropped for diversity, avg latency ${avg}ms`
     );
   }
   const bankRows = rows.filter((r) => r.source === "bank").length;
@@ -302,13 +303,13 @@ async function main() {
   }
 
   let summaryMd = "\n## Summary\n\n";
-  summaryMd += "| model | stall rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (no opener) | avg latency |\n|---|---|---|---|---|---|---|---|---|\n";
+  summaryMd += "| model | stall rows | dropped (words) | dropped (suspicious) | dropped (crutch) | dropped (wall) | dropped (non-ascii) | dropped (no opener) | dropped (diversity) | avg latency |\n|---|---|---|---|---|---|---|---|---|---|\n";
   for (const model of MODELS) {
     const s = summary[model];
     const avg = s.latencies.length
       ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
       : 0;
-    summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedOpener} | ${avg}ms |\n`;
+    summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedAscii} | ${s.droppedOpener} | ${s.droppedDiversity} | ${avg}ms |\n`;
   }
   summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **stall** ${stallRows}.\n`;
   summaryMd += `\n"k", "sounds good", "made it home", and "on my way" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. Read "source: model" against the reachable ceiling of ${rows.length - bankRows}/${rows.length} non-bank rows, not the raw ${rows.length}.\n`;

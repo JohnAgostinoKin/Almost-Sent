@@ -104,26 +104,36 @@
     var debugEl = document.getElementById("debug");
     var sentContextEl = document.getElementById("sent-context");
 
-    // Mirrors lib/postprocess.js's OPENER_RE: a real continuation always
-    // opens with the punctuation or space that connects it to the sent
-    // text, so the draft is rendered as two tones — the sent text in
-    // --mute, the continuation in --fg, same line, no added space (the
-    // continuation already carries its own leading connector). The one
-    // line in the whole app that doesn't open with a connector is the
-    // "k" -> "l" bank entry (see lib/bank.js) — a bare word means it's a
-    // straight replacement, not a continuation, so it renders alone with
-    // no muted prefix.
+    // Mirrors lib/postprocess.js's OPENER_RE and lib/compose.js's
+    // composeDraft (duplicated — no build step here to require() them,
+    // keep the two in sync by hand): a real continuation always opens with
+    // the punctuation or space that connects it to the sent text, so the
+    // draft is rendered as two tones — the sent text in --mute, the
+    // continuation in --fg, same line, no added space (the continuation
+    // already carries its own leading connector). If the sent text also
+    // ends in its own punctuation, a leading period or comma on the
+    // continuation is dropped rather than doubled up ("we good?." reads
+    // as a typo, not a joke). The one line in the whole app that doesn't
+    // open with a connector is the "k" -> "l" bank entry (see
+    // lib/bank.js) — a bare word means it's a straight replacement, not a
+    // continuation, so it renders alone with no muted prefix.
     var OPENER_RE = /^[,.!?\s]/;
+    var SENT_END_PUNCT_RE = /[.,!?]$/;
+    var LEADING_DOT_COMMA_RE = /^[.,]/;
     function renderDraft(sentText, draftText) {
       draftEl.textContent = "";
-      if (OPENER_RE.test(draftText)) {
+      var text = String(draftText || "");
+      if (OPENER_RE.test(text)) {
+        if (SENT_END_PUNCT_RE.test(sentText) && LEADING_DOT_COMMA_RE.test(text)) {
+          text = text.slice(1);
+        }
         var sentPart = document.createElement("span");
         sentPart.className = "sent-part";
         sentPart.textContent = sentText;
         draftEl.appendChild(sentPart);
-        draftEl.appendChild(document.createTextNode(draftText));
+        draftEl.appendChild(document.createTextNode(text));
       } else {
-        draftEl.textContent = draftText;
+        draftEl.textContent = text;
       }
     }
 
