@@ -6,6 +6,7 @@ const { callLLM } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
 const { keywordFallback, wordFallback } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
+const { shuffled } = require("../lib/prompt");
 
 function readBody(req) {
   const body = req.body;
@@ -29,7 +30,7 @@ async function fromAi(sent) {
     if (isRefusal(parsed)) return { lines: [], skip: true };
     const { kept } = filterLines(parsed, sent);
     if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" };
-    return { lines: kept.slice(0, 3) };
+    return { lines: kept.slice(0, 6) };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message };
   }
@@ -95,7 +96,9 @@ module.exports = async function handler(req, res) {
   const drafts = [];
   const bank = exactMatch(sent);
   if (bank) drafts.push(bank);
-  ai.lines.forEach(function (line) {
+  // Shuffled so the same shape doesn't always land in the same slot — a
+  // hero-bank hit is the one exception, it always leads.
+  shuffled(ai.lines).forEach(function (line) {
     if (drafts.indexOf(line) === -1) drafts.push(line);
   });
 
@@ -113,7 +116,7 @@ module.exports = async function handler(req, res) {
 
   res.status(200).json({
     sent: sent,
-    drafts: drafts.slice(0, 3),
+    drafts: drafts.slice(0, 6),
     source: source,
     why: ai.why || null
   });
