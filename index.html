@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="almost sent.">
   <style>
     :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --line:#242424; --red:#e23b2f; }
+    .dot { color:var(--red); }
     * { box-sizing:border-box; margin:0; padding:0; }
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
@@ -31,6 +32,7 @@
     .hint { margin-top:12px; font-size:13px; color:#8a857c; }
     .label { display:block; font-size:13px; letter-spacing:0.06em; color:var(--mute); margin-bottom:8px; }
     .draft { font-size:30px; line-height:1.3; margin:0; text-wrap:pretty; }
+    .debug { margin-top:8px; font-size:11px; color:#6e6960; }
     .swap { margin-top:14px; }
     .swap button { width:auto; padding:7px 13px; font-size:12px; }
     .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
@@ -52,7 +54,7 @@
 </head>
 <body>
   <main>
-    <h1>almost sent.</h1>
+    <h1>almost sent<span class="dot">.</span></h1>
     <p class="tag">the draft they never sent.</p>
 
     <form id="form">
@@ -64,6 +66,7 @@
 
     <section id="out" class="result hidden">
       <p class="draft" id="out-draft"></p>
+      <p class="debug hidden" id="debug"></p>
       <div class="swap"><button class="ghost" type="button" id="another">another</button></div>
 
       <div class="turn">
@@ -94,6 +97,11 @@
     var shareBtn = document.getElementById("share");
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
+    var debugEl = document.getElementById("debug");
+
+    // ?debug=1 shows the response's source/why/provider under the draft —
+    // never rendered for a normal visitor, the param has to be there.
+    var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
     var pool = [];       // the (up to) six drafts from this call, ranked strongest first
     var cursor = 0;      // which one is on screen
@@ -118,6 +126,8 @@
       shareBtn.disabled = true;
       shareBtn.textContent = "send it to someone";
       whewEl.classList.add("hidden");
+      debugEl.textContent = "";
+      debugEl.classList.add("hidden");
       pool = [];
       cursor = 0;
       reveals = 0;
@@ -148,6 +158,13 @@
         reveals = 0;
         draftEl.textContent = pool[0];
         refreshAnotherLabel();
+        if (DEBUG) {
+          debugEl.textContent =
+            "source: " + (data.source || "—") +
+            " · why: " + (data.why || "—") +
+            " · provider: " + (data.provider || "—");
+          debugEl.classList.remove("hidden");
+        }
         sentEl.readOnly = true;
         writeEl.value = "";
         shareBtn.disabled = true;

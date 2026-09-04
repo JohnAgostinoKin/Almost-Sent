@@ -22,19 +22,21 @@ async function fromAi(sent) {
   try {
     const result = await callLLM(key, model, sent);
     // Tag every why with the upstream provider OpenRouter actually routed
-    // to, so a run of requests shows whether routing moved mid-session.
-    const provider = result.provider ? " [" + result.provider + "]" : "";
+    // to (also returned bare as `provider`, for the ?debug=1 view), so a
+    // run of requests shows whether routing moved mid-session.
+    const provider = result.provider || null;
+    const providerTag = provider ? " [" + provider + "]" : "";
     const parsed = extractArray(result.text);
     if (!parsed) {
-      if (result.finishReason === "length") return { lines: [], why: "hit token limit" + provider };
-      return { lines: [], why: (result.text ? "no json in output" : "empty output") + provider };
+      if (result.finishReason === "length") return { lines: [], why: "hit token limit" + providerTag, provider: provider };
+      return { lines: [], why: (result.text ? "no json in output" : "empty output") + providerTag, provider: provider };
     }
     if (isRefusal(parsed)) return { lines: [], skip: true };
     const { kept } = filterLines(parsed, sent);
-    if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" + provider };
-    return { lines: kept.slice(0, 6), why: "ok" + provider };
+    if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" + providerTag, provider: provider };
+    return { lines: kept.slice(0, 6), why: "ok" + providerTag, provider: provider };
   } catch (err) {
-    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message };
+    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null };
   }
 }
 
@@ -121,6 +123,7 @@ module.exports = async function handler(req, res) {
     sent: sent,
     drafts: drafts.slice(0, 6),
     source: source,
-    why: ai.why || null
+    why: ai.why || null,
+    provider: ai.provider || null
   });
 };
