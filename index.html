@@ -205,7 +205,8 @@
           debugEl.textContent =
             "source: " + (data.source || "—") +
             " · why: " + (data.why || "—") +
-            " · provider: " + (data.provider || "—");
+            " · provider: " + (data.provider || "—") +
+            " · logged: " + (data.logged || "—");
           debugEl.classList.remove("hidden");
         }
         sentEl.readOnly = true;

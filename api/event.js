@@ -30,12 +30,18 @@ function safeMeta(meta) {
 
 const limited = createLimiter();
 
+// Same "don't swallow it" fix as api/draft.js's remember() — a non-2xx
+// response used to vanish silently. Now it's console.error'd with the
+// status and body so it shows up in Vercel function logs. This endpoint's
+// own response stays { ok: true } either way (the client never reads it,
+// see the handler below) — the logs are the surface for this one, not
+// the ?debug=1 view, which only reflects /api/draft.
 async function log(deviceId, event, meta) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return;
   try {
-    await fetch(url + "/rest/v1/events", {
+    const res = await fetch(url + "/rest/v1/events", {
       method: "POST",
       headers: {
         apikey: key,
@@ -45,7 +51,13 @@ async function log(deviceId, event, meta) {
       },
       body: JSON.stringify({ device_id: deviceId, event: event, meta: meta })
     });
-  } catch (err) {}
+    if (!res.ok) {
+      const body = await res.text().catch(function () { return ""; });
+      console.error("supabase events insert failed: " + res.status + " " + body.slice(0, 500));
+    }
+  } catch (err) {
+    console.error("supabase events insert threw: " + (err && err.message));
+  }
 }
 
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];

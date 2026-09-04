@@ -66,12 +66,19 @@ async function fromAi(sent) {
 
 const limited = createLimiter();
 
+// Returns what actually happened so the caller can surface it (`logged` in
+// the response, visible in ?debug=1) — this used to swallow every outcome,
+// success or failure alike, which is how `inbox` went silently empty since
+// launch without anything showing it. null = never attempted (no config
+// set); "ok" = 2xx; the status code as a string = a non-2xx response,
+// also console.error'd with the body so it's in the Vercel function logs;
+// "error" = the fetch itself threw (network/DNS/timeout).
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return;
+  if (!url || !key) return null;
   try {
-    await fetch(url + "/rest/v1/inbox", {
+    const res = await fetch(url + "/rest/v1/inbox", {
       method: "POST",
       headers: {
         apikey: key,
@@ -81,7 +88,16 @@ async function remember(sent) {
       },
       body: JSON.stringify({ key: norm(sent) || sent.trim(), sent: sent.trim().slice(0, 500) })
     });
-  } catch (err) {}
+    if (!res.ok) {
+      const body = await res.text().catch(function () { return ""; });
+      console.error("supabase inbox insert failed: " + res.status + " " + body.slice(0, 500));
+      return String(res.status);
+    }
+    return "ok";
+  } catch (err) {
+    console.error("supabase inbox insert threw: " + (err && err.message));
+    return "error";
+  }
 }
 
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
@@ -131,13 +147,14 @@ module.exports = async function handler(req, res) {
     source = "stall";
   }
 
-  await remember(sent);
+  const logged = await remember(sent);
 
   res.status(200).json({
     sent: sent,
     drafts: drafts.slice(0, 6),
     source: source,
     why: ai.why || null,
-    provider: ai.provider || null
+    provider: ai.provider || null,
+    logged: logged
   });
 };
