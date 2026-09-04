@@ -72,7 +72,15 @@ async function callOnce(key, model, sent) {
     // Drop counts on a success, not just a failure — "ok, kept 2" alone
     // hides that 4 of the 6 got filtered; the breakdown says which rule.
     const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag + " · " + judgeNote;
-    return { lines: kept, why: why, provider: provider, debugLines: judged.all };
+    // ?debug=1's line list reads in display order — the kept lines first,
+    // in the exact order index.html's pool will show them (matching
+    // `kept` above), then the dropped ones after, in the order the model
+    // originally wrote them (judged.all's own order, filtered down to just
+    // the dropped entries).
+    const debugLines = kept
+      .map(function (item) { return { shape: item.shape, text: item.text, dropped: false, filter: null }; })
+      .concat(judged.all.filter(function (entry) { return entry.dropped; }));
+    return { lines: kept, why: why, provider: provider, debugLines: debugLines };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
