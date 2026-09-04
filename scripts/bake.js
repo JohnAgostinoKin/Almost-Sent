@@ -57,7 +57,7 @@ const INPUTS = [
   "lol",
   "got your message",
   "made it home",
-  "you around later",
+  "you busy this weekend",
   "let's grab a coffee sometime",
   "congrats on the promotion",
   "text me when you land",
