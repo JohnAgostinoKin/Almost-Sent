@@ -6,7 +6,6 @@ const { callLLM } = require("../lib/llm");
 const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
 const { keywordFallback, wordFallback } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
-const { shuffled } = require("../lib/prompt");
 
 function readBody(req) {
   const body = req.body;
@@ -96,9 +95,10 @@ module.exports = async function handler(req, res) {
   const drafts = [];
   const bank = exactMatch(sent);
   if (bank) drafts.push(bank);
-  // Shuffled so the same shape doesn't always land in the same slot — a
-  // hero-bank hit is the one exception, it always leads.
-  shuffled(ai.lines).forEach(function (line) {
+  // The model returns its six lines strongest-first (see prompt.js); keep
+  // that order so the client can show the best one and reveal the rest in
+  // descending order. A hero-bank hit is the one exception — it always leads.
+  ai.lines.forEach(function (line) {
     if (drafts.indexOf(line) === -1) drafts.push(line);
   });
 

@@ -91,9 +91,19 @@
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
 
-    var pool = [];      // the three drafts from this call
-    var cursor = 0;     // which one is on screen
-    var current = "";   // the input this result belongs to
+    var pool = [];       // the (up to) six drafts from this call, ranked strongest first
+    var cursor = 0;      // which one is on screen
+    var reveals = 0;     // "another" clicks used on this result, capped below
+    var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
+    var current = "";    // the input this result belongs to
+
+    // "another" reveals the next-ranked line while there's one left to
+    // reveal and the free-reveal cap isn't hit; once either runs out the
+    // button turns into "new text" instead of dangling as a dead end.
+    function refreshAnotherLabel() {
+      var canReveal = reveals < MAX_REVEALS && cursor + 1 < pool.length;
+      anotherBtn.textContent = canReveal ? "another" : "new text";
+    }
 
     function reset() {
       document.getElementById("out").classList.add("hidden");
@@ -106,6 +116,8 @@
       whewEl.classList.add("hidden");
       pool = [];
       cursor = 0;
+      reveals = 0;
+      anotherBtn.textContent = "another";
       sentEl.focus();
     }
 
@@ -129,7 +141,9 @@
 
         current = sent;
         cursor = 0;
+        reveals = 0;
         draftEl.textContent = pool[0];
+        refreshAnotherLabel();
         sentEl.readOnly = true;
         writeEl.value = "";
         shareBtn.disabled = true;
@@ -146,9 +160,14 @@
     });
 
     anotherBtn.addEventListener("click", function () {
-      if (pool.length < 2) return;
-      cursor = (cursor + 1) % pool.length;
-      draftEl.textContent = pool[cursor];
+      if (reveals < MAX_REVEALS && cursor + 1 < pool.length) {
+        cursor++;
+        reveals++;
+        draftEl.textContent = pool[cursor];
+        refreshAnotherLabel();
+      } else {
+        reset();
+      }
     });
 
     writeEl.addEventListener("input", function () {
