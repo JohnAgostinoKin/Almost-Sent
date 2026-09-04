@@ -18,7 +18,7 @@ async function fromAi(sent) {
   const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
-  const model = process.env.LLM_MODEL || "openai/gpt-oss-120b";
+  const model = process.env.LLM_MODEL || "mistralai/mistral-large-2512";
   try {
     const result = await callLLM(key, model, sent);
     const parsed = extractArray(result.text);
@@ -27,7 +27,7 @@ async function fromAi(sent) {
       return { lines: [], why: result.text ? "no json in output" : "empty output" };
     }
     if (isRefusal(parsed)) return { lines: [], skip: true };
-    const { kept } = filterLines(parsed, sent);
+    const { kept } = filterLines(parsed);
     if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" };
     return { lines: kept.slice(0, 6) };
   } catch (err) {
