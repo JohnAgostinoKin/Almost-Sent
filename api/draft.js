@@ -50,13 +50,14 @@ async function callOnce(key, model, sent) {
 
     // Judge pass: everything the keyword wall didn't already remove (see
     // lib/postprocess.js — it's down to slurs and minor-related terms now)
-    // goes to lib/judge.js as one small-model call reviewing all the
-    // surviving lines together. A judge failure (timeout/network/unparsable
-    // — never thrown, judgeLines always resolves) falls back to the
-    // keyword-filtered set exactly as-is; nothing further gets dropped.
-    const numbers = await judgeLines(key, filtered.kept.map(function (item) { return item.text; }));
-    const judged = applyJudgeVerdict(filtered.kept, filtered.all, numbers);
-    const judgeNote = judged.judgeFailed ? "judge: failed, kept keyword-filtered" : "judge: " + judged.droppedJudge + " dropped";
+    // goes to lib/judge.js as one small-model call PER LINE, all fired in
+    // parallel. A line whose call fails (timeout/network/unparsable — never
+    // thrown, judgeLines always resolves) is kept, fail open; other lines'
+    // real verdicts still apply independently.
+    const judgeResult = await judgeLines(key, filtered.kept.map(function (item) { return item.text; }));
+    const judged = applyJudgeVerdict(filtered.kept, filtered.all, judgeResult.flagged);
+    const judgeNote = "judge: " + judged.droppedJudge + " dropped" +
+      (judgeResult.failedCount ? " (" + judgeResult.failedCount + " failed open)" : "");
 
     // The judge flagging every surviving line is the same situation as the
     // keyword wall doing it above — nothing usable came out of this call —
