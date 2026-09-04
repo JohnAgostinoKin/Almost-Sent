@@ -35,11 +35,15 @@ async function callOnce(key, model, sent) {
     }
     if (isRefusal(parsed)) return { lines: [], skip: true };
     const filtered = filterLines(parsed, sent);
+    const drops = describeDrops(filtered);
     if (!filtered.kept.length) {
-      const drops = describeDrops(filtered) || "all " + parsed.length + " filtered";
-      return { lines: [], why: drops + providerTag, provider: provider, reason: "filtered" };
+      return { lines: [], why: (drops || "all " + parsed.length + " filtered") + providerTag, provider: provider, reason: "filtered" };
     }
-    return { lines: filtered.kept.slice(0, 6), why: "ok" + providerTag, provider: provider };
+    const kept = filtered.kept.slice(0, 6);
+    // Drop counts on a success, not just a failure — "ok, kept 2" alone
+    // hides that 4 of the 6 got filtered; the breakdown says which rule.
+    const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag;
+    return { lines: kept, why: why, provider: provider };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
