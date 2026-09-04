@@ -34,6 +34,9 @@
     .draft { font-size:30px; line-height:1.3; margin:0; text-wrap:pretty; }
     .draft .sent-part { color:var(--mute); }
     .debug { margin-top:8px; font-size:11px; color:#6e6960; }
+    .debug ul { margin-top:6px; padding-left:16px; }
+    .debug li { margin-top:2px; }
+    .debug li.dropped { color:#8a4a42; }
     .swap { margin-top:14px; }
     .swap button { width:auto; padding:7px 13px; font-size:12px; }
     .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
@@ -68,7 +71,7 @@
 
     <section id="out" class="result hidden">
       <p class="draft" id="out-draft"></p>
-      <p class="debug hidden" id="debug"></p>
+      <div class="debug hidden" id="debug"></div>
       <div class="swap"><button class="ghost" type="button" id="another">another</button></div>
 
       <div class="turn">
@@ -141,9 +144,36 @@
       }
     }
 
-    // ?debug=1 shows the response's source/why/provider under the draft —
-    // never rendered for a normal visitor, the param has to be there.
+    // ?debug=1 shows the response's source/why/provider under the draft,
+    // plus every line the model wrote this call — shape-tagged, and marked
+    // which were dropped and by which filter (data.debug, from
+    // lib/postprocess.js's filterLines via api/draft.js) — never rendered
+    // for a normal visitor, the param has to be there.
     var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+
+    function renderDebug(data) {
+      debugEl.innerHTML = "";
+      var summary = document.createElement("div");
+      summary.textContent =
+        "source: " + (data.source || "—") +
+        " · why: " + (data.why || "—") +
+        " · provider: " + (data.provider || "—") +
+        " · logged: " + (data.logged || "—");
+      debugEl.appendChild(summary);
+      if (data.debug && data.debug.length) {
+        var list = document.createElement("ul");
+        data.debug.forEach(function (d) {
+          var li = document.createElement("li");
+          li.textContent = "[" + (d.shape || "?") + "] " +
+            (d.dropped ? "dropped (" + (d.filter || "?") + ")" : "kept") +
+            " — " + d.text;
+          if (d.dropped) li.className = "dropped";
+          list.appendChild(li);
+        });
+        debugEl.appendChild(list);
+      }
+      debugEl.classList.remove("hidden");
+    }
 
     // Fire-and-forget anonymous event log — device id, event name, and a
     // small meta object only. Never the text itself (that's already in the
@@ -186,7 +216,7 @@
     }
     var DEVICE_ID = getDeviceId();
 
-    var pool = [];       // the (up to) six drafts from this call, ranked strongest first
+    var pool = [];       // the (up to) six drafts from this call, in shape display order (server-side)
     var cursor = 0;      // which one is on screen
     var reveals = 0;     // "another" clicks used on this result, capped below
     var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
@@ -195,9 +225,9 @@
     var currentProvider = null; // this result's data.provider, same reuse
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
 
-    // "another" reveals the next-ranked line while there's one left to
-    // reveal and the free-reveal cap isn't hit; once either runs out the
-    // button turns into "new text" instead of dangling as a dead end.
+    // "another" reveals the next line in display order while there's one
+    // left to reveal and the free-reveal cap isn't hit; once either runs
+    // out the button turns into "new text" instead of dangling as a dead end.
     function refreshAnotherLabel() {
       var canReveal = reveals < MAX_REVEALS && cursor + 1 < pool.length;
       anotherBtn.textContent = canReveal ? "another" : "new text";
@@ -256,14 +286,7 @@
         sentContextEl.textContent = sent;
         refreshAnotherLabel();
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
-        if (DEBUG) {
-          debugEl.textContent =
-            "source: " + (data.source || "—") +
-            " · why: " + (data.why || "—") +
-            " · provider: " + (data.provider || "—") +
-            " · logged: " + (data.logged || "—");
-          debugEl.classList.remove("hidden");
-        }
+        if (DEBUG) renderDebug(data);
         sentEl.readOnly = true;
         writeEl.value = "";
         textShareBtn.disabled = true;

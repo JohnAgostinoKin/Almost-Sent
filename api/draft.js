@@ -3,7 +3,7 @@
 const { norm } = require("../lib/normalize");
 const { exactMatch } = require("../lib/bank");
 const { callLLM } = require("../lib/llm");
-const { extractArray, isRefusal, filterLines, describeDrops } = require("../lib/postprocess");
+const { extractArray, normalizeItem, isRefusal, orderByShape, filterLines, describeDrops } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { createLimiter } = require("../lib/rateLimit");
@@ -20,6 +20,12 @@ function readBody(req) {
 // "no json" / "timed out" / etc. (not worth one — a malformed response
 // isn't going to fix itself on a second try the way an unlucky draw of
 // six filtered lines might).
+//
+// `debugLines` carries filterLines' full `all` array — every line the model
+// wrote, shape-tagged, marked kept or dropped and by which filter — through
+// to the response for ?debug=1, regardless of whether the call ended up
+// usable. Only set when there was something to parse; the empty-output and
+// error paths have no lines to show.
 async function callOnce(key, model, sent) {
   try {
     const result = await callLLM(key, model, sent);
@@ -33,17 +39,20 @@ async function callOnce(key, model, sent) {
       const why = result.finishReason === "length" ? "hit token limit" : (result.text ? "no json in output" : "empty output");
       return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable" };
     }
-    if (isRefusal(parsed)) return { lines: [], skip: true };
-    const filtered = filterLines(parsed, sent);
+    const items = parsed.map(normalizeItem);
+    if (isRefusal(items)) return { lines: [], skip: true };
+    const filtered = filterLines(items, sent);
     const drops = describeDrops(filtered);
     if (!filtered.kept.length) {
-      return { lines: [], why: (drops || "all " + parsed.length + " filtered") + providerTag, provider: provider, reason: "filtered" };
+      return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all };
     }
-    const kept = filtered.kept.slice(0, 6);
+    // Display order is fixed by shape, not by how strong the model thought
+    // each line was (see orderByShape) — the model no longer ranks these.
+    const kept = orderByShape(filtered.kept).slice(0, 6);
     // Drop counts on a success, not just a failure — "ok, kept 2" alone
     // hides that 4 of the 6 got filtered; the breakdown says which rule.
     const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag;
-    return { lines: kept, why: why, provider: provider };
+    return { lines: kept, why: why, provider: provider, debugLines: filtered.all };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
@@ -129,11 +138,13 @@ module.exports = async function handler(req, res) {
   const drafts = [];
   const bank = exactMatch(sent);
   if (bank) drafts.push(bank);
-  // The model returns its six lines strongest-first (see prompt.js); keep
-  // that order so the client can show the best one and reveal the rest in
-  // descending order. A hero-bank hit is the one exception — it always leads.
-  ai.lines.forEach(function (line) {
-    if (drafts.indexOf(line) === -1) drafts.push(line);
+  // ai.lines is already in display order — fixed by shape, not by how
+  // strong the model thought each line was (see postprocess.js's
+  // orderByShape) — so the client just shows them in the order given. A
+  // hero-bank hit is the one exception — it always leads.
+  ai.lines.forEach(function (item) {
+    const text = item && item.text;
+    if (text && drafts.indexOf(text) === -1) drafts.push(text);
   });
 
   // `source` tells you which path produced what you are reading:
@@ -155,6 +166,10 @@ module.exports = async function handler(req, res) {
     source: source,
     why: ai.why || null,
     provider: ai.provider || null,
-    logged: logged
+    logged: logged,
+    // Every line the model wrote this call — shape-tagged, kept/dropped and
+    // by which filter — for the ?debug=1 view. null when there was nothing
+    // to parse (empty output, timeout, bank/stall-only responses).
+    debug: ai.debugLines || null
   });
 };

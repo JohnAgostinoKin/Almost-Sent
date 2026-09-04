@@ -13,7 +13,7 @@ const path = require("path");
 
 const { exactMatch } = require("../lib/bank");
 const { callLLM, BASE_URL } = require("../lib/llm");
-const { extractArray, isRefusal, filterLines } = require("../lib/postprocess");
+const { extractArray, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
 const { composeDraft } = require("../lib/compose");
 
@@ -130,10 +130,11 @@ async function runOneModel(model, input) {
       const note = finishReason === "length" ? "hit token limit" : "unparsable response";
       return { model, ok: false, lines: [], ...EMPTY_DROPS, latencyMs, note };
     }
-    if (isRefusal(parsed)) {
+    const items = parsed.map(normalizeItem);
+    if (isRefusal(items)) {
       return { model, ok: false, refused: true, lines: [], ...EMPTY_DROPS, latencyMs, note: "refused" };
     }
-    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedOpener, droppedDiversity } = filterLines(parsed, input);
+    const { kept, droppedWords, droppedSuspicious, droppedCrutch, droppedWall, droppedAscii, droppedOpener, droppedDiversity } = filterLines(items, input);
     return {
       model,
       ok: kept.length > 0,
@@ -198,7 +199,7 @@ async function runInput(models, input) {
       results: models.map((model) => ({
         model,
         ok: true,
-        lines: [bankHit],
+        lines: [{ shape: "bank", text: bankHit }],
         ...EMPTY_DROPS,
         latencyMs: 0,
         note: "bank hit — model not called"
@@ -297,7 +298,7 @@ async function main() {
     const cells = row.results.map((r) => {
       if (r.refused) return "REFUSE";
       if (!r.ok) return `_${r.note}_`;
-      return r.lines.map((l) => `"${composeDraft(row.input, l)}"`).join("<br>");
+      return r.lines.map((l) => `[${l.shape}] "${composeDraft(row.input, l.text)}"`).join("<br>");
     });
     table += `| ${md(row.input)} | ${cells.map(md).join(" | ")} | ${row.source} | ${md(row.why)} |\n`;
   }
