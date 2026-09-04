@@ -78,7 +78,7 @@ async function remember(sent) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   try {
-    const res = await fetch(url + "/rest/v1/inbox", {
+    const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/inbox", {
       method: "POST",
       headers: {
         apikey: key,

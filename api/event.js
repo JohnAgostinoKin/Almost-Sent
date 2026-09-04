@@ -41,7 +41,7 @@ async function log(deviceId, event, meta) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return;
   try {
-    const res = await fetch(url + "/rest/v1/events", {
+    const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/events", {
       method: "POST",
       headers: {
         apikey: key,
