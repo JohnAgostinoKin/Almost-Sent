@@ -141,37 +141,46 @@
     // never rendered for a normal visitor, the param has to be there.
     var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
-    // A random id stored on this device on first visit — no personal data,
-    // nothing tied to an identity, never sent anywhere but /api/event.
-    function getDeviceId() {
-      try {
-        var id = localStorage.getItem("device_id");
-        if (!id) {
-          id = (crypto.randomUUID && crypto.randomUUID()) ||
-            (Date.now().toString(36) + Math.random().toString(36).slice(2));
-          localStorage.setItem("device_id", id);
-        }
-        return id;
-      } catch (err) {
-        return null; // storage blocked (private mode, etc.) — logEvent below just no-ops
-      }
-    }
-    var DEVICE_ID = getDeviceId();
-
     // Fire-and-forget anonymous event log — device id, event name, and a
     // small meta object only. Never the text itself (that's already in the
     // inbox table, on its own, via api/draft.js). Never blocks or throws
-    // into the UI.
-    function logEvent(event, meta) {
-      if (!DEVICE_ID) return;
+    // into the UI. deviceId defaults to DEVICE_ID but can be overridden —
+    // needed once, below, to log "arrival" against a brand-new id before
+    // that id is assigned to DEVICE_ID itself.
+    function logEvent(event, meta, deviceId) {
+      var id = deviceId || DEVICE_ID;
+      if (!id) return;
       try {
         fetch("/api/event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ device_id: DEVICE_ID, event: event, meta: meta || {} })
+          body: JSON.stringify({ device_id: id, event: event, meta: meta || {} })
         }).catch(function () {});
       } catch (err) {}
     }
+
+    // A random id stored on this device on first visit — no personal data,
+    // nothing tied to an identity, never sent anywhere but /api/event. If
+    // this is a first visit (no id stored yet) AND the page was loaded via
+    // a referral link (?r=<the referrer's device_id> — see the share block
+    // below, which appends it to almostsent.app), log that as an "arrival"
+    // event with the referrer's code, before this device's own id is
+    // written to localStorage.
+    function getDeviceId() {
+      try {
+        var existing = localStorage.getItem("device_id");
+        if (existing) return existing;
+        var id = (crypto.randomUUID && crypto.randomUUID()) ||
+          (Date.now().toString(36) + Math.random().toString(36).slice(2));
+        var ref = new URLSearchParams(location.search).get("r");
+        if (ref) logEvent("arrival", { ref: ref }, id);
+        localStorage.setItem("device_id", id);
+        return id;
+      } catch (err) {
+        return null; // storage blocked (private mode, etc.) — logEvent above just no-ops
+      }
+    }
+    var DEVICE_ID = getDeviceId();
 
     var pool = [];       // the (up to) six drafts from this call, ranked strongest first
     var cursor = 0;      // which one is on screen
@@ -289,11 +298,15 @@
       var mine = writeEl.value.trim();
       if (!mine) return;
       logEvent("share");
+      // ?r=<device_id> makes this share a referral link — see
+      // getDeviceId() above, which logs an "arrival" event for whoever's
+      // first visit lands on it.
+      var shareUrl = "almostsent.app" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
       var text =
         "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n" +
         "i almost sent: " + current + mine + "\n\n" +
-        "almostsent.app";
+        shareUrl;
       whewEl.classList.remove("hidden");
       try {
         if (navigator.share) {

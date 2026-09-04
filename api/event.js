@@ -8,7 +8,12 @@
 
 const { createLimiter } = require("../lib/rateLimit");
 
-const EVENTS = ["paste", "draft_shown", "another", "own_line", "share"];
+// "arrival" is the one event logged for a device that isn't yet its own
+// device_id's row: a fresh device's first-ever event, fired only when it
+// showed up via another device's share link (?r=<their device_id>) — see
+// index.html's getDeviceId(). meta carries { ref: <referrer's device_id> },
+// nothing else.
+const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {
