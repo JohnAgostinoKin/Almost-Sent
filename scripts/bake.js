@@ -17,6 +17,13 @@ const { extractArray, normalizeItem, isRefusal, filterLines } = require("../lib/
 const { stallLine } = require("../lib/fallback");
 const { composeDraft } = require("../lib/compose");
 
+// This harness only runs the keyword wall (now just slurs and minor-related
+// terms, see lib/postprocess.js's WALL_WORDS) — it doesn't run the judge
+// pass lib/judge.js adds to the live /api/draft path, so a row here can show
+// a line surviving that production would still catch and drop. Read the
+// table for voice/format quality, not as a preview of what a real visitor
+// would see filtered.
+
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {
   const envPath = path.join(__dirname, "..", ".env");

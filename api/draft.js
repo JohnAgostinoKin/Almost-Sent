@@ -4,6 +4,7 @@ const { norm } = require("../lib/normalize");
 const { exactMatch } = require("../lib/bank");
 const { callLLM } = require("../lib/llm");
 const { extractArray, normalizeItem, isRefusal, orderByShape, filterLines, describeDrops } = require("../lib/postprocess");
+const { judgeLines, applyJudgeVerdict } = require("../lib/judge");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { createLimiter } = require("../lib/rateLimit");
@@ -46,13 +47,32 @@ async function callOnce(key, model, sent) {
     if (!filtered.kept.length) {
       return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all };
     }
+
+    // Judge pass: everything the keyword wall didn't already remove (see
+    // lib/postprocess.js — it's down to slurs and minor-related terms now)
+    // goes to lib/judge.js as one small-model call reviewing all the
+    // surviving lines together. A judge failure (timeout/network/unparsable
+    // — never thrown, judgeLines always resolves) falls back to the
+    // keyword-filtered set exactly as-is; nothing further gets dropped.
+    const numbers = await judgeLines(key, filtered.kept.map(function (item) { return item.text; }));
+    const judged = applyJudgeVerdict(filtered.kept, filtered.all, numbers);
+    const judgeNote = judged.judgeFailed ? "judge: failed, kept keyword-filtered" : "judge: " + judged.droppedJudge + " dropped";
+
+    // The judge flagging every surviving line is the same situation as the
+    // keyword wall doing it above — nothing usable came out of this call —
+    // so it gets the same reason: "filtered", which is what earns a retry
+    // in fromAi below.
+    if (!judged.kept.length) {
+      return { lines: [], why: judgeNote + providerTag, provider: provider, reason: "filtered", debugLines: judged.all };
+    }
+
     // Display order is fixed by shape, not by how strong the model thought
     // each line was (see orderByShape) — the model no longer ranks these.
-    const kept = orderByShape(filtered.kept).slice(0, 6);
+    const kept = orderByShape(judged.kept).slice(0, 6);
     // Drop counts on a success, not just a failure — "ok, kept 2" alone
     // hides that 4 of the 6 got filtered; the breakdown says which rule.
-    const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag;
-    return { lines: kept, why: why, provider: provider, debugLines: filtered.all };
+    const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag + " · " + judgeNote;
+    return { lines: kept, why: why, provider: provider, debugLines: judged.all };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
