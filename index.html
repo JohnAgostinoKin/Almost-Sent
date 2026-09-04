@@ -40,8 +40,8 @@
     .turn .label { margin-top:0; }
     .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
     #write { min-height:76px; margin-top:8px; }
-    .actions { display:flex; gap:8px; margin-top:14px; }
-    .actions button { padding:12px; font-size:13px; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .actions button { width:auto; padding:12px 14px; font-size:13px; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
     footer { margin-top:auto; padding-top:80px; color:#6e6960; font-size:13px; max-width:440px; width:100%; line-height:1.7; }
     .examples { margin-top:72px; width:100%; max-width:440px; }
@@ -76,7 +76,9 @@
         <p class="sent-context" id="sent-context"></p>
         <textarea id="write" maxlength="180" placeholder="finish it."></textarea>
         <div class="actions">
-          <button class="ghost" type="button" id="share" disabled>send it to someone</button>
+          <button class="ghost" type="button" id="text-share" disabled>text it</button>
+          <button class="ghost" type="button" id="email-share" disabled>email it</button>
+          <button class="ghost" type="button" id="copy-share" disabled>copy it</button>
           <button class="ghost" type="button" id="again">new text</button>
         </div>
         <p class="whew hidden" id="whew">whew.</p>
@@ -98,7 +100,9 @@
     var sentEl = document.getElementById("sent");
     var draftEl = document.getElementById("out-draft");
     var writeEl = document.getElementById("write");
-    var shareBtn = document.getElementById("share");
+    var textShareBtn = document.getElementById("text-share");
+    var emailShareBtn = document.getElementById("email-share");
+    var copyShareBtn = document.getElementById("copy-share");
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
@@ -205,8 +209,10 @@
       sentEl.value = "";
       sentEl.readOnly = false;
       writeEl.value = "";
-      shareBtn.disabled = true;
-      shareBtn.textContent = "send it to someone";
+      textShareBtn.disabled = true;
+      emailShareBtn.disabled = true;
+      copyShareBtn.disabled = true;
+      copyShareBtn.textContent = "copy it";
       whewEl.classList.add("hidden");
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
@@ -260,7 +266,10 @@
         }
         sentEl.readOnly = true;
         writeEl.value = "";
-        shareBtn.disabled = true;
+        textShareBtn.disabled = true;
+        emailShareBtn.disabled = true;
+        copyShareBtn.disabled = true;
+        copyShareBtn.textContent = "copy it";
         whewEl.classList.add("hidden");
         document.getElementById("out").classList.remove("hidden");
         document.getElementById("examples").classList.add("hidden");
@@ -287,35 +296,49 @@
     });
 
     writeEl.addEventListener("input", function () {
-      shareBtn.disabled = writeEl.value.trim().length === 0;
-      if (!ownLineLogged && writeEl.value.trim().length > 0) {
+      var hasText = writeEl.value.trim().length > 0;
+      textShareBtn.disabled = !hasText;
+      emailShareBtn.disabled = !hasText;
+      copyShareBtn.disabled = !hasText;
+      if (!ownLineLogged && hasText) {
         ownLineLogged = true;
         logEvent("own_line");
       }
     });
 
-    shareBtn.addEventListener("click", async function () {
+    // ?r=<device_id> makes this a referral link — see getDeviceId() above,
+    // which logs an "arrival" event for whoever's first visit lands on it.
+    function buildShareText() {
       var mine = writeEl.value.trim();
-      if (!mine) return;
-      logEvent("share");
-      // ?r=<device_id> makes this share a referral link — see
-      // getDeviceId() above, which logs an "arrival" event for whoever's
-      // first visit lands on it.
       var shareUrl = "almostsent.app" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
-      var text =
-        "they sent: " + current + "\n" +
+      return "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n" +
         "i almost sent: " + current + mine + "\n\n" +
         shareUrl;
+    }
+
+    textShareBtn.addEventListener("click", function () {
+      if (!writeEl.value.trim()) return;
+      logEvent("share", { via: "sms" });
+      whewEl.classList.remove("hidden");
+      location.href = "sms:?&body=" + encodeURIComponent(buildShareText());
+    });
+
+    emailShareBtn.addEventListener("click", function () {
+      if (!writeEl.value.trim()) return;
+      logEvent("share", { via: "email" });
+      whewEl.classList.remove("hidden");
+      location.href = "mailto:?subject=" + encodeURIComponent("almost sent") + "&body=" + encodeURIComponent(buildShareText());
+    });
+
+    copyShareBtn.addEventListener("click", async function () {
+      if (!writeEl.value.trim()) return;
+      logEvent("share", { via: "copy" });
       whewEl.classList.remove("hidden");
       try {
-        if (navigator.share) {
-          await navigator.share({ text: text });
-        } else {
-          await navigator.clipboard.writeText(text);
-          shareBtn.textContent = "copied. go paste it";
-        }
-      } catch (err) { /* user dismissed the sheet */ }
+        await navigator.clipboard.writeText(buildShareText());
+        copyShareBtn.textContent = "copied.";
+      } catch (err) { /* clipboard blocked — button just doesn't relabel */ }
     });
 
     document.getElementById("again").addEventListener("click", reset);
