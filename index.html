@@ -32,11 +32,13 @@
     .hint { margin-top:12px; font-size:13px; color:#8a857c; }
     .label { display:block; font-size:13px; letter-spacing:0.06em; color:var(--mute); margin-bottom:8px; }
     .draft { font-size:30px; line-height:1.3; margin:0; text-wrap:pretty; }
+    .draft .sent-part { color:var(--mute); }
     .debug { margin-top:8px; font-size:11px; color:#6e6960; }
     .swap { margin-top:14px; }
     .swap button { width:auto; padding:7px 13px; font-size:12px; }
     .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
     .turn .label { margin-top:0; }
+    .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
     #write { min-height:76px; margin-top:8px; }
     .actions { display:flex; gap:8px; margin-top:14px; }
     .actions button { padding:12px; font-size:13px; }
@@ -71,7 +73,8 @@
 
       <div class="turn">
         <label class="label" for="write">think you can do better? show us.</label>
-        <textarea id="write" maxlength="180" placeholder="say it."></textarea>
+        <p class="sent-context" id="sent-context"></p>
+        <textarea id="write" maxlength="180" placeholder="finish it."></textarea>
         <div class="actions">
           <button class="ghost" type="button" id="share" disabled>send it to someone</button>
           <button class="ghost" type="button" id="again">new text</button>
@@ -99,6 +102,30 @@
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
+    var sentContextEl = document.getElementById("sent-context");
+
+    // Mirrors lib/postprocess.js's OPENER_RE: a real continuation always
+    // opens with the punctuation or space that connects it to the sent
+    // text, so the draft is rendered as two tones — the sent text in
+    // --mute, the continuation in --fg, same line, no added space (the
+    // continuation already carries its own leading connector). The one
+    // line in the whole app that doesn't open with a connector is the
+    // "k" -> "l" bank entry (see lib/bank.js) — a bare word means it's a
+    // straight replacement, not a continuation, so it renders alone with
+    // no muted prefix.
+    var OPENER_RE = /^[,.!?\s]/;
+    function renderDraft(sentText, draftText) {
+      draftEl.textContent = "";
+      if (OPENER_RE.test(draftText)) {
+        var sentPart = document.createElement("span");
+        sentPart.className = "sent-part";
+        sentPart.textContent = sentText;
+        draftEl.appendChild(sentPart);
+        draftEl.appendChild(document.createTextNode(draftText));
+      } else {
+        draftEl.textContent = draftText;
+      }
+    }
 
     // ?debug=1 shows the response's source/why/provider under the draft —
     // never rendered for a normal visitor, the param has to be there.
@@ -164,6 +191,7 @@
       whewEl.classList.add("hidden");
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
+      sentContextEl.textContent = "";
       pool = [];
       cursor = 0;
       reveals = 0;
@@ -199,7 +227,8 @@
         currentSource = data.source || null;
         currentProvider = data.provider || null;
         ownLineLogged = false;
-        draftEl.textContent = pool[0];
+        renderDraft(sent, pool[0]);
+        sentContextEl.textContent = sent;
         refreshAnotherLabel();
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         if (DEBUG) {
@@ -229,7 +258,7 @@
       if (reveals < MAX_REVEALS && cursor + 1 < pool.length) {
         cursor++;
         reveals++;
-        draftEl.textContent = pool[cursor];
+        renderDraft(current, pool[cursor]);
         refreshAnotherLabel();
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
@@ -253,7 +282,7 @@
       var text =
         "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n" +
-        "i almost sent: " + mine + "\n\n" +
+        "i almost sent: " + current + mine + "\n\n" +
         "almostsent.app";
       whewEl.classList.remove("hidden");
       try {
