@@ -21,15 +21,18 @@ async function fromAi(sent) {
   const model = process.env.LLM_MODEL || "mistralai/mistral-large-2512";
   try {
     const result = await callLLM(key, model, sent);
+    // Tag every why with the upstream provider OpenRouter actually routed
+    // to, so a run of requests shows whether routing moved mid-session.
+    const provider = result.provider ? " [" + result.provider + "]" : "";
     const parsed = extractArray(result.text);
     if (!parsed) {
-      if (result.finishReason === "length") return { lines: [], why: "hit token limit" };
-      return { lines: [], why: result.text ? "no json in output" : "empty output" };
+      if (result.finishReason === "length") return { lines: [], why: "hit token limit" + provider };
+      return { lines: [], why: (result.text ? "no json in output" : "empty output") + provider };
     }
     if (isRefusal(parsed)) return { lines: [], skip: true };
-    const { kept } = filterLines(parsed);
-    if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" };
-    return { lines: kept.slice(0, 6) };
+    const { kept } = filterLines(parsed, sent);
+    if (!kept.length) return { lines: [], why: "all " + parsed.length + " filtered (length or content)" + provider };
+    return { lines: kept.slice(0, 6), why: "ok" + provider };
   } catch (err) {
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message };
   }
