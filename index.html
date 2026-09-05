@@ -207,19 +207,35 @@
     // below, which appends it to almostsent.app), log that as an "arrival"
     // event with the referrer's code, before this device's own id is
     // written to localStorage.
+    //
+    // localStorage reads and writes are each wrapped separately: a device
+    // with storage blocked entirely (private mode, cookies-off, etc.) still
+    // gets an id generated below and returned — it just can't be persisted,
+    // so this falls back to a fresh in-memory id every reload instead of
+    // going all the way to null. That matters because DEVICE_ID feeds every
+    // share link's ?r= param (see buildShareText below); returning null here
+    // used to mean a storage-blocked visitor's shares silently carried no
+    // referral code at all, for the entire session, with no way to notice.
     function getDeviceId() {
+      var id = null;
       try {
-        var existing = localStorage.getItem("device_id");
-        if (existing) return existing;
-        var id = (crypto.randomUUID && crypto.randomUUID()) ||
-          (Date.now().toString(36) + Math.random().toString(36).slice(2));
-        var ref = new URLSearchParams(location.search).get("r");
-        if (ref) logEvent("arrival", { ref: ref }, id);
-        localStorage.setItem("device_id", id);
-        return id;
+        id = localStorage.getItem("device_id");
       } catch (err) {
-        return null; // storage blocked (private mode, etc.) — logEvent above just no-ops
+        id = null; // storage blocked — fall through to the in-memory id below
       }
+      if (id) return id;
+
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      var ref = new URLSearchParams(location.search).get("r");
+      if (ref) logEvent("arrival", { ref: ref }, id);
+      try {
+        localStorage.setItem("device_id", id);
+      } catch (err) {
+        // storage blocked — id still works for every share this page load,
+        // it just won't survive a reload.
+      }
+      return id;
     }
     var DEVICE_ID = getDeviceId();
 
