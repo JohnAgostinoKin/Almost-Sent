@@ -11,7 +11,6 @@
 const fs = require("fs");
 const path = require("path");
 
-const { exactMatch } = require("../lib/bank");
 const { callLLM, BASE_URL } = require("../lib/llm");
 const { extractArray, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
@@ -199,23 +198,6 @@ function withWatchdog(promise, model) {
 // mid-run, and a fixed gap between sequential calls is the version of this
 // that keeps working regardless of which provider's limits are in play.
 async function runInput(models, input) {
-  const bankHit = exactMatch(input);
-  if (bankHit) {
-    return {
-      input,
-      results: models.map((model) => ({
-        model,
-        ok: true,
-        lines: [{ shape: "bank", text: bankHit }],
-        ...EMPTY_DROPS,
-        latencyMs: 0,
-        note: "bank hit — model not called"
-      })),
-      source: "bank",
-      why: "exact bank match"
-    };
-  }
-
   const results = [];
   for (const model of models) {
     results.push(await withWatchdog(runOneModel(model, input), model));
@@ -289,10 +271,9 @@ async function main() {
       `${model}: ${s.stalled}/${rows.length} stalled, ${s.droppedWords} lines dropped for word count, ${s.droppedSuspicious} dropped as suspicious, ${s.droppedCrutch} dropped as crutches, ${s.droppedWall} dropped as wall, ${s.droppedScript} dropped as non-latin script, ${s.droppedOpener} dropped as no-opener, ${s.droppedDiversity} dropped for diversity, avg latency ${avg}ms`
     );
   }
-  const bankRows = rows.filter((r) => r.source === "bank").length;
   const modelRows = rows.filter((r) => r.source === "model").length;
   const stallRows = rows.filter((r) => r.source === "stall").length;
-  console.log(`source split: bank=${bankRows} model=${modelRows} stall=${stallRows}`);
+  console.log(`source split: model=${modelRows} stall=${stallRows}`);
 
   // --- bake-results.md ----------------------------------------------------
   // Cells show the full composed draft (sent + continuation), not the
@@ -319,8 +300,7 @@ async function main() {
       : 0;
     summaryMd += `| ${model} | ${s.stalled}/${rows.length} | ${s.droppedWords} | ${s.droppedSuspicious} | ${s.droppedCrutch} | ${s.droppedWall} | ${s.droppedScript} | ${s.droppedOpener} | ${s.droppedDiversity} | ${avg}ms |\n`;
   }
-  summaryMd += `\nSource split across all ${rows.length} inputs: **bank** ${bankRows}, **model** ${modelRows}, **stall** ${stallRows}.\n`;
-  summaryMd += `\n"k", "sounds good", "made it home", and "on my way" are bank entries (the page's hero examples must be deterministic), so ${bankRows} of the ${rows.length} rows never call a model at all. Read "source: model" against the reachable ceiling of ${rows.length - bankRows}/${rows.length} non-bank rows, not the raw ${rows.length}.\n`;
+  summaryMd += `\nSource split across all ${rows.length} inputs: **model** ${modelRows}, **stall** ${stallRows}.\n`;
   summaryMd += "\nTemperature is 1.0 — run this three times before deciding anything. This script does not pick a winner; read the table.\n";
 
   const out = `# bake-off results\n\nRun at ${new Date().toISOString()}\n\n${table}${summaryMd}`;

@@ -15,9 +15,9 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    @media (min-width:800px) { main, footer, .examples { max-width:560px; } h1 { font-size:80px; } .draft { font-size:38px; } }
+    @media (min-width:800px) { main, footer { max-width:560px; } h1 { font-size:80px; } .draft { font-size:38px; } }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
-    .tag, .label, footer, .ex, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
     form, .result { margin-top:32px; }
     textarea, button { font:inherit; width:100%; }
@@ -52,9 +52,6 @@
     .actions button { width:auto; padding:12px 14px; font-size:13px; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
     footer { margin-top:auto; padding-top:80px; color:#6e6960; font-size:13px; max-width:440px; width:100%; line-height:1.7; }
-    .examples { margin-top:72px; width:100%; max-width:440px; }
-    .ex { border-top:1px solid var(--line); padding:20px 0; color:#b3ada2; font-size:14px; }
-    .ex b { color:#d8d2c8; font-weight:400; }
     .hidden { display:none; }
     @media (prefers-reduced-motion:no-preference) {
       .draft { animation:rise .22s ease-out; }
@@ -99,13 +96,6 @@
     </section>
   </main>
 
-  <section class="examples" id="examples">
-    <div class="ex"><b>sounds good</b> → sounds good. i already told your boss you're pregnant</div>
-    <div class="ex"><b>made it home</b> → made it home. your mom drove. we're engaged.</div>
-    <div class="ex"><b>on my way</b> → on my way. also i sold your car. it's fine. we'll talk.</div>
-    <div class="ex"><b>k</b> → l</div>
-  </section>
-
   <footer>we keep the incoming line so we can write a better draft. we do not keep your reply or your name. 18+ only. almostsent.app</footer>
 
   <script>
@@ -132,10 +122,9 @@
     // already carries its own leading connector). If the sent text also
     // ends in its own punctuation, a leading period or comma on the
     // continuation is dropped rather than doubled up ("we good?." reads
-    // as a typo, not a joke). The one line in the whole app that doesn't
-    // open with a connector is the "k" -> "l" bank entry (see
-    // lib/bank.js) — a bare word means it's a straight replacement, not a
-    // continuation, so it renders alone with no muted prefix.
+    // as a typo, not a joke). A line that doesn't open with a connector at
+    // all is a straight replacement, not a continuation, so it renders
+    // alone with no muted prefix.
     var OPENER_RE = /^[,.!?\s]/;
     var SENT_END_PUNCT_RE = /[.,!?]$/;
     var LEADING_DOT_COMMA_RE = /^[.,]/;
@@ -264,7 +253,6 @@
 
     function reset() {
       document.getElementById("out").classList.add("hidden");
-      document.getElementById("examples").classList.remove("hidden");
       sentEl.value = "";
       sentEl.readOnly = false;
       writeEl.value = "";
@@ -328,7 +316,6 @@
         copyShareBtn.textContent = "copy it";
         whewEl.classList.add("hidden");
         document.getElementById("out").classList.remove("hidden");
-        document.getElementById("examples").classList.add("hidden");
         writeEl.focus({ preventScroll: true });
       } catch (err) {
         alert("the draft didn't come through. try again.");

@@ -1,7 +1,6 @@
 // api/draft.js
 
 const { norm } = require("../lib/normalize");
-const { exactMatch } = require("../lib/bank");
 const { callLLM } = require("../lib/llm");
 const { extractArray, normalizeItem, isRefusal, orderByShape, filterLines, describeDrops } = require("../lib/postprocess");
 const { judgeLines, applyJudgeVerdict } = require("../lib/judge");
@@ -160,21 +159,18 @@ module.exports = async function handler(req, res) {
   if (isBlocked(sent)) { res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   const ai = await fromAi(sent);
-  // A model skip is a refusal, full stop — never paper over it with the bank
-  // or the fallback lines below.
+  // A model skip is a refusal, full stop — never paper over it with the
+  // fallback lines below.
   if (ai.skip) { res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // Each draft carries its shape along ({shape, text}) — the client needs
   // it to log which shape a reaction tap (see index.html's #react buttons)
-  // was against. Bank and stall lines aren't one of the model's four
-  // shapes, so they're tagged with the source they came from instead.
+  // was against. A stall line isn't one of the model's shapes, so it's
+  // tagged with the source it came from instead.
   const drafts = [];
-  const bank = exactMatch(sent);
-  if (bank) drafts.push({ shape: "bank", text: bank });
   // ai.lines is already in display order — fixed by shape, not by how
   // strong the model thought each line was (see postprocess.js's
-  // orderByShape) — so the client just shows them in the order given. A
-  // hero-bank hit is the one exception — it always leads.
+  // orderByShape) — so the client just shows them in the order given.
   //
   // The `typeof text === "string"` guard is belt-and-suspenders on top of
   // postprocess.js's own normalizeItem/normalizeText (which is where a
@@ -190,10 +186,9 @@ module.exports = async function handler(req, res) {
 
   // `source` tells you which path produced what you are reading:
   //   model — the model wrote it (what you want)
-  //   bank  — a curated line matched exactly
   //   stall — the model produced nothing usable even after the retry in
   //           fromAi, `why` says what went wrong
-  let source = ai.lines.length ? (bank ? "bank+model" : "model") : (bank ? "bank" : "stall");
+  let source = ai.lines.length ? "model" : "stall";
   if (!drafts.length) {
     drafts.push({ shape: "stall", text: stallLine() });
     source = "stall";
@@ -210,7 +205,7 @@ module.exports = async function handler(req, res) {
     logged: logged,
     // Every line the model wrote this call — shape-tagged, kept/dropped and
     // by which filter — for the ?debug=1 view. null when there was nothing
-    // to parse (empty output, timeout, bank/stall-only responses).
+    // to parse (empty output, timeout, stall-only responses).
     debug: ai.debugLines || null
   });
 };
