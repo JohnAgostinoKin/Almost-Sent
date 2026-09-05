@@ -385,7 +385,7 @@
     // which logs an "arrival" event for whoever's first visit lands on it.
     function buildShareText() {
       var mine = writeEl.value.trim();
-      var shareUrl = "almostsent.app" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
+      var shareUrl = "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
       return "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n" +
         "i almost sent: " + current + mine + "\n\n" +
