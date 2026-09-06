@@ -95,13 +95,13 @@ function tagModel(result, model) {
   return result;
 }
 
-const FALLBACK_MODEL = "mistralai/mistral-large-2512";
+const FALLBACK_MODEL = "openai/gpt-5.4";
 
 async function fromAi(sent) {
   const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
-  const model = process.env.LLM_MODEL || "openai/gpt-5.4";
+  const model = process.env.LLM_MODEL || "nousresearch/hermes-4-405b";
   const first = await callOnce(key, model, sent);
 
   // Every line from the first call got filtered — one retry before giving
