@@ -138,13 +138,17 @@ async function remember(sent) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   try {
-    const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/inbox", {
+    // inbox.key is unique — a repeat input used to 409 here, since a plain
+    // POST is an insert, not an upsert. on_conflict=key + resolution=merge-
+    // duplicates turns this into an upsert: a repeat key updates the
+    // existing row (via PostgREST's UPSERT semantics) instead of erroring.
+    const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/inbox?on_conflict=key", {
       method: "POST",
       headers: {
         apikey: key,
         Authorization: "Bearer " + key,
         "Content-Type": "application/json",
-        Prefer: "return=minimal"
+        Prefer: "return=minimal,resolution=merge-duplicates"
       },
       body: JSON.stringify({ key: norm(sent) || sent.trim(), sent: sent.trim().slice(0, 500) })
     });
