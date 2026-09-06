@@ -86,19 +86,42 @@ async function callOnce(key, model, sent) {
   }
 }
 
+// Appends which model actually produced this result to `why`, so ?debug=1
+// (and the Vercel logs) show whether the primary model answered or the
+// fallback below had to step in. A skipped (refusal) result has no `why` to
+// tag — the endpoint short-circuits on `skip` before `why` is ever shown.
+function tagModel(result, model) {
+  if (result.why) result.why = result.why + " · model: " + model;
+  return result;
+}
+
+const FALLBACK_MODEL = "mistralai/mistral-large-2512";
+
 async function fromAi(sent) {
   const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
-  const model = process.env.LLM_MODEL || "mistralai/mistral-large-2512";
+  const model = process.env.LLM_MODEL || "openai/gpt-5.4";
   const first = await callOnce(key, model, sent);
-  if (first.skip || first.lines.length || first.reason !== "filtered") return first;
 
   // Every line from the first call got filtered — one retry before giving
   // up on the model. Temperature is 1.0, so a second draw is often clean
   // even when the first wasn't; a parse failure or network error doesn't
-  // get this second chance, only a bad-content draw does.
-  return await callOnce(key, model, sent);
+  // get this second chance (those fall to the fallback model below
+  // instead), only a bad-content draw does.
+  if (!first.skip && !first.lines.length && first.reason === "filtered") {
+    return tagModel(await callOnce(key, model, sent), model);
+  }
+
+  // The primary model either refused outright (skip) or failed to produce
+  // anything at all — a thrown error, a timeout, or output that didn't
+  // parse as JSON. One attempt on a different model before giving up
+  // entirely; a content-filtered draw above isn't this path.
+  if (first.skip || first.reason === "error" || first.reason === "unparsable") {
+    return tagModel(await callOnce(key, FALLBACK_MODEL, sent), FALLBACK_MODEL);
+  }
+
+  return tagModel(first, model);
 }
 
 const limited = createLimiter();
