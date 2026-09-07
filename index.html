@@ -165,7 +165,10 @@
         "source: " + (data.source || "—") +
         " · why: " + (data.why || "—") +
         " · provider: " + (data.provider || "—") +
-        " · logged: " + (data.logged || "—");
+        " · logged: " + (data.logged || "—") +
+        " · t_gen: " + (data.t_gen != null ? data.t_gen + "ms" : "—") +
+        " · t_judge: " + (data.t_judge != null ? data.t_judge + "ms" : "—") +
+        " · t_total: " + (data.t_total != null ? data.t_total + "ms" : "—");
       debugEl.appendChild(summary);
       if (data.debug && data.debug.length) {
         var list = document.createElement("ul");
