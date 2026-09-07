@@ -9,6 +9,7 @@
     "bake": "node scripts/bake.js"
   },
   "dependencies": {
+    "@vercel/functions": "^3.9.5",
     "undici": "^8.10.1"
   }
 }

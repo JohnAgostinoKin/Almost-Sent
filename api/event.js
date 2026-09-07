@@ -7,6 +7,7 @@
 // fixed whitelist, and a small structured `meta` object.
 
 const { createLimiter } = require("../lib/rateLimit");
+const { waitUntil } = require("@vercel/functions");
 
 // "arrival" is the one event logged for a device that isn't yet its own
 // device_id's row: a fresh device's first-ever event, fired only when it
@@ -46,10 +47,16 @@ const limited = createLimiter();
 // own response stays { ok: true } either way (the client never reads it,
 // see the handler below) — the logs are the surface for this one, not
 // the ?debug=1 view, which only reflects /api/draft.
+//
+// Fired via waitUntil (see the handler), not awaited before responding —
+// same reasoning as api/draft.js's remember(): this endpoint's whole job is
+// a Supabase write nobody's waiting on, so there's no reason for it to sit
+// in the response path. Timed and logged the same way, t_log this time.
 async function log(deviceId, event, meta) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return;
+  const started = Date.now();
   try {
     const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/events", {
       method: "POST",
@@ -67,6 +74,8 @@ async function log(deviceId, event, meta) {
     }
   } catch (err) {
     console.error("supabase events insert threw: " + (err && err.message));
+  } finally {
+    console.log("t_log: " + (Date.now() - started) + "ms");
   }
 }
 
@@ -91,9 +100,11 @@ module.exports = async function handler(req, res) {
   const event = String(body.event || "").trim();
   if (!deviceId || EVENTS.indexOf(event) === -1) { res.status(400).json({ error: "bad event" }); return; }
 
-  await log(deviceId, event, safeMeta(body.meta));
+  waitUntil(log(deviceId, event, safeMeta(body.meta)));
 
   // Fire-and-forget from the client's point of view — it never awaits or
   // branches on this response, so there's nothing more useful to return.
+  // Now also fire-and-forget from this handler's own point of view: the
+  // response above doesn't wait on log() either (see waitUntil, above).
   res.status(200).json({ ok: true });
 };

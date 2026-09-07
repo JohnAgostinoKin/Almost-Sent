@@ -8,6 +8,7 @@ const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { createLimiter } = require("../lib/rateLimit");
 const { maskPII } = require("../lib/mask");
+const { waitUntil } = require("@vercel/functions");
 
 function readBody(req) {
   const body = req.body;
@@ -179,17 +180,19 @@ function dedupeKey(sent) {
   return { masked: masked, key: norm(masked) || masked.trim() };
 }
 
-// Returns what actually happened so the caller can surface it (`logged` in
-// the response, visible in ?debug=1) — this used to swallow every outcome,
-// success or failure alike, which is how `inbox` went silently empty since
-// launch without anything showing it. null = never attempted (no config
-// set); "ok" = 2xx; the status code as a string = a non-2xx response,
-// also console.error'd with the body so it's in the Vercel function logs;
-// "error" = the fetch itself threw (network/DNS/timeout).
+// Fires via waitUntil (see the handler below), not awaited before
+// responding — its outcome can no longer ride in the JSON response the way
+// it used to (the response is already on its way to the client by the time
+// this settles), so "did it work" now lives only in the Vercel function
+// logs: every path here logs t_remember (ms) plus, on failure, why. That's
+// also how the ~2.8s of "t_total minus t_gen minus t_judge" that prompted
+// this change shows up now — check the logs for t_remember on a slow
+// request instead of the response body.
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
+  const started = Date.now();
   try {
     // The unmasked `sent` is never touched here — the LLM call already
     // happened with the real text before remember() runs; this is a
@@ -218,6 +221,8 @@ async function remember(sent) {
   } catch (err) {
     console.error("supabase inbox insert threw: " + (err && err.message));
     return "error";
+  } finally {
+    console.log("t_remember: " + (Date.now() - started) + "ms");
   }
 }
 
@@ -234,6 +239,7 @@ async function forget(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
+  const started = Date.now();
   try {
     const d = dedupeKey(sent);
     const res = await fetch(
@@ -256,6 +262,8 @@ async function forget(sent) {
   } catch (err) {
     console.error("supabase inbox delete (refused) threw: " + (err && err.message));
     return "error";
+  } finally {
+    console.log("t_forget: " + (Date.now() - started) + "ms");
   }
 }
 
@@ -278,26 +286,36 @@ module.exports = async function handler(req, res) {
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
-  if (isBlocked(sent)) { await forget(sent); res.status(200).json({ refuse: true, drafts: [] }); return; }
+  // waitUntil (from @vercel/functions) keeps this invocation alive for the
+  // given promise without making the client's response wait on it — the
+  // opposite of `await`. Nothing here reads forget()'s result, so there's
+  // nothing to gate the response on in the first place.
+  if (isBlocked(sent)) { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // t_total (ms) covers from here — the point past the cheap synchronous
   // checks above — to just before responding, so it reflects "how long did
-  // generation + storage actually take," not raw HTTP/rate-limit overhead.
-  //
-  // remember() only needs `sent`, not anything fromAi produces, so it fires
-  // here rather than after — it used to run serially after the whole AI
-  // round trip, adding its own latency on top for no reason. That means it's
-  // already in flight by the time a model refusal (ai.skip below) is known,
-  // so await it and immediately forget() the row it just wrote — refused
-  // input is never retained, it's just briefly written then deleted rather
-  // than never written at all.
+  // generation + judging actually take" now that storage no longer gates
+  // the response at all (see below) — this is what used to leave ~2.8s of
+  // t_total unaccounted for by t_gen+t_judge; that gap was remember()
+  // running serially in the response path. It's still fired here, in
+  // parallel with generation rather than after it, since it only needs
+  // `sent` — waitUntil just means it no longer has to finish before either.
   const requestStarted = Date.now();
   const rememberPromise = remember(sent);
+  waitUntil(rememberPromise);
 
   const ai = await fromAi(sent);
   // A model skip is a refusal, full stop — never paper over it with the
-  // fallback lines below.
-  if (ai.skip) { await rememberPromise; await forget(sent); res.status(200).json({ refuse: true, drafts: [] }); return; }
+  // fallback lines below. forget() has to run after remember() actually
+  // lands (not race it) or the delete could fire before the insert does and
+  // leave the row behind — chained onto rememberPromise and handed to
+  // waitUntil as one unit so Vercel keeps the invocation alive for both, in
+  // order, without the response waiting on either.
+  if (ai.skip) {
+    waitUntil(rememberPromise.then(function () { return forget(sent); }));
+    res.status(200).json({ refuse: true, drafts: [] });
+    return;
+  }
 
   // Each draft carries its shape along ({shape, text}) — the client needs
   // it to log which shape a reaction tap (see index.html's #react buttons)
@@ -330,7 +348,14 @@ module.exports = async function handler(req, res) {
     source = "stall";
   }
 
-  const logged = await rememberPromise;
+  // `logged` used to be remember()'s own awaited result ("ok" / a status
+  // code / "error") — it can't be anymore now that remember() runs via
+  // waitUntil, unawaited, after this response is already on its way out.
+  // "deferred" just means Supabase is configured and the write was fired;
+  // whether it actually landed is in the function logs (t_remember, and
+  // any "supabase inbox insert failed/threw" line) now, not here. null
+  // still means what it always did: no Supabase config, nothing fired.
+  const logged = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "deferred" : null;
 
   res.status(200).json({
     sent: sent,
@@ -346,7 +371,9 @@ module.exports = async function handler(req, res) {
     // Timing (ms), for ?debug=1. t_gen/t_judge come from whichever call in
     // fromAi actually produced this result (null if it never got that far —
     // no api key, or an outright error/refusal with nothing to time).
-    // t_total is this handler's own wall clock, generation+judging+storage.
+    // t_total is this handler's own wall clock, generation+judging only —
+    // storage no longer rides in it (see `logged` above and remember()'s
+    // own t_remember log line for that).
     t_gen: ai.t_gen != null ? ai.t_gen : null,
     t_judge: ai.t_judge != null ? ai.t_judge : null,
     t_total: Date.now() - requestStarted
