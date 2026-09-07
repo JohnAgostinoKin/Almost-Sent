@@ -13,13 +13,17 @@
 // `escalate`/`shown` below) instead of the old client-side alternates
 // refetch.
 //
-// The selection step below is a BRIDGE, not the final design: it safety-
-// judges every surviving candidate (lib/judge.js's existing judgeOneLine)
-// and takes the first three survivors in fixed lane order. The real
-// gate-and-score judge (anchor verification, the relevance/surprise/laugh/
-// cliché scoring formula) is a separate, later change to this same
-// selection point — everything upstream of it (parsing, filtering,
-// retry/fallback) is already the shape v3 keeps.
+// Selection past generation is two separate jobs now, not one: SAFETY
+// (lib/judge.js's judgeOneLine, cheap model, one call per candidate,
+// unchanged from v2) drops anything that shouldn't ship at all; TASTE
+// (lib/judge.js's judgeCandidates, one call reviewing every safety
+// survivor together, expensive model) gates each on five hard checks —
+// does it actually continue their message, is the claimed anchor real and
+// load-bearing, is there a turn, is it clear — then scores and ranks only
+// what's left. The top three of that ranking are the result. A failed
+// taste call (timeout, unparsable reply — no retry; see lib/judge.js's
+// header comment for why) falls back to fixed lane order rather than
+// blocking the response on a second expensive call.
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
@@ -27,7 +31,7 @@ const { GENERATOR_MODEL, WILDCARD_MODEL, ALL_LANES, normalizeBefore } = require(
 const {
   extractArray, normalizeItem, isRefusal, filterLines, describeDrops
 } = require("../lib/postprocess");
-const { judgeOneLine } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { classifyBlock } = require("../lib/block");
@@ -354,36 +358,61 @@ module.exports = async function handler(req, res) {
 
   const allCandidates = (primary.lines || []).concat(wildcard.skip ? [] : (wildcard.lines || []));
 
-  // --- BRIDGE selection — see this file's header comment. Safety-judges
-  // every survivor (lib/judge.js's existing judgeOneLine, unchanged), then
-  // takes the first three survivors in fixed lane order. Replaced by the
-  // real gate-and-score judge in a later change; this is what keeps v3
-  // shipping a working three-draft result in the meantime.
-  const judgeStarted = Date.now();
+  // Stage 1: SAFETY. lib/judge.js's judgeOneLine, one call per candidate,
+  // cheap model — unchanged from v2 apart from its renamed constants (see
+  // lib/judge.js's header comment for why SAFETY_MODEL and JUDGE_MODEL are
+  // no longer the same env var).
+  const safetyStarted = Date.now();
   const safetyVerdicts = allCandidates.length
     ? await Promise.all(allCandidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }))
     : [];
-  stages.t_judge = Date.now() - judgeStarted;
+  const t_safety = Date.now() - safetyStarted;
 
-  const judgeModelsSeen = [];
-  let judgeLatencyTotal = 0;
-  let droppedJudgeCount = 0;
-  let judgeFailedCount = 0;
+  const safetyModelsSeen = [];
+  let safetyLatencyTotal = 0;
+  let droppedSafetyCount = 0;
+  let safetyFailedCount = 0;
   const safe = [];
   allCandidates.forEach(function (item, i) {
     const result = safetyVerdicts[i];
-    judgeLatencyTotal += result.latencyMs || 0;
-    if (result.model && judgeModelsSeen.indexOf(result.model) === -1) judgeModelsSeen.push(result.model);
-    if (result.verdict === null) judgeFailedCount++;
-    if (result.verdict === true) { droppedJudgeCount++; return; }
+    safetyLatencyTotal += result.latencyMs || 0;
+    if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
+    if (result.verdict === null) safetyFailedCount++;
+    if (result.verdict === true) { droppedSafetyCount++; return; }
     safe.push(item);
   });
-  safe.sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); });
-  const top3 = safe.slice(0, 3);
+  const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
+    (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
+    (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "");
 
-  const judgeNote = "safety judge: " + droppedJudgeCount + " dropped" +
-    (judgeFailedCount ? " (" + judgeFailedCount + " failed open)" : "") +
-    (judgeModelsSeen.length ? " · judge model: " + judgeModelsSeen.join("+") + " (" + judgeLatencyTotal + "ms)" : "");
+  // Stage 2: TASTE. lib/judge.js's judgeCandidates — one call reviewing
+  // every safety survivor together, gating each on five hard checks before
+  // scoring and ranking what's left. A failure (timeout, unparsable reply)
+  // falls back to fixed lane order rather than retrying on the expensive
+  // model — see lib/judge.js's header comment.
+  const tasteStarted = Date.now();
+  const taste = safe.length ? await judgeCandidates(key, sent, safe) : { ok: false, reason: "nothing to judge" };
+  const t_taste = Date.now() - tasteStarted;
+  stages.t_judge = t_safety + t_taste;
+
+  let ranked, tasteNote;
+  if (taste.ok) {
+    ranked = taste.ranked;
+    // Every candidate's computed total, and the gate that killed each
+    // eliminated one — exactly what ?debug=1 needs to see the judge's
+    // actual reasoning, not just its final picks.
+    const totalsNote = taste.details.map(function (d) {
+      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "total:" + d.total);
+    }).join(", ");
+    tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
+  } else {
+    // Fallback: fixed lane order, same as v3's original bridge selection —
+    // still a reasonable "something is better than nothing" ordering, just
+    // not the ranked-by-taste one.
+    ranked = safe.slice().sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); });
+    tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
+  }
+  const top3 = ranked.slice(0, 3);
 
   const responseStarted = Date.now();
   const drafts = top3.map(function (item) { return { lane: item.lane, text: item.text }; });
@@ -392,7 +421,7 @@ module.exports = async function handler(req, res) {
 
   stages.t_response = Date.now() - responseStarted;
   const why = "primary: " + (primary.why || "?") + " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
-    " · " + judgeNote + " · stages: " + formatStages(stages);
+    " · " + safetyNote + " · " + tasteNote + " · stages: " + formatStages(stages);
 
   res.status(200).json({
     sent: sent,
@@ -403,7 +432,8 @@ module.exports = async function handler(req, res) {
     logged: logged,
     debug: {
       primary: primary.debugLines || null,
-      wildcard: wildcard.debugLines || null
+      wildcard: wildcard.debugLines || null,
+      judge: taste.ok ? taste.details : null
     },
     t_gen: primary.t_gen != null ? primary.t_gen : null,
     t_judge: stages.t_judge,
