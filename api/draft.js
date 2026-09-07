@@ -177,23 +177,23 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
       : provisional;
 
     // The lead call (genOpts.pickBest — see the handler below, which also
-    // sets count: 2) asks the model for 2 candidates of the same shape
-    // instead of 1, then picks the better one here — replaces the whole
+    // sets count: 3) asks the model for 3 candidates of the same shape
+    // instead of 1, then picks the best one here — replaces the whole
     // backfill loop below for this call, since there's no "keep judging
     // until enough survive" question when the goal is choosing 1 winner
-    // out of exactly 2. Safety-judge both in parallel first (the exact
-    // same judgeOneLine call the backfill loop uses); a lone safety
+    // out of a fixed batch. Safety-judge all three in parallel first (the
+    // exact same judgeOneLine call the backfill loop uses); a lone safety
     // survivor wins by default — nothing to compare it against, so no
-    // relevance call spent on it. Two survivors go through a second judge
-    // question — lib/judge.js's judgeRelevance, the reviewer's "connection
-    // test" — as a mechanical gate: does the punchline actually turn on
-    // something specific in the sent text, or would it work as a reply to
-    // anything? Prefer the YES line; both YES, both NO, or an inconclusive
-    // call on either side (judgeRelevance failed, or came back null) falls
-    // back to the shorter line — a deterministic tiebreak either way, and
-    // "shorter wins" also just tends to read tighter.
+    // relevance call spent on it. Two or three survivors go through a
+    // second judge question — lib/judge.js's judgeRelevance, the
+    // reviewer's "connection test" — as a mechanical gate: does the
+    // punchline actually turn on something specific in the sent text, or
+    // would it work as a reply to anything? Prefer a YES line (shortest of
+    // those, if more than one); no YES at all falls back to the shortest
+    // line overall — a deterministic tiebreak either way, and "shorter
+    // wins" also just tends to read tighter.
     if (genOpts && genOpts.pickBest) {
-      const candidates = eligible.slice(0, 2);
+      const candidates = eligible.slice(0, 3);
       const judgeStarted = Date.now();
       const safetyVerdicts = await Promise.all(candidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }));
       const judgeModelsSeen = [];
@@ -255,31 +255,36 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
         return { lines: safe, why: why, provider: provider, debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
       }
 
-      // Both candidates cleared safety — the connection test decides.
+      // Two or three candidates cleared safety — the connection test
+      // decides among however many that is. Prefer a YES (a line that
+      // actually turns on something in the sent text) over an inconclusive
+      // or NO; among ties on that — every YES, or no YES at all — the
+      // shortest wins, same deterministic tiebreak as before, now applied
+      // across however many are actually in play rather than assuming
+      // exactly two.
       const relVerdicts = await Promise.all(safe.map(function (item) { return judgeRelevance(key, composeDraft(sent, item.text)); }));
       const t_judge = Date.now() - judgeStarted;
       stages.t_judge += t_judge;
 
-      const relA = relVerdicts[0].verdict, relB = relVerdicts[1].verdict;
-      let winnerIdx, pickReason;
-      if (relA === true && relB !== true) {
-        winnerIdx = 0;
-        pickReason = "connection test: line 1 YES, line 2 " + (relB === false ? "NO" : "inconclusive");
-      } else if (relB === true && relA !== true) {
-        winnerIdx = 1;
-        pickReason = "connection test: line 2 YES, line 1 " + (relA === false ? "NO" : "inconclusive");
+      const yesIdxs = [];
+      safe.forEach(function (item, i) { if (relVerdicts[i].verdict === true) yesIdxs.push(i); });
+      const inRunning = yesIdxs.length ? yesIdxs : safe.map(function (item, i) { return i; });
+      let winnerIdx = inRunning[0];
+      inRunning.forEach(function (i) { if (safe[i].text.length < safe[winnerIdx].text.length) winnerIdx = i; });
+
+      let pickReason;
+      if (yesIdxs.length === 1) {
+        pickReason = "connection test: line " + (winnerIdx + 1) + " YES, the rest not";
+      } else if (yesIdxs.length > 1) {
+        pickReason = "connection test: " + yesIdxs.length + "/" + safe.length + " YES, shortest of those won";
       } else {
-        winnerIdx = safe[0].text.length <= safe[1].text.length ? 0 : 1;
-        const tieKind = (relA === true && relB === true) ? "both YES" : (relA === false && relB === false) ? "both NO" : "inconclusive";
-        pickReason = "connection test tied (" + tieKind + "), shorter line won";
+        const tieKind = relVerdicts.every(function (r) { return r.verdict === false; }) ? "all NO" : "inconclusive";
+        pickReason = "connection test tied (" + tieKind + "), shortest line won";
       }
-      const winner = safe[winnerIdx];
-      const loser = safe[1 - winnerIdx];
-      verdictByItem.set(winner, null);
-      verdictByItem.set(loser, "relevance");
+      safe.forEach(function (item, i) { verdictByItem.set(item, i === winnerIdx ? null : "relevance"); });
 
       const why = "ok, kept 1 — " + pickReason + providerTag + " · " + judgeNote;
-      return { lines: [winner], why: why, provider: provider, debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
+      return { lines: [safe[winnerIdx]], why: why, provider: provider, debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
     }
 
     // Backfill, not a fixed top-N: judge lines in display order, in waves,
@@ -726,20 +731,20 @@ module.exports = async function handler(req, res) {
   // almost always already resolved.
   const crisisPromise = n === 1 ? checkCrisis(process.env.LLM_API_KEY, sent) : Promise.resolve(false);
 
-  // n=1: write 2 candidates of exactly the lead shape — pickBest (see
-  // callOnce) safety-judges both and picks the one that actually engages
-  // with the sent text, rather than generating (and judging) just one with
-  // nothing to compare it against. n=4: write everything else — the client
-  // already has (or is getting) the lead shape from its own n=1 call, so
-  // asking for it again here would just be a duplicate the model could
-  // write instead of a genuinely different alternate. `exclude` is
-  // callOnce's own defensive backstop for when the model ignores that
-  // anyway (see its own comment there) — not read by buildRequest/
-  // systemPrompt, only by callOnce's backfill loop. `escalate`/`shown`
-  // (parsed above) only ever apply to n=4 — see lib/prompt.js's
-  // systemPrompt, which is what actually reads them.
+  // n=1: write 3 candidates of exactly the lead shape — pickBest (see
+  // callOnce) safety-judges all three and picks the one that actually
+  // engages with the sent text, rather than generating (and judging) just
+  // one with nothing to compare it against. n=4: write everything else —
+  // the client already has (or is getting) the lead shape from its own
+  // n=1 call, so asking for it again here would just be a duplicate the
+  // model could write instead of a genuinely different alternate.
+  // `exclude` is callOnce's own defensive backstop for when the model
+  // ignores that anyway (see its own comment there) — not read by
+  // buildRequest/systemPrompt, only by callOnce's backfill loop.
+  // `escalate`/`shown` (parsed above) only ever apply to n=4 — see
+  // lib/prompt.js's systemPrompt, which is what actually reads them.
   const genOpts = n === 1
-    ? { shapes: [lead], count: 2, pickBest: true }
+    ? { shapes: [lead], count: 3, pickBest: true }
     : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4, exclude: lead, escalate: escalate, shown: shown };
   // Only read by the n=4 backfill loop now — pickBest (n=1) always judges
   // both candidates regardless of this number and returns exactly 1, so it
