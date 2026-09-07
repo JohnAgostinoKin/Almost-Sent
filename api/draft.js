@@ -3,8 +3,11 @@
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
 const { ACTIVE_SHAPES } = require("../lib/prompt");
-const { extractArray, normalizeItem, isRefusal, orderByShape, filterLines, describeDrops } = require("../lib/postprocess");
-const { judgeLines, applyJudgeVerdict } = require("../lib/judge");
+const {
+  extractArray, extractSingle, normalizeItem, isRefusal, orderByShape, filterLines,
+  describeDrops, createDiversityTracker
+} = require("../lib/postprocess");
+const { judgeOneLine } = require("../lib/judge");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { createLimiter } = require("../lib/rateLimit");
@@ -118,9 +121,21 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
     const provider = result.provider || null;
     console.log("provider: " + (provider || "unknown") + " (" + model + ")");
     const providerTag = provider ? " [" + provider + "]" : "";
-    const parsed = extractArray(result.text);
+    // n=1 (the lead request) gets the lenient parser — a model (seen
+    // concretely: gpt-5.4, this app's own fallback model) sometimes drops
+    // the array wrapper and returns a bare {"shape":...,"text":...} object
+    // when it's only been asked for one line. n=4 and the legacy/bake full
+    // batch stay strict (extractArray only) — see extractSingle's own
+    // comment in lib/postprocess.js for why that's not extended to them.
+    const parseFn = (genOpts && genOpts.count === 1) ? extractSingle : extractArray;
+    const parsed = parseFn(result.text);
     if (!parsed) {
       const why = result.finishReason === "length" ? "hit token limit" : (result.text ? "no json in output" : "empty output");
+      // The raw text is the only way to actually diagnose an unparsable
+      // response after the fact — without it, "no json in output" says
+      // nothing about what the model actually wrote (an explanation
+      // instead of JSON? a differently-shaped object? truncated mid-token?).
+      console.error("parse failure (" + why + ") model=" + model + " raw=" + JSON.stringify(String(result.text || "").slice(0, 800)));
       return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable", t_gen: t_gen };
     }
     const items = parsed.map(normalizeItem);
@@ -133,71 +148,129 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
       return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all, t_gen: t_gen };
     }
 
-    // Order the survivors, then judge only the first `judgeCount` of them —
-    // not every line the keyword wall let through. orderByShape's leadPos
-    // defaults to 0 now (fixed, no server-side rotation — see its own
-    // comment in lib/postprocess.js): which shape actually leads the whole
-    // result is decided by the client before this request is even sent
-    // (the lead request's own `shapes` is just [thatShape]), so there's no
-    // "which shape goes first" question left for THIS ordering to answer —
-    // it only has to put the alternates in a stable, sensible order among
+    // Order the survivors — orderByShape's leadPos defaults to 0 now
+    // (fixed, no server-side rotation — see its own comment in
+    // lib/postprocess.js): which shape actually leads the whole result is
+    // decided by the client before this request is even sent (the lead
+    // request's own `shapes` is just [thatShape]), so there's no "which
+    // shape goes first" question left for THIS ordering to answer — it
+    // only has to put the alternates in a stable, sensible order among
     // themselves.
     const orderStarted = Date.now();
     const provisional = orderByShape(filtered.kept);
     stages.t_order += Date.now() - orderStarted;
-    const candidates = provisional.slice(0, judgeCount);
 
-    // lib/judge.js's applyJudgeVerdict expects its `kept`/`all` pair in
-    // lockstep (Nth non-dropped `all` entry is `kept[N-1]`) — build a small
-    // `all`-shaped array scoped to just `candidates` rather than reusing
-    // filtered.all (which still has the other, un-judged kept lines mixed
-    // in and would break that invariant).
-    const candidateAll = candidates.map(function (c) { return { shape: c.shape, text: c.text, dropped: false, filter: null }; });
+    // genOpts.exclude (set only on the alternates request — see the
+    // handler below) is the lead shape: the prompt already tells the model
+    // not to write it, but a model can ignore that. Filtered out here,
+    // before backfill even starts, rather than after the fact once
+    // candidates are already committed — filtering post-judge would either
+    // silently shrink the result below judgeCount with no chance to
+    // backfill, or (worse) burn one of the MAX_JUDGE_ATTEMPTS judge calls
+    // on a line that was never going to be shown either way.
+    const excludeShape = genOpts && genOpts.exclude;
+    const eligible = excludeShape
+      ? provisional.filter(function (item) { return item.shape !== excludeShape; })
+      : provisional;
+
+    // Backfill, not a fixed top-N: judge lines in display order, in waves,
+    // until `judgeCount` survive or MAX_JUDGE_ATTEMPTS is reached —
+    // wave 1 judges exactly `judgeCount` lines in parallel (identical cost
+    // to the old fixed approach in the common case, where nothing gets
+    // flagged); only if that wave comes up short does a follow-up wave
+    // judge exactly as many more as still needed, so a flagged line no
+    // longer just shrinks the result — the next line in line gets a shot
+    // instead. Diversity (opener/prop/simile repeats — see
+    // createDiversityTracker in lib/postprocess.js) is checked here too,
+    // scoped to actual survivors only: a line judge-flagged or never
+    // judged at all no longer "uses up" an opener or a prop for a line
+    // that never actually got shown, which is what checking it inside
+    // filterLines (its old home) couldn't guarantee.
+    const MAX_JUDGE_ATTEMPTS = 4;
+    const limit = Math.min(MAX_JUDGE_ATTEMPTS, eligible.length);
+    const tracker = createDiversityTracker();
+    const survivors = [];
+    const verdictByItem = new Map(); // item -> "judge" | "diversity" | null (null = survivor)
+    let droppedJudgeCount = 0;
+    let droppedDiversityCount = 0;
+    let judgeFailedCount = 0;
+    let attemptedCount = 0;
     const judgeStarted = Date.now();
-    const judgeResult = await judgeLines(key, candidates.map(function (c) { return c.text; }));
+    let nextIndex = 0;
+    while (survivors.length < judgeCount && nextIndex < limit) {
+      const need = judgeCount - survivors.length;
+      const waveEnd = Math.min(limit, nextIndex + need);
+      const wave = eligible.slice(nextIndex, waveEnd);
+      const verdicts = await Promise.all(wave.map(function (item) { return judgeOneLine(key, item.text); }));
+      wave.forEach(function (item, i) {
+        attemptedCount++;
+        const verdict = verdicts[i];
+        if (verdict === null) judgeFailedCount++; // fail open — treated as OK below, same as judge.js always has
+        if (verdict === true) {
+          droppedJudgeCount++;
+          verdictByItem.set(item, "judge");
+          return;
+        }
+        if (tracker.isDuplicate(item.text)) {
+          droppedDiversityCount++;
+          verdictByItem.set(item, "diversity");
+          return;
+        }
+        tracker.record(item.text);
+        survivors.push(item);
+        verdictByItem.set(item, null);
+      });
+      nextIndex = waveEnd;
+    }
     const t_judge = Date.now() - judgeStarted;
     stages.t_judge += t_judge;
-    const judged = applyJudgeVerdict(candidates, candidateAll, judgeResult.flagged);
-    const judgeNote = "judge: " + judged.droppedJudge + " dropped" +
-      (judgeResult.failedCount ? " (" + judgeResult.failedCount + " failed open)" : "");
+    const judgeNote = "judge: " + droppedJudgeCount + " dropped" +
+      (judgeFailedCount ? " (" + judgeFailedCount + " failed open)" : "") +
+      (droppedDiversityCount ? " · diversity: " + droppedDiversityCount + " dropped" : "");
 
-    // Merge the verdict back into the full model-output-order list for
-    // ?debug=1: a candidate's entry reflects the verdict (kept, or dropped
-    // "judge"); a kept line that was never a candidate (only possible when
-    // more lines passed the keyword wall than judgeCount) is marked
-    // "unjudged" — the model wrote it, it just wasn't in the judged set, so
-    // it never went to the judge at all.
+    // Merge the verdicts back into the full model-output-order list for
+    // ?debug=1: an attempted candidate's entry reflects its verdict (kept,
+    // "judge", or "diversity"); a line matching genOpts.exclude is marked
+    // "excluded" (the model wrote the lead shape anyway, despite not being
+    // asked to); anything else kept but never reached is "unjudged" — the
+    // backfill loop found enough survivors first, or hit MAX_JUDGE_ATTEMPTS,
+    // before getting to it.
     let ki = 0;
     const mergedAll = filtered.all.map(function (entry) {
       if (entry.dropped) return entry;
       const keptItem = filtered.kept[ki];
       ki++;
-      const pos = candidates.indexOf(keptItem);
-      return pos === -1
-        ? { shape: entry.shape, text: entry.text, dropped: true, filter: "unjudged" }
-        : candidateAll[pos];
+      if (excludeShape && keptItem.shape === excludeShape) {
+        return { shape: entry.shape, text: entry.text, dropped: true, filter: "excluded" };
+      }
+      if (!verdictByItem.has(keptItem)) {
+        return { shape: entry.shape, text: entry.text, dropped: true, filter: "unjudged" };
+      }
+      const filter = verdictByItem.get(keptItem);
+      return filter === null
+        ? { shape: entry.shape, text: entry.text, dropped: false, filter: null }
+        : { shape: entry.shape, text: entry.text, dropped: true, filter: filter };
     });
 
-    // The judge flagging every candidate is the same situation as the
+    // Judging (and diversity) clearing nobody is the same situation as the
     // keyword wall doing it above — nothing usable came out of this call —
     // so it gets the same reason: "filtered", which is what earns a retry
     // in fromAi below.
-    if (!judged.kept.length) {
+    if (!survivors.length) {
       return { lines: [], why: judgeNote + providerTag, provider: provider, reason: "filtered", debugLines: mergedAll, t_gen: t_gen, t_judge: t_judge };
     }
 
-    // judged.kept is already a strict, order-preserving subsequence of
-    // candidates (applyJudgeVerdict only filters, never reorders) —
-    // candidates was already in display order (orderByShape, above), so
-    // this is the final display order too. No second sort needed.
-    const kept = judged.kept;
+    // survivors is already in display order — built by walking `provisional`
+    // (orderByShape's output) wave by wave, front to back, pushing each one
+    // the moment it clears both judge and diversity. No second sort needed.
+    const kept = survivors;
     // Drop counts on a success, not just a failure — "ok, kept 2" alone
     // hides that 4 of the 6 got filtered; the breakdown says which rule.
     // "judged N/M" says how many of the keyword-wall survivors actually
-    // went to the judge — M can be bigger than N (candidates.length) when
-    // more lines passed the wall than judgeCount.
+    // went to the judge (the backfill loop's real attempt count, not a
+    // fixed number) out of how many passed the wall in the first place.
     const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag +
-      " · judged " + candidates.length + "/" + filtered.kept.length + " · " + judgeNote;
+      " · judged " + attemptedCount + "/" + filtered.kept.length + " · " + judgeNote;
     // ?debug=1's line list reads in display order — the kept lines first,
     // in the exact order index.html's pool will show them (matching `kept`
     // above), then the dropped ones after, in the order the model
@@ -423,10 +496,13 @@ module.exports = async function handler(req, res) {
   // n=1: write exactly the lead shape. n=4: write everything else — the
   // client already has (or is getting) the lead shape from its own n=1
   // call, so asking for it again here would just be a duplicate the model
-  // could write instead of a genuinely different alternate.
+  // could write instead of a genuinely different alternate. `exclude` is
+  // callOnce's own defensive backstop for when the model ignores that
+  // anyway (see its own comment there) — not read by buildRequest/
+  // systemPrompt, only by callOnce's backfill loop.
   const genOpts = n === 1
     ? { shapes: [lead], count: 1 }
-    : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4 };
+    : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4, exclude: lead };
   // 1 to judge for the lead (there's only ever one). 2 for alternates —
   // exactly what "another" needs (MAX_REVEALS=2 in index.html) — generated
   // as 4 so the keyword wall dropping a couple doesn't come back empty.
@@ -463,16 +539,10 @@ module.exports = async function handler(req, res) {
   ai.lines.forEach(function (item) {
     const text = item && item.text;
     if (typeof text !== "string" || !text) return;
-    // Defensive: the alternates request's own prompt never teaches or asks
-    // for the lead shape (genOpts.shapes excludes it), but a model can
-    // still ignore that and write it anyway — showing it here would be a
-    // second, possibly contradictory line claiming to be the same shape
-    // the client already has as its actual lead. Dropped post-judge rather
-    // than backfilled from the ungenerated/unjudged remainder — a model
-    // actually doing this should be rare enough that losing a slot in that
-    // case is an acceptable trade for not special-casing the judge dispatch
-    // over it.
-    if (n === 4 && item && item.shape === lead) return;
+    // A line matching the lead shape (n=4's genOpts.exclude) can't reach
+    // here — callOnce's backfill loop filters those out before judging, so
+    // a flagged one gets backfilled from an actual alternate instead of
+    // just silently shrinking the result. See callOnce's own comment.
     const dupe = drafts.some(function (d) { return d.text === text; });
     if (!dupe) drafts.push({ shape: (item && item.shape) || "unknown", text: text });
   });
