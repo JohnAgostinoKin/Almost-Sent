@@ -200,18 +200,25 @@
     // for a normal visitor, the param has to be there.
     var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
-    function renderDebug(data) {
-      debugEl.innerHTML = "";
+    // Two requests per result now (the lead, then the alternates — see the
+    // submit handler below), each with its own response to show. Appends a
+    // labeled block per call instead of replacing debugEl's content, so the
+    // lead's block is still there once the alternates block lands after it.
+    // reset() (see below) is what actually clears debugEl between results —
+    // this never has to, since a fresh submit is only ever reachable after
+    // reset() ran (the form is read-only until then).
+    function renderDebug(label, data) {
+      var block = document.createElement("div");
       var summary = document.createElement("div");
       summary.textContent =
-        "source: " + (data.source || "—") +
+        label + " — source: " + (data.source || "—") +
         " · why: " + (data.why || "—") +
         " · provider: " + (data.provider || "—") +
         " · logged: " + (data.logged || "—") +
         " · t_gen: " + (data.t_gen != null ? data.t_gen + "ms" : "—") +
         " · t_judge: " + (data.t_judge != null ? data.t_judge + "ms" : "—") +
         " · t_total: " + (data.t_total != null ? data.t_total + "ms" : "—");
-      debugEl.appendChild(summary);
+      block.appendChild(summary);
       if (data.debug && data.debug.length) {
         var list = document.createElement("ul");
         data.debug.forEach(function (d) {
@@ -222,8 +229,9 @@
           if (d.dropped) li.className = "dropped";
           list.appendChild(li);
         });
-        debugEl.appendChild(list);
+        block.appendChild(list);
       }
+      debugEl.appendChild(block);
       debugEl.classList.remove("hidden");
     }
 
@@ -284,7 +292,40 @@
     }
     var DEVICE_ID = getDeviceId();
 
-    var pool = [];       // the (up to) six {shape, text} drafts from this call, in shape display order (server-side)
+    // Which shape leads used to rotate server-side, one active shape at a
+    // time, per api/draft.js request — meaningless once generation split
+    // into two requests (see the submit handler below): the lead shape now
+    // has to be decided BEFORE either request goes out, since the n=1 call
+    // needs it and the n=4 call needs to exclude it. So the rotation moved
+    // here, to the device. Mirrors lib/prompt.js's ACTIVE_SHAPES — keep the
+    // two in sync by hand, same as OPENER_RE elsewhere on this page.
+    //
+    // Same storage-blocked tolerance as getDeviceId() above: a read or
+    // write that throws falls back to memoryLeadIndex, so rotation still
+    // advances correctly for the rest of this page load — it just won't
+    // survive a reload if storage is unavailable.
+    var SHAPES = ["shock", "raunchy", "deranged", "gross"];
+    var memoryLeadIndex = -1;
+    function nextLeadShape() {
+      var idx = memoryLeadIndex;
+      try {
+        var stored = localStorage.getItem("lead_rotation");
+        if (stored !== null) {
+          var parsed = parseInt(stored, 10);
+          if (!isNaN(parsed)) idx = parsed;
+        }
+      } catch (err) { /* storage blocked — idx stays memoryLeadIndex */ }
+      idx = (idx + 1) % SHAPES.length;
+      memoryLeadIndex = idx;
+      try {
+        localStorage.setItem("lead_rotation", String(idx));
+      } catch (err) { /* storage blocked — memoryLeadIndex above still works this page load */ }
+      return SHAPES[idx];
+    }
+
+    var pool = [];       // the (up to) three {shape, text} drafts for this result: the lead (from
+                          // the n=1 call), then up to two alternates (from the n=4 call, appended
+                          // once it lands — see fetchAlternates below), in display order
     var cursor = 0;      // which one is on screen
     var reveals = 0;     // "another" clicks used on this result, capped below
     var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
@@ -384,6 +425,32 @@
       if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
     }
 
+    // Fired right after the lead renders (see the submit handler below),
+    // never awaited by it — the visitor already has something to read and
+    // share by the time this even starts. Populates the rest of `pool` and
+    // turns "another" on when it lands; silently leaves "another" off on
+    // failure, since a background call that was never promised in the
+    // first place doesn't deserve an alert() interrupting anyone.
+    async function fetchAlternates(sent, leadShape) {
+      try {
+        var res = await fetch("/api/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sent: sent, n: 4, lead: leadShape })
+        });
+        var data = await res.json();
+        // A "new text" click (or another submit) could land between firing
+        // this and it resolving — `current` would have moved on by then.
+        // Don't splice alternates for an old result onto a new one.
+        if (sent !== current) return;
+        if (data.drafts && data.drafts.length) pool = pool.concat(data.drafts);
+        refreshAnotherState();
+        if (DEBUG) renderDebug("alternates", data);
+      } catch (err) {
+        // anotherBtn stays disabled — refreshAnotherState() never ran.
+      }
+    }
+
     document.getElementById("form").addEventListener("submit", async function (e) {
       e.preventDefault();
       var sent = sentEl.value.trim();
@@ -391,13 +458,18 @@
       logEvent("paste");
       go.disabled = true;
       startLoadingLines();
+      var leadShape = nextLeadShape();
+      var gotLead = false;
       try {
+        // The lead: one line, exactly this shape, judged, awaited — this is
+        // the part the visitor is actually waiting on.
         var res = await fetch("/api/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sent: sent })
+          body: JSON.stringify({ sent: sent, n: 1, lead: leadShape })
         });
         var data = await res.json();
+        gotLead = true;
 
         // This bypasses the server's filterLines the same way lib/fallback.js's
         // STALL_LINES do — it's a fixed client-side string, never model
@@ -417,9 +489,12 @@
         resetReact();
         renderDraft(sent, pool[0].text);
         sentContextEl.textContent = sent;
-        refreshAnotherState();
+        // Nothing to reveal yet regardless of pool.length — the alternates
+        // call kicked off below is what actually earns "another" its enabled
+        // state, via refreshAnotherState() in fetchAlternates.
+        anotherBtn.disabled = true;
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
-        if (DEBUG) renderDebug(data);
+        if (DEBUG) renderDebug("lead", data);
         sentEl.readOnly = true;
         writeEl.value = "";
         // Enabled the moment the draft is up, not gated on the visitor
@@ -430,9 +505,14 @@
         whewEl.classList.add("hidden");
         document.getElementById("out").classList.remove("hidden");
         writeEl.focus({ preventScroll: true });
+
+        // A refusal is final — never ask for alternates to a refused input.
+        if (!data.refuse) fetchAlternates(sent, leadShape);
       } catch (err) {
-        alert("the draft didn't come through. try again.");
+        if (!gotLead) alert("the draft didn't come through. try again.");
       } finally {
+        // The lead answered (or failed) either way — this is the moment
+        // #go stops looking busy, whether or not alternates ever show up.
         stopLoadingLines();
         go.disabled = false;
         go.textContent = "here's what they almost sent";

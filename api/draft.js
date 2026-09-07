@@ -2,6 +2,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
+const { ACTIVE_SHAPES } = require("../lib/prompt");
 const { extractArray, normalizeItem, isRefusal, orderByShape, filterLines, describeDrops } = require("../lib/postprocess");
 const { judgeLines, applyJudgeVerdict } = require("../lib/judge");
 const { stallLine } = require("../lib/fallback");
@@ -74,7 +75,16 @@ function readBody(req) {
 // below can tell "every line got filtered" (worth a retry) apart from
 // "no json" / "timed out" / etc. (not worth one — a malformed response
 // isn't going to fix itself on a second try the way an unlucky draw of
-// six filtered lines might).
+// filtered lines might).
+//
+// `genOpts` (see lib/prompt.js's systemPrompt) says what to actually
+// generate — {shapes: [lead], count: 1} for the lead request, {shapes:
+// ACTIVE_SHAPES minus the lead, count: 4} for the alternates request (see
+// the handler below, the only caller). `judgeCount` says how many of the
+// kept lines, in display order, actually go to the judge: 1 for the lead
+// (there's only ever one to judge), 2 for alternates (the two "another"
+// needs) — generating 4 but only judging 2 leaves margin for the keyword
+// wall to drop a couple without the whole call coming back empty.
 //
 // `debugLines` carries filterLines' full `all` array — every line the model
 // wrote, shape-tagged, marked kept or dropped and by which filter — through
@@ -89,11 +99,11 @@ function readBody(req) {
 // newStages above) accumulates the same numbers, plus t_prompt/t_filter/
 // t_order, across however many times callOnce runs this request — see
 // fromAi below, which is the only caller and always passes one.
-async function callOnce(key, model, sent, stages) {
+async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
   stages = stages || newStages();
   try {
     stages.llmAttempts++;
-    const result = await callLLM(key, model, sent);
+    const result = await callLLM(key, model, sent, genOpts);
     const t_gen = result.latencyMs;
     stages.t_prompt += result.t_prompt || 0;
     stages.t_ttfb += result.t_ttfb || 0;
@@ -123,18 +133,19 @@ async function callOnce(key, model, sent, stages) {
       return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all, t_gen: t_gen };
     }
 
-    // Judge only the first three lines in DISPLAY order — the lead plus two
-    // "another" spares — not every line the keyword wall let through.
-    // index.html only ever shows 3 (MAX_REVEALS=2 past the lead), so judging
-    // a 4th, 5th, 6th line spent a judge call, latency, and cost on lines
-    // nobody would see. orderByShape moves here (was after judging) — it
-    // only runs once per request either way; dropping judge-flagged
-    // candidates below is a plain filter that preserves relative order, so
-    // there's nothing left to re-sort afterward.
+    // Order the survivors, then judge only the first `judgeCount` of them —
+    // not every line the keyword wall let through. orderByShape's leadPos
+    // defaults to 0 now (fixed, no server-side rotation — see its own
+    // comment in lib/postprocess.js): which shape actually leads the whole
+    // result is decided by the client before this request is even sent
+    // (the lead request's own `shapes` is just [thatShape]), so there's no
+    // "which shape goes first" question left for THIS ordering to answer —
+    // it only has to put the alternates in a stable, sensible order among
+    // themselves.
     const orderStarted = Date.now();
     const provisional = orderByShape(filtered.kept);
     stages.t_order += Date.now() - orderStarted;
-    const candidates = provisional.slice(0, 3);
+    const candidates = provisional.slice(0, judgeCount);
 
     // lib/judge.js's applyJudgeVerdict expects its `kept`/`all` pair in
     // lockstep (Nth non-dropped `all` entry is `kept[N-1]`) — build a small
@@ -153,9 +164,9 @@ async function callOnce(key, model, sent, stages) {
     // Merge the verdict back into the full model-output-order list for
     // ?debug=1: a candidate's entry reflects the verdict (kept, or dropped
     // "judge"); a kept line that was never a candidate (only possible when
-    // more than 3 lines passed the keyword wall) is marked "unjudged" — the
-    // model wrote it, it just wasn't in the fastest 3, so it never went to
-    // the judge at all.
+    // more lines passed the keyword wall than judgeCount) is marked
+    // "unjudged" — the model wrote it, it just wasn't in the judged set, so
+    // it never went to the judge at all.
     let ki = 0;
     const mergedAll = filtered.all.map(function (entry) {
       if (entry.dropped) return entry;
@@ -184,7 +195,7 @@ async function callOnce(key, model, sent, stages) {
     // hides that 4 of the 6 got filtered; the breakdown says which rule.
     // "judged N/M" says how many of the keyword-wall survivors actually
     // went to the judge — M can be bigger than N (candidates.length) when
-    // more than 3 lines passed the wall.
+    // more lines passed the wall than judgeCount.
     const why = "ok, kept " + kept.length + (drops ? " — " + drops : "") + providerTag +
       " · judged " + candidates.length + "/" + filtered.kept.length + " · " + judgeNote;
     // ?debug=1's line list reads in display order — the kept lines first,
@@ -219,13 +230,13 @@ function tagModel(result, model) {
 
 const FALLBACK_MODEL = "openai/gpt-5.4";
 
-async function fromAi(sent, stages) {
+async function fromAi(sent, genOpts, judgeCount, stages) {
   stages = stages || newStages();
   const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
   const model = process.env.LLM_MODEL || "nousresearch/hermes-4-405b";
-  const first = await callOnce(key, model, sent, stages);
+  const first = await callOnce(key, model, sent, genOpts, judgeCount, stages);
 
   // Every line from the first call got filtered — one retry before giving
   // up on the model. Temperature is 1.0, so a second draw is often clean
@@ -234,7 +245,7 @@ async function fromAi(sent, stages) {
   // instead), only a bad-content draw does.
   if (!first.skip && !first.lines.length && first.reason === "filtered") {
     stages.llmRetried = true;
-    return tagModel(await callOnce(key, model, sent, stages), model);
+    return tagModel(await callOnce(key, model, sent, genOpts, judgeCount, stages), model);
   }
 
   // The primary model either refused outright (skip) or failed to produce
@@ -243,7 +254,7 @@ async function fromAi(sent, stages) {
   // entirely; a content-filtered draw above isn't this path.
   if (first.skip || first.reason === "error" || first.reason === "unparsable") {
     stages.llmFallback = true;
-    return tagModel(await callOnce(key, FALLBACK_MODEL, sent, stages), FALLBACK_MODEL);
+    return tagModel(await callOnce(key, FALLBACK_MODEL, sent, genOpts, judgeCount, stages), FALLBACK_MODEL);
   }
 
   return tagModel(first, model);
@@ -371,8 +382,22 @@ module.exports = async function handler(req, res) {
   const parseStarted = Date.now();
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
+  // Two-request generation (see lib/prompt.js's systemPrompt and
+  // api/draft.js's callOnce for what these actually drive): n=1&lead=<shape>
+  // is the lead request — one line of exactly that shape, judged, returned.
+  // n=4&lead=<shape> is the alternates request — four lines across the
+  // OTHER active shapes (lead excluded, since the client already has that
+  // one from the n=1 call), the first two in display order judged and
+  // returned. `lead` is required either way: for n=1 it's what to write,
+  // for n=4 it's what to exclude. Which shape leads at all is a client-side
+  // decision now (the device's own rotation — see index.html) — the server
+  // no longer tracks or rotates a "current lead shape" itself.
+  const n = Number(body.n);
+  const lead = String(body.lead || "").trim().toLowerCase();
   stages.t_parse = Date.now() - parseStarted;
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
+  if (n !== 1 && n !== 4) { res.status(400).json({ error: "n must be 1 or 4" }); return; }
+  if (ACTIVE_SHAPES.indexOf(lead) === -1) { res.status(400).json({ error: "lead must be a valid shape" }); return; }
 
   const blockStarted = Date.now();
   const blocked = isBlocked(sent);
@@ -395,7 +420,19 @@ module.exports = async function handler(req, res) {
   const rememberPromise = remember(sent);
   waitUntil(rememberPromise);
 
-  const ai = await fromAi(sent, stages);
+  // n=1: write exactly the lead shape. n=4: write everything else — the
+  // client already has (or is getting) the lead shape from its own n=1
+  // call, so asking for it again here would just be a duplicate the model
+  // could write instead of a genuinely different alternate.
+  const genOpts = n === 1
+    ? { shapes: [lead], count: 1 }
+    : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4 };
+  // 1 to judge for the lead (there's only ever one). 2 for alternates —
+  // exactly what "another" needs (MAX_REVEALS=2 in index.html) — generated
+  // as 4 so the keyword wall dropping a couple doesn't come back empty.
+  const judgeCount = n === 1 ? 1 : 2;
+
+  const ai = await fromAi(sent, genOpts, judgeCount, stages);
   // A model skip is a refusal, full stop — never paper over it with the
   // fallback lines below. forget() has to run after remember() actually
   // lands (not race it) or the delete could fire before the insert does and
@@ -426,18 +463,38 @@ module.exports = async function handler(req, res) {
   ai.lines.forEach(function (item) {
     const text = item && item.text;
     if (typeof text !== "string" || !text) return;
+    // Defensive: the alternates request's own prompt never teaches or asks
+    // for the lead shape (genOpts.shapes excludes it), but a model can
+    // still ignore that and write it anyway — showing it here would be a
+    // second, possibly contradictory line claiming to be the same shape
+    // the client already has as its actual lead. Dropped post-judge rather
+    // than backfilled from the ungenerated/unjudged remainder — a model
+    // actually doing this should be rare enough that losing a slot in that
+    // case is an acceptable trade for not special-casing the judge dispatch
+    // over it.
+    if (n === 4 && item && item.shape === lead) return;
     const dupe = drafts.some(function (d) { return d.text === text; });
     if (!dupe) drafts.push({ shape: (item && item.shape) || "unknown", text: text });
   });
 
   // `source` tells you which path produced what you are reading:
   //   model — the model wrote it (what you want)
-  //   stall — the model produced nothing usable even after the retry in
-  //           fromAi, `why` says what went wrong
-  let source = ai.lines.length ? "model" : "stall";
-  if (!drafts.length) {
+  //   stall — n=1 only: the lead produced nothing usable even after the
+  //           retry in fromAi, so a canned fallback line fills the slot
+  //           that's never allowed to come back empty. `why` says what
+  //           went wrong.
+  //   empty — n=4 only: the alternates call came back with nothing
+  //           judge-clean. Not padded with a stall line — the client just
+  //           leaves "another" disabled for this result, since these were
+  //           always a bonus, not a required slot the way the lead is.
+  let source;
+  if (drafts.length) {
+    source = "model";
+  } else if (n === 1) {
     drafts.push({ shape: "stall", text: stallLine() });
     source = "stall";
+  } else {
+    source = "empty";
   }
 
   // `logged` used to be remember()'s own awaited result ("ok" / a status
@@ -459,7 +516,9 @@ module.exports = async function handler(req, res) {
 
   res.status(200).json({
     sent: sent,
-    drafts: drafts.slice(0, 6),
+    // No cap needed here anymore — drafts is naturally at most 1 (n=1) or
+    // 2 (n=4, judgeCount) long, never the old up-to-6.
+    drafts: drafts,
     source: source,
     why: why || null,
     provider: ai.provider || null,
