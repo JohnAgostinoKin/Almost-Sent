@@ -8,6 +8,7 @@ const {
   describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
 const { judgeOneLine } = require("../lib/judge");
+const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { checkCrisis } = require("../lib/crisis");
@@ -196,17 +197,36 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
     let droppedDiversityCount = 0;
     let judgeFailedCount = 0;
     let attemptedCount = 0;
+    // Which judge model(s) actually answered, and how long — lib/judge.js's
+    // judgeOneLine tries JUDGE_MODEL first and only falls back to
+    // JUDGE_FALLBACK_MODEL once that attempt fails (timeout/error/
+    // unparsable), so seeing the fallback model here at all means a retry
+    // happened. Order preserved, no duplicates, so "judge model: a+b" always
+    // reads as "started on a, had to fall back to b at some point".
+    const judgeModelsSeen = [];
+    let judgeLatencyTotal = 0;
+    let judgeRetries = 0;
     const judgeStarted = Date.now();
     let nextIndex = 0;
     while (survivors.length < judgeCount && nextIndex < limit) {
       const need = judgeCount - survivors.length;
       const waveEnd = Math.min(limit, nextIndex + need);
       const wave = eligible.slice(nextIndex, waveEnd);
-      const verdicts = await Promise.all(wave.map(function (item) { return judgeOneLine(key, item.text); }));
+      // The judge sees the full composed exchange (sent + continuation),
+      // not the continuation alone — lib/judge.js's own JUDGE_QUESTION now
+      // asks it to weigh the reply against what it's actually replying to
+      // (composeDraft is the same sent+continuation join renderDraft and
+      // buildShareText use elsewhere, so this is exactly what a visitor
+      // would read).
+      const verdicts = await Promise.all(wave.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }));
       wave.forEach(function (item, i) {
         attemptedCount++;
-        const verdict = verdicts[i];
-        if (verdict === null) judgeFailedCount++; // fail open — treated as OK below, same as judge.js always has
+        const result = verdicts[i];
+        judgeLatencyTotal += result.latencyMs || 0;
+        if (result.retried) judgeRetries++;
+        if (result.model && judgeModelsSeen.indexOf(result.model) === -1) judgeModelsSeen.push(result.model);
+        const verdict = result.verdict;
+        if (verdict === null) judgeFailedCount++; // both attempts failed — fail open, treated as OK below
         if (verdict === true) {
           droppedJudgeCount++;
           verdictByItem.set(item, "judge");
@@ -227,7 +247,11 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
     stages.t_judge += t_judge;
     const judgeNote = "judge: " + droppedJudgeCount + " dropped" +
       (judgeFailedCount ? " (" + judgeFailedCount + " failed open)" : "") +
-      (droppedDiversityCount ? " · diversity: " + droppedDiversityCount + " dropped" : "");
+      (droppedDiversityCount ? " · diversity: " + droppedDiversityCount + " dropped" : "") +
+      (judgeModelsSeen.length
+        ? " · judge model: " + judgeModelsSeen.join("+") + " (" + judgeLatencyTotal + "ms" +
+          (judgeRetries ? ", " + judgeRetries + " retried" : "") + ")"
+        : "");
 
     // Merge the verdicts back into the full model-output-order list for
     // ?debug=1: an attempted candidate's entry reflects its verdict (kept,
