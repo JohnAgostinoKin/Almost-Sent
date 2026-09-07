@@ -39,6 +39,11 @@
     .ghost { background:transparent; color:var(--mute); border:1px solid #2a2a2a; }
     .ghost:hover { color:var(--fg); border-color:#3d3d3d; }
     .hint { margin-top:12px; font-size:10px; color:#6e6960; }
+    /* Shown instead of a download/share when neither can actually hand the
+       visitor a file — see saveImageBtn's click handler. The image is the
+       whole point (there's no button left to tap), so "press and hold to
+       save" reuses .hint's styling rather than needing its own. */
+    #save-image-fallback img { display:block; width:100%; margin-top:10px; border:1px solid #1c1c1c; }
     .chips { display:flex; flex-wrap:nowrap; align-items:center; overflow-x:auto; gap:6px; margin-top:10px; -webkit-overflow-scrolling:touch; }
     .chips-lead { flex-shrink:0; font-family:ui-sans-serif,system-ui,sans-serif; font-size:10px; color:#6e6960; }
     .chip { flex-shrink:0; width:auto; background:transparent; color:#8a857c; border:1px solid #1c1c1c; border-radius:999px; padding:4px 10px; font-size:10px; }
@@ -55,6 +60,7 @@
     #out.crisis-mode .react,
     #out.crisis-mode #lead-actions,
     #out.crisis-mode #save-image-row,
+    #out.crisis-mode #save-image-fallback,
     #out.crisis-mode .worse,
     #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
@@ -146,6 +152,14 @@
            not a screenshot. Enabled/disabled in lockstep with the three
            buttons above (see setShareDisabled). -->
       <div class="row" id="save-image-row"><button class="ghost" type="button" id="save-image" disabled>save as image</button></div>
+      <!-- In-app browsers (Instagram, TikTok, etc.) often can't hand back
+           a real file — no native share sheet for files, and a silently
+           no-op'd download. Shown instead, in that case, by
+           saveImageBtn's click handler. -->
+      <div class="hidden" id="save-image-fallback">
+        <img id="save-image-fallback-img" alt="almost sent — image to save">
+        <p class="hint">press and hold to save.</p>
+      </div>
       <!-- "new text" is the minor action now — a small ghost link after the
            share row, so it no longer competes with reroll for attention. -->
       <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
@@ -189,6 +203,10 @@
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
     var saveImageBtn = document.getElementById("save-image");
+    var SAVE_IMAGE_LABEL = saveImageBtn.textContent; // "save as image" — captured once, restored after every outcome
+    var saveImageFallbackEl = document.getElementById("save-image-fallback");
+    var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
+    var saveImageFeedbackTimer = null;
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
@@ -453,6 +471,20 @@
       copyShareBtns.forEach(function (b) { b.textContent = "copy it"; });
     }
 
+    // Undoes both of saveImageBtn's click-handler side effects — the
+    // temporary "saved. now ruin the group chat." label (see
+    // showSavedFeedback) and the inline image fallback (see
+    // showInlineImageFallback) — so neither lingers into a new result.
+    // Revoking the object URL here, not just clearing the <img>'s src, is
+    // what actually frees the blob rather than leaking it for the life of
+    // the page.
+    function resetSaveImage() {
+      if (saveImageFeedbackTimer) { clearTimeout(saveImageFeedbackTimer); saveImageFeedbackTimer = null; }
+      saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+      saveImageFallbackEl.classList.add("hidden");
+      if (saveImageFallbackImgEl.src) { URL.revokeObjectURL(saveImageFallbackImgEl.src); saveImageFallbackImgEl.src = ""; }
+    }
+
     function reset() {
       outEl.classList.add("hidden");
       outEl.classList.remove("crisis-mode");
@@ -463,6 +495,7 @@
       writeEl.value = "";
       setShareDisabled(true);
       resetCopyLabel();
+      resetSaveImage();
       whewEl.classList.add("hidden");
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
@@ -899,12 +932,46 @@
       });
     }
 
+    // In-app browsers (Instagram, TikTok, Facebook, Snapchat, Line, WeChat…)
+    // embed a WebView that silently no-ops an <a download> click — no
+    // exception, no navigation, nothing a script can observe after the
+    // fact to catch it — so the one thing that IS checkable ahead of time
+    // is the UA string these all self-report. Used below only as a last
+    // resort, when navigator.canShare has already said files aren't
+    // shareable either: skip straight to the inline image fallback rather
+    // than firing a download that's likely to just do nothing.
+    function looksLikeInAppBrowser() {
+      var ua = navigator.userAgent || "";
+      return /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|BytedanceWebview|Snapchat|WhatsApp/i.test(ua);
+    }
+
+    // "saved. now ruin the group chat." for 3 seconds, then back to normal
+    // — shown after a share or download that actually went through (not
+    // the inline-fallback path, which has its own caption instead).
+    function showSavedFeedback() {
+      if (saveImageFeedbackTimer) clearTimeout(saveImageFeedbackTimer);
+      saveImageBtn.textContent = "saved. now ruin the group chat.";
+      saveImageFeedbackTimer = setTimeout(function () {
+        saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+        saveImageFeedbackTimer = null;
+      }, 3000);
+    }
+
+    // Renders the PNG directly on the page, under the button, for browsers
+    // that can neither share nor download a file — a long-press on the
+    // image itself is the only "save" a visitor in one of these actually has.
+    function showInlineImageFallback(blob) {
+      if (saveImageFallbackImgEl.src) URL.revokeObjectURL(saveImageFallbackImgEl.src);
+      saveImageFallbackImgEl.src = URL.createObjectURL(blob);
+      saveImageFallbackEl.classList.remove("hidden");
+    }
+
     saveImageBtn.addEventListener("click", async function () {
       if (saveImageBtn.disabled) return;
       var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
-      var label = saveImageBtn.textContent;
       saveImageBtn.disabled = true;
       saveImageBtn.textContent = "making it…";
+      saveImageFallbackEl.classList.add("hidden");
       try {
         var blob = await buildShareImageBlob(current, draftText);
         logEvent("share", { via: "image" });
@@ -916,6 +983,10 @@
         // the two apart.
         if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file] });
+          showSavedFeedback();
+        } else if (looksLikeInAppBrowser()) {
+          showInlineImageFallback(blob);
+          saveImageBtn.textContent = SAVE_IMAGE_LABEL;
         } else {
           var url = URL.createObjectURL(blob);
           var a = document.createElement("a");
@@ -925,13 +996,14 @@
           a.click();
           document.body.removeChild(a);
           setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          showSavedFeedback();
         }
       } catch (err) {
         // A cancelled native share sheet throws too (AbortError) — not a
         // real failure, nothing here needs to interrupt anyone over it.
+        saveImageBtn.textContent = SAVE_IMAGE_LABEL;
       } finally {
         saveImageBtn.disabled = false;
-        saveImageBtn.textContent = label;
       }
     });
 
