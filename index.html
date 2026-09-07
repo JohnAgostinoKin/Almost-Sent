@@ -526,15 +526,30 @@
     // failure just leaves the pool where it was, counted against the fetch
     // cap same as a real attempt (still worth the cap either way, so a
     // consistently-failing draft call can't be retried forever).
+    //
+    // Fetch #1 is the normal batch, unescalated — the visitor hasn't asked
+    // for worse yet, there's nothing to be worse than. Fetch #2 and #3 are
+    // always a "make it worse" click past an exhausted batch (the only
+    // caller of this function once fetch #1 is spent — see the click
+    // handler below), so those pass escalate:true plus every line already
+    // revealed for this result (pool up through cursor, read directly off
+    // the closure rather than a param — see api/draft.js's handler and
+    // lib/prompt.js's systemPrompt for what the server does with them).
     async function fetchMoreAlternates(sent, leadShape) {
       fetchingAlternates = true;
       alternateFetches++;
       var fetchNum = alternateFetches;
+      var escalate = fetchNum >= 2;
+      var reqBody = { sent: sent, n: 4, lead: leadShape };
+      if (escalate) {
+        reqBody.escalate = true;
+        reqBody.shown = pool.slice(0, cursor + 1).map(function (d) { return d.text; });
+      }
       try {
         var res = await fetch("/api/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sent: sent, n: 4, lead: leadShape })
+          body: JSON.stringify(reqBody)
         });
         var data = await res.json();
         // A "new text" click (or another submit) could land between firing

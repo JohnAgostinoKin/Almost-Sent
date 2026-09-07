@@ -623,6 +623,18 @@ module.exports = async function handler(req, res) {
   // shape" itself.
   const n = Number(body.n);
   const lead = String(body.lead || "").trim().toLowerCase();
+  // "make it worse" escalation (see lib/prompt.js's systemPrompt) —
+  // index.html only sends escalate:true on an n=4 alternates refetch past
+  // the first (fetch #2 and #3 of MAX_ALTERNATE_FETCHES), with `shown` the
+  // lines already revealed for this result. Capped and truncated
+  // defensively here — this is the one field in the request body that's
+  // actual free text, not a fixed enum, so it gets the same "don't trust
+  // it, just bound it" treatment as `sent` above rather than being passed
+  // straight to the prompt.
+  const escalate = n === 4 && body.escalate === true;
+  const shown = escalate && Array.isArray(body.shown)
+    ? body.shown.map(function (s) { return String(s).slice(0, 300); }).slice(0, 10)
+    : [];
   stages.t_parse = Date.now() - parseStarted;
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
   if (n !== 1 && n !== 4) { res.status(400).json({ error: "n must be 1 or 4" }); return; }
@@ -723,10 +735,12 @@ module.exports = async function handler(req, res) {
   // write instead of a genuinely different alternate. `exclude` is
   // callOnce's own defensive backstop for when the model ignores that
   // anyway (see its own comment there) — not read by buildRequest/
-  // systemPrompt, only by callOnce's backfill loop.
+  // systemPrompt, only by callOnce's backfill loop. `escalate`/`shown`
+  // (parsed above) only ever apply to n=4 — see lib/prompt.js's
+  // systemPrompt, which is what actually reads them.
   const genOpts = n === 1
     ? { shapes: [lead], count: 2, pickBest: true }
-    : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4, exclude: lead };
+    : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4, exclude: lead, escalate: escalate, shown: shown };
   // Only read by the n=4 backfill loop now — pickBest (n=1) always judges
   // both candidates regardless of this number and returns exactly 1, so it
   // ignores judgeCount entirely. 2 for alternates — exactly what "make it
