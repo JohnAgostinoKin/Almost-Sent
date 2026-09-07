@@ -47,6 +47,7 @@
     #out.crisis-mode .react,
     #out.crisis-mode #lead-actions,
     #out.crisis-mode .worse,
+    #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
     .react { display:flex; gap:8px; margin-top:16px; }
     .react button { width:auto; padding:8px 13px; font-size:20px; line-height:1; background:transparent; border:1px solid #2a2a2a; color:var(--fg); }
@@ -59,6 +60,8 @@
     .debug li.dropped { color:#8a4a42; }
     .minor { margin-top:14px; }
     .minor button { width:auto; padding:7px 13px; font-size:12px; }
+    .beat-toggle { display:block; width:auto; background:transparent; border:0; padding:0; margin-top:18px; color:var(--mute); font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+    .beat-toggle:hover { color:var(--fg); }
     .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
     .turn .label { margin-top:0; }
     .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
@@ -134,7 +137,14 @@
            share row, so it no longer competes with reroll for attention. -->
       <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
 
-      <div class="turn">
+      <!-- "think you can do better" used to sit open on the page, competing
+           with the result itself and confusing first-timers. Collapsed now
+           — nothing about it visible until this link is tapped, which
+           reveals .turn (the box and its own share row) and logs beat_open
+           once (see the click handler below). -->
+      <button class="beat-toggle" type="button" id="beat-toggle">think you can do better? beat the ai &rarr;</button>
+
+      <div class="turn hidden" id="turn">
         <label class="label" for="write">think you can do better? show us.</label>
         <p class="sent-context" id="sent-context"></p>
         <textarea id="write" maxlength="180" placeholder="finish it."></textarea>
@@ -169,6 +179,8 @@
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
     var sentContextEl = document.getElementById("sent-context");
+    var turnEl = document.getElementById("turn");
+    var beatToggleEl = document.getElementById("beat-toggle");
     var reactEl = document.getElementById("react");
     var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
     var chipsEl = document.getElementById("chips");
@@ -373,6 +385,7 @@
                                      // double-click firing two overlapping fetches.
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
     var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
+    var beatOpened = false;     // one beat_open log per result — see the toggle's click handler below
 
     // Enabled whenever there's still a line to reveal (its own or a fresh
     // fetch's worth), disabled while a fetch is in flight, and disabled for
@@ -425,6 +438,9 @@
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
       sentContextEl.textContent = "";
+      turnEl.classList.add("hidden");
+      beatToggleEl.classList.remove("hidden");
+      beatOpened = false;
       pool = [];
       cursor = 0;
       currentSource = null;
@@ -547,6 +563,9 @@
           currentLeadShape = null;
           alternatesAllowed = false;
           alternateFetches = 0;
+          turnEl.classList.add("hidden");
+          beatToggleEl.classList.remove("hidden");
+          beatOpened = false;
           resetReact();
           outEl.classList.add("crisis-mode");
           crisisMsgEl.innerHTML = CRISIS_MESSAGE_HTML;
@@ -669,6 +688,20 @@
         btn.classList.add("picked");
         logEvent("rate", { shape: currentShape, value: btn.dataset.value, position: cursor + 1 });
       });
+    });
+
+    // Reveals .turn (the "write your own" box and its own share row) and
+    // hides itself — a one-way expand, no need to collapse back once open.
+    // Logs beat_open once per result, not once per (impossible, since the
+    // link is gone after) tap.
+    beatToggleEl.addEventListener("click", function () {
+      turnEl.classList.remove("hidden");
+      beatToggleEl.classList.add("hidden");
+      if (!beatOpened) {
+        beatOpened = true;
+        logEvent("beat_open");
+      }
+      writeEl.focus({ preventScroll: true });
     });
 
     writeEl.addEventListener("input", function () {
