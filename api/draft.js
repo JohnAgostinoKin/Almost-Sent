@@ -169,6 +169,16 @@ async function fromAi(sent) {
 
 const limited = createLimiter();
 
+// Phone numbers and email addresses are masked before either the dedupe key
+// or the stored text is built, so neither survives even though norm() itself
+// doesn't strip them. Shared by remember() and forget() below — both need
+// the exact same key for a given `sent`, or forget() could miss the row
+// remember() just wrote (or is about to).
+function dedupeKey(sent) {
+  const masked = maskPII(sent);
+  return { masked: masked, key: norm(masked) || masked.trim() };
+}
+
 // Returns what actually happened so the caller can surface it (`logged` in
 // the response, visible in ?debug=1) — this used to swallow every outcome,
 // success or failure alike, which is how `inbox` went silently empty since
@@ -181,13 +191,10 @@ async function remember(sent) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   try {
-    // Phone numbers and email addresses are masked before either field is
-    // built — the dedupe key included, so a phone number embedded mid-line
-    // doesn't survive into `key` even though norm() itself doesn't strip
-    // it. The unmasked `sent` is never touched here — the LLM call already
+    // The unmasked `sent` is never touched here — the LLM call already
     // happened with the real text before remember() runs; this is a
     // storage-only concern (see lib/mask.js).
-    const masked = maskPII(sent);
+    const d = dedupeKey(sent);
     // inbox.key is unique — a repeat input used to 409 here, since a plain
     // POST is an insert, not an upsert. on_conflict=key + resolution=merge-
     // duplicates turns this into an upsert: a repeat key updates the
@@ -200,7 +207,7 @@ async function remember(sent) {
         "Content-Type": "application/json",
         Prefer: "return=minimal,resolution=merge-duplicates"
       },
-      body: JSON.stringify({ key: norm(masked) || masked.trim(), sent: masked.trim().slice(0, 500) })
+      body: JSON.stringify({ key: d.key, sent: d.masked.trim().slice(0, 500) })
     });
     if (!res.ok) {
       const body = await res.text().catch(function () { return ""; });
@@ -210,6 +217,44 @@ async function remember(sent) {
     return "ok";
   } catch (err) {
     console.error("supabase inbox insert threw: " + (err && err.message));
+    return "error";
+  }
+}
+
+// Deletes any stored inbox row for `sent`'s dedupe key. Used for both
+// refusal paths — a BLOCK match and the model's own skip — so refused input
+// is never retained: remember() now fires in parallel with generation (see
+// the handler), so by the time a request turns out to be a refusal, a row
+// may already be sitting in `inbox` for it; this purges it regardless of
+// whether THIS request is what inserted it (a row from an earlier, non-
+// refused submission that normalizes to the same key gets cleaned up too —
+// e.g. if BLOCK's own rules ever expand to cover something that wasn't
+// blocked when it was first stored).
+async function forget(sent) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  try {
+    const d = dedupeKey(sent);
+    const res = await fetch(
+      url.replace(/\/+$/, "") + "/rest/v1/inbox?key=eq." + encodeURIComponent(d.key),
+      {
+        method: "DELETE",
+        headers: {
+          apikey: key,
+          Authorization: "Bearer " + key,
+          Prefer: "return=minimal"
+        }
+      }
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(function () { return ""; });
+      console.error("supabase inbox delete (refused) failed: " + res.status + " " + body.slice(0, 500));
+      return String(res.status);
+    }
+    return "ok";
+  } catch (err) {
+    console.error("supabase inbox delete (refused) threw: " + (err && err.message));
     return "error";
   }
 }
@@ -233,7 +278,7 @@ module.exports = async function handler(req, res) {
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
-  if (isBlocked(sent)) { res.status(200).json({ refuse: true, drafts: [] }); return; }
+  if (isBlocked(sent)) { await forget(sent); res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // t_total (ms) covers from here — the point past the cheap synchronous
   // checks above — to just before responding, so it reflects "how long did
@@ -241,18 +286,18 @@ module.exports = async function handler(req, res) {
   //
   // remember() only needs `sent`, not anything fromAi produces, so it fires
   // here rather than after — it used to run serially after the whole AI
-  // round trip, adding its own latency on top for no reason. One behavior
-  // change worth knowing: it used to never run at all when the model itself
-  // refused (ai.skip below) — now that call already fired by the time skip
-  // is known, so a model refusal's input gets stored (masked, same as any
-  // other) where it didn't before.
+  // round trip, adding its own latency on top for no reason. That means it's
+  // already in flight by the time a model refusal (ai.skip below) is known,
+  // so await it and immediately forget() the row it just wrote — refused
+  // input is never retained, it's just briefly written then deleted rather
+  // than never written at all.
   const requestStarted = Date.now();
   const rememberPromise = remember(sent);
 
   const ai = await fromAi(sent);
   // A model skip is a refusal, full stop — never paper over it with the
   // fallback lines below.
-  if (ai.skip) { await rememberPromise; res.status(200).json({ refuse: true, drafts: [] }); return; }
+  if (ai.skip) { await rememberPromise; await forget(sent); res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // Each draft carries its shape along ({shape, text}) — the client needs
   // it to log which shape a reaction tap (see index.html's #react buttons)
