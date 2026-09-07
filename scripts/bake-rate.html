@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>bake-off rating</title>
+<style>
+  :root { --bg:#070707; --fg:#f4f1ea; --mute:#8a857c; --line:#242424; --red:#e23b2f; --card:#101010; }
+  * { box-sizing:border-box; }
+  body { background:var(--bg); color:var(--fg); font-family:ui-sans-serif,system-ui,sans-serif; margin:0; padding:24px 16px 80px; }
+  main { max-width:640px; margin:0 auto; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 4px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 20px; line-height:1.5; }
+  .rater-row { display:flex; gap:8px; margin-bottom:20px; }
+  .rater-row input { flex:1; background:var(--card); border:1px solid var(--line); color:var(--fg); padding:8px 10px; font-size:14px; border-radius:4px; }
+  .progress { font-size:12px; color:var(--mute); margin-bottom:6px; }
+  .progress-bar { height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin-bottom:20px; }
+  .progress-bar-fill { height:100%; background:var(--red); transition:width .2s; }
+  .sent { font-size:14px; color:var(--mute); border-left:2px solid var(--line); padding-left:10px; margin-bottom:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:12px; }
+  .card p { font-size:16px; line-height:1.4; margin:0 0 10px; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .tag { background:transparent; border:1px solid var(--line); color:var(--mute); font-size:12px; padding:6px 10px; border-radius:999px; cursor:pointer; }
+  .tag:hover { border-color:#3d3d3d; color:var(--fg); }
+  .tag.on { background:var(--red); border-color:var(--red); color:#fff; }
+  .tag.neg { }
+  .actions { display:flex; gap:10px; margin-top:24px; }
+  button.next { flex:1; background:var(--red); color:#fff; border:0; padding:14px; font-size:15px; border-radius:6px; cursor:pointer; }
+  button.next:disabled { opacity:.4; cursor:default; }
+  .skip { background:transparent; border:1px solid var(--line); color:var(--mute); padding:14px 18px; border-radius:6px; cursor:pointer; }
+  .footer { margin-top:32px; padding-top:20px; border-top:1px solid var(--line); font-size:12px; color:var(--mute); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .footer a { color:var(--fg); }
+  .done { text-align:center; padding:60px 0; }
+  .done h2 { font-size:22px; margin-bottom:10px; }
+  .missing { font-size:13px; color:var(--mute); background:var(--card); border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>bake-off rating<span style="color:var(--red)">.</span></h1>
+  <p class="hint">One input at a time. The lines below are in random order and unlabeled — you're not told which system wrote which. Tap whichever tags fit each line; a line can get none, one, or several. Tap "next" when you're done with this one. Nothing is uploaded — your ratings live in a CSV you download from the bottom of this page.</p>
+
+  <div class="rater-row">
+    <input type="text" id="rater" placeholder="your name or initials, so we can tell raters apart" />
+  </div>
+
+  <div id="missing" class="missing hidden"></div>
+  <div id="round"></div>
+  <div id="doneBlock" class="done hidden">
+    <h2>that's everything.</h2>
+    <p class="hint">Download the CSV below and send it back.</p>
+  </div>
+
+  <div class="footer">
+    <span id="rowCount">0 ratings recorded</span>
+    <a id="downloadLink" href="#">download CSV</a>
+  </div>
+</main>
+
+<script>
+  var TAGS = ["funniest", "most surprising", "most tailored", "most shareable", "too random", "too far"];
+
+  var raterEl = document.getElementById("rater");
+  var roundEl = document.getElementById("round");
+  var missingEl = document.getElementById("missing");
+  var doneBlockEl = document.getElementById("doneBlock");
+  var rowCountEl = document.getElementById("rowCount");
+  var downloadLinkEl = document.getElementById("downloadLink");
+
+  try { raterEl.value = localStorage.getItem("bake_rater") || ""; } catch (err) {}
+  raterEl.addEventListener("input", function () {
+    try { localStorage.setItem("bake_rater", raterEl.value); } catch (err) {}
+  });
+
+  // Every row ever tapped this session, plus whatever a previous session
+  // already wrote to localStorage (so a reload mid-run doesn't lose
+  // ratings already made) — see persistRows/loadRows below.
+  var rows = [];
+  function loadRows() {
+    try {
+      var saved = localStorage.getItem("bake_rows");
+      rows = saved ? JSON.parse(saved) : [];
+    } catch (err) { rows = []; }
+  }
+  function persistRows() {
+    try { localStorage.setItem("bake_rows", JSON.stringify(rows)); } catch (err) {}
+    refreshDownload();
+  }
+  function csvEscape(v) {
+    var s = String(v == null ? "" : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function refreshDownload() {
+    rowCountEl.textContent = rows.length + " rating" + (rows.length === 1 ? "" : "s") + " recorded";
+    var header = "rater,timestamp,input_index,input,system,position_shown,tag\n";
+    var body = rows.map(function (r) {
+      return [r.rater, r.timestamp, r.input_index, r.input, r.system, r.position_shown, r.tag].map(csvEscape).join(",");
+    }).join("\n");
+    var blob = new Blob([header + body + "\n"], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    if (downloadLinkEl.dataset.url) URL.revokeObjectURL(downloadLinkEl.dataset.url);
+    downloadLinkEl.href = url;
+    downloadLinkEl.dataset.url = url;
+    downloadLinkEl.download = "bake-ratings" + (raterEl.value ? "-" + raterEl.value.replace(/[^a-z0-9]+/gi, "-") : "") + ".csv";
+  }
+
+  // Round index persists per browser (not per rater — this is a shared
+  // machine handed to one person at a time in practice) so a reload
+  // resumes roughly where it left off instead of restarting at input 1.
+  var roundIndex = 0;
+  try {
+    var savedIndex = parseInt(localStorage.getItem("bake_round_index") || "0", 10);
+    if (!isNaN(savedIndex)) roundIndex = savedIndex;
+  } catch (err) {}
+  function persistRoundIndex() {
+    try { localStorage.setItem("bake_round_index", String(roundIndex)); } catch (err) {}
+  }
+
+  function shuffled(arr) {
+    var copy = arr.slice();
+    for (var i = copy.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  // Tapped tags for the CURRENT round only, keyed by "position_shown:tag"
+  // — cleared every time a new round renders. Lets a second tap on the
+  // same tag/card remove the row instead of only ever adding one.
+  var currentTaps = {};
+
+  function tagKey(position, tag) { return position + ":" + tag; }
+
+  function renderRound(inputRows) {
+    currentTaps = {};
+    roundEl.innerHTML = "";
+
+    var shown = shuffled(inputRows.map(function (r, i) { return { system: r.system, text: r.text, origIndex: i }; }));
+
+    var progress = document.createElement("div");
+    progress.className = "progress";
+    progress.textContent = "input " + (roundIndex + 1) + " / " + TOTAL;
+    roundEl.appendChild(progress);
+
+    var barOuter = document.createElement("div");
+    barOuter.className = "progress-bar";
+    var barFill = document.createElement("div");
+    barFill.className = "progress-bar-fill";
+    barFill.style.width = Math.round(((roundIndex) / TOTAL) * 100) + "%";
+    barOuter.appendChild(barFill);
+    roundEl.appendChild(barOuter);
+
+    var sent = document.createElement("div");
+    sent.className = "sent";
+    sent.textContent = INPUTS[roundIndex];
+    roundEl.appendChild(sent);
+
+    shown.forEach(function (item, position) {
+      var card = document.createElement("div");
+      card.className = "card";
+      var p = document.createElement("p");
+      p.textContent = item.text;
+      card.appendChild(p);
+      var tagsRow = document.createElement("div");
+      tagsRow.className = "tags";
+      TAGS.forEach(function (tag) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tag";
+        btn.textContent = tag;
+        btn.addEventListener("click", function () {
+          var key = tagKey(position, tag);
+          var isOn = btn.classList.toggle("on");
+          if (isOn) {
+            currentTaps[key] = {
+              rater: raterEl.value.trim() || "anonymous",
+              timestamp: new Date().toISOString(),
+              input_index: roundIndex,
+              input: INPUTS[roundIndex],
+              system: item.system,
+              position_shown: position,
+              tag: tag
+            };
+            rows.push(currentTaps[key]);
+          } else {
+            var recorded = currentTaps[key];
+            delete currentTaps[key];
+            var idx = rows.indexOf(recorded);
+            if (idx !== -1) rows.splice(idx, 1);
+          }
+          persistRows();
+        });
+        tagsRow.appendChild(btn);
+      });
+      card.appendChild(tagsRow);
+      roundEl.appendChild(card);
+    });
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+    var nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "next";
+    nextBtn.textContent = roundIndex + 1 >= TOTAL ? "finish" : "next input →";
+    nextBtn.addEventListener("click", function () {
+      roundIndex++;
+      persistRoundIndex();
+      showCurrentRound();
+    });
+    var skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.className = "skip";
+    skipBtn.textContent = "skip, no opinion";
+    skipBtn.addEventListener("click", function () {
+      roundIndex++;
+      persistRoundIndex();
+      showCurrentRound();
+    });
+    actions.appendChild(skipBtn);
+    actions.appendChild(nextBtn);
+    roundEl.appendChild(actions);
+  }
+
+  function showCurrentRound() {
+    if (roundIndex >= TOTAL) {
+      roundEl.innerHTML = "";
+      doneBlockEl.classList.remove("hidden");
+      return;
+    }
+    doneBlockEl.classList.add("hidden");
+    var input = INPUTS[roundIndex];
+    var inputRows = SYSTEMS
+      .map(function (sys) {
+        var found = (RESULTS[sys.key] || []).filter(function (r) { return r.input === input; })[0];
+        var lead = found && found.top3 && found.top3[0];
+        return lead ? { system: sys.key, text: lead.text } : null;
+      })
+      .filter(Boolean);
+    if (!inputRows.length) {
+      // Every system either has no result file, or no usable line for
+      // this particular input (a refusal, a filtered-empty draw) — skip
+      // straight past it rather than showing an empty round.
+      roundIndex++;
+      persistRoundIndex();
+      showCurrentRound();
+      return;
+    }
+    renderRound(inputRows);
+  }
+
+  var SYSTEMS = [
+    { key: "A" }, { key: "B" }, { key: "C" }, { key: "D" }, { key: "E" }
+  ];
+  var RESULTS = {};
+  var INPUTS = [];
+  var TOTAL = 0;
+
+  async function loadResults() {
+    var missing = [];
+    for (var i = 0; i < SYSTEMS.length; i++) {
+      var key = SYSTEMS[i].key;
+      try {
+        var res = await fetch("../bake/results/" + key + ".json");
+        if (!res.ok) { missing.push(key); continue; }
+        var data = await res.json();
+        RESULTS[key] = data.results || [];
+      } catch (err) {
+        missing.push(key);
+      }
+    }
+    if (missing.length) {
+      missingEl.classList.remove("hidden");
+      missingEl.textContent = "No result file found for: " + missing.join(", ") +
+        " — run scripts/bake-blind.js first, or these systems just won't show up in any round.";
+    }
+    // Input order comes from whichever system actually has results (they
+    // all ran the same bake/inputs.txt, in the same order) — falls back
+    // to an empty list (nothing to rate) if every fetch failed.
+    var withData = SYSTEMS.map(function (s) { return RESULTS[s.key]; }).filter(Boolean)[0];
+    INPUTS = withData ? withData.map(function (r) { return r.input; }) : [];
+    TOTAL = INPUTS.length;
+  }
+
+  loadRows();
+  refreshDownload();
+  loadResults().then(function () {
+    if (roundIndex > TOTAL) roundIndex = 0;
+    showCurrentRound();
+  });
+</script>
+</body>
+</html>

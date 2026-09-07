@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vercel dev",
     "start": "npx serve .",
-    "bake": "node scripts/bake.js"
+    "bake": "node scripts/bake.js",
+    "bake-blind": "node scripts/bake-blind.js",
+    "bake-tally": "node scripts/bake-tally.js"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.5",

@@ -4,3 +4,5 @@
 node_modules
 .DS_Store
 bake-*.md
+bake/results/
+bake/csv/
