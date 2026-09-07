@@ -399,8 +399,12 @@
         });
         var data = await res.json();
 
+        // This bypasses the server's filterLines the same way lib/fallback.js's
+        // STALL_LINES do — it's a fixed client-side string, never model
+        // output — so it needs its own leading connector written in here
+        // rather than relying on a fix that only ever runs server-side.
         pool = (data.refuse || !data.drafts || !data.drafts.length)
-          ? [{ shape: "stall", text: "even the draft wouldn't send that" }]
+          ? [{ shape: "stall", text: ". even the draft wouldn't send that" }]
           : data.drafts;
 
         current = sent;
