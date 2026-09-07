@@ -54,6 +54,7 @@
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
     #out.crisis-mode #lead-actions,
+    #out.crisis-mode #save-image-row,
     #out.crisis-mode .worse,
     #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
@@ -141,6 +142,10 @@
         <button class="ghost email-share" type="button" disabled>email it</button>
         <button class="ghost copy-share" type="button" disabled>copy it</button>
       </div>
+      <!-- A 9:16 PNG drawn on canvas (see drawShareCanvas in the script) —
+           not a screenshot. Enabled/disabled in lockstep with the three
+           buttons above (see setShareDisabled). -->
+      <div class="row" id="save-image-row"><button class="ghost" type="button" id="save-image" disabled>save as image</button></div>
       <!-- "new text" is the minor action now — a small ghost link after the
            share row, so it no longer competes with reroll for attention. -->
       <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
@@ -183,6 +188,7 @@
     var textShareBtns = Array.prototype.slice.call(document.querySelectorAll(".text-share"));
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
+    var saveImageBtn = document.getElementById("save-image");
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
@@ -206,8 +212,8 @@
     // composeDraft (duplicated — no build step here to require() them,
     // keep the two in sync by hand): a real continuation always opens with
     // the punctuation or space that connects it to the sent text, so the
-    // draft is rendered as two tones — the sent text in --mute, the
-    // continuation in --fg, same line, no added space (the continuation
+    // draft is rendered as two tones — the sent text muted, the
+    // continuation not, same line, no added space (the continuation
     // already carries its own leading connector). If the sent text also
     // ends in its own punctuation, a leading period or comma on the
     // continuation is dropped rather than doubled up ("we good?." reads
@@ -223,21 +229,35 @@
     // object silently renders "[object Object]" instead of failing loudly,
     // which is exactly how that bug used to reach the screen; an unexpected
     // non-string here now renders as nothing instead.
-    function renderDraft(sentText, draftText) {
-      draftEl.textContent = "";
+    //
+    // Returns [{text, muted}] — one or two parts, muted:true for the
+    // sent-text portion, false for the continuation. Both renderDraft (the
+    // on-page DOM) and drawShareCanvas (the shared-image canvas, further
+    // down) build off this exact split, so the two never drift on where
+    // the color actually switches.
+    function composeParts(sentText, draftText) {
       var text = typeof draftText === "string" ? draftText : "";
       if (OPENER_RE.test(text)) {
         if (SENT_END_PUNCT_RE.test(sentText) && LEADING_DOT_COMMA_RE.test(text)) {
           text = text.slice(1);
         }
-        var sentPart = document.createElement("span");
-        sentPart.className = "sent-part";
-        sentPart.textContent = sentText;
-        draftEl.appendChild(sentPart);
-        draftEl.appendChild(document.createTextNode(text));
-      } else {
-        draftEl.textContent = text;
+        return [{ text: sentText, muted: true }, { text: text, muted: false }];
       }
+      return [{ text: text, muted: false }];
+    }
+
+    function renderDraft(sentText, draftText) {
+      draftEl.textContent = "";
+      composeParts(sentText, draftText).forEach(function (part) {
+        if (part.muted) {
+          var sentPart = document.createElement("span");
+          sentPart.className = "sent-part";
+          sentPart.textContent = part.text;
+          draftEl.appendChild(sentPart);
+        } else {
+          draftEl.appendChild(document.createTextNode(part.text));
+        }
+      });
     }
 
     // ?debug=1 shows the response's source/why/provider under the draft,
@@ -424,6 +444,7 @@
       textShareBtns.forEach(function (b) { b.disabled = disabled; });
       emailShareBtns.forEach(function (b) { b.disabled = disabled; });
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
+      saveImageBtn.disabled = disabled;
     }
     // Only the "copy it" label resets here — the "copied." confirmation
     // (see copyShareBtns' click handler below) is per-button, scoped to
@@ -717,6 +738,180 @@
       if (!ownLineLogged && hasText) {
         ownLineLogged = true;
         logEvent("own_line");
+      }
+    });
+
+    // Share-as-image: a 9:16 PNG drawn on a client-side <canvas> — not a
+    // screenshot of the page. Nothing but the wordmark, the exchange, and
+    // the domain — no reactions, no buttons, no chrome. Sized 1080x1920,
+    // the resolution "~24 characters per line" was calibrated against; the
+    // body font size auto-shrinks (see drawShareCanvas) if a long sent
+    // text plus continuation would still overflow the middle band at that
+    // starting size.
+    var SHARE_IMG_W = 1080;
+    var SHARE_IMG_H = 1920;
+    var SHARE_IMG_MARGIN = 90;
+    var SHARE_IMG_BG = "#070707";
+    var SHARE_IMG_FG = "#f4f1ea";
+    var SHARE_IMG_MUTE = "#8a857c";
+    var SHARE_IMG_RED = "#e23b2f";
+    var SHARE_IMG_SERIF = "Georgia, 'Times New Roman', serif";
+    var SHARE_IMG_SANS = "ui-sans-serif, system-ui, sans-serif";
+
+    // Splits composeParts' {text, muted} parts into individual words, each
+    // still tagged with its color — canvas has no equivalent of an inline
+    // <span>, so word-by-word is how a color change mid-line gets drawn at
+    // all. Whitespace inside a part collapses same as HTML's own would.
+    function coloredWords(parts) {
+      var words = [];
+      parts.forEach(function (part) {
+        var color = part.muted ? SHARE_IMG_MUTE : SHARE_IMG_FG;
+        String(part.text).split(/\s+/).forEach(function (w) {
+          if (w) words.push({ text: w, color: color });
+        });
+      });
+      return words;
+    }
+
+    // Greedy word wrap against ctx's CURRENT font — caller sets ctx.font
+    // before calling this. Returns an array of lines, each an array of the
+    // {text, color} word tokens (see coloredWords) that landed on it.
+    function wrapColoredWords(ctx, words, maxWidth) {
+      var spaceWidth = ctx.measureText(" ").width;
+      var lines = [];
+      var line = [];
+      var lineWidth = 0;
+      words.forEach(function (word) {
+        var w = ctx.measureText(word.text).width;
+        var extra = line.length ? spaceWidth + w : w;
+        if (line.length && lineWidth + extra > maxWidth) {
+          lines.push(line);
+          line = [word];
+          lineWidth = w;
+        } else {
+          line.push(word);
+          lineWidth += extra;
+        }
+      });
+      if (line.length) lines.push(line);
+      return lines;
+    }
+
+    function drawColoredLine(ctx, line, x, y) {
+      var spaceWidth = ctx.measureText(" ").width;
+      var cx = x;
+      line.forEach(function (word) {
+        ctx.fillStyle = word.color;
+        ctx.fillText(word.text, cx, y);
+        cx += ctx.measureText(word.text).width + spaceWidth;
+      });
+    }
+
+    // Builds the actual <canvas> — sentText/draftText same as renderDraft
+    // takes. Never touches the DOM (the canvas is never appended anywhere)
+    // — the caller reads it back via canvas.toBlob.
+    function drawShareCanvas(sentText, draftText) {
+      var canvas = document.createElement("canvas");
+      canvas.width = SHARE_IMG_W;
+      canvas.height = SHARE_IMG_H;
+      var ctx = canvas.getContext("2d");
+      ctx.textBaseline = "alphabetic";
+
+      ctx.fillStyle = SHARE_IMG_BG;
+      ctx.fillRect(0, 0, SHARE_IMG_W, SHARE_IMG_H);
+
+      var maxWidth = SHARE_IMG_W - SHARE_IMG_MARGIN * 2;
+
+      // Wordmark, top — "almost sent" then a red period, same as h1.
+      var wordmarkY = 200;
+      ctx.font = "64px " + SHARE_IMG_SERIF;
+      ctx.fillStyle = SHARE_IMG_FG;
+      ctx.fillText("almost sent", SHARE_IMG_MARGIN, wordmarkY);
+      var wordmarkWidth = ctx.measureText("almost sent").width;
+      ctx.fillStyle = SHARE_IMG_RED;
+      ctx.fillText(".", SHARE_IMG_MARGIN + wordmarkWidth, wordmarkY);
+
+      // Middle: the composed exchange, wrapped, left-aligned, vertically
+      // centered in the band between the wordmark and the footer. Starts
+      // at 72px (tuned for ~24 characters/line at this margin) and shrinks
+      // in 4px steps if a long sent text plus continuation would still
+      // overflow the band, rather than ever running text off-canvas.
+      var middleTop = 460;
+      var middleBottom = SHARE_IMG_H - 220;
+      var availableHeight = middleBottom - middleTop;
+      var words = coloredWords(composeParts(sentText, draftText));
+      var bodySize = 72;
+      var lines, lineHeight, totalTextHeight;
+      for (;;) {
+        ctx.font = bodySize + "px " + SHARE_IMG_SERIF;
+        lines = wrapColoredWords(ctx, words, maxWidth);
+        lineHeight = Math.round(bodySize * 1.35);
+        totalTextHeight = lines.length * lineHeight;
+        if (totalTextHeight <= availableHeight || bodySize <= 36) break;
+        bodySize -= 4;
+      }
+      ctx.font = bodySize + "px " + SHARE_IMG_SERIF;
+      var startY = middleTop + Math.max(0, (availableHeight - totalTextHeight) / 2) + bodySize;
+      lines.forEach(function (line, i) {
+        drawColoredLine(ctx, line, SHARE_IMG_MARGIN, startY + i * lineHeight);
+      });
+
+      // Footer, bottom — muted, sans, small.
+      ctx.font = "32px " + SHARE_IMG_SANS;
+      ctx.fillStyle = SHARE_IMG_MUTE;
+      ctx.fillText("almostsent.app", SHARE_IMG_MARGIN, SHARE_IMG_H - 100);
+
+      return canvas;
+    }
+
+    // Wraps canvas.toBlob's callback shape in a promise — sentText/
+    // draftText same as drawShareCanvas.
+    function buildShareImageBlob(sentText, draftText) {
+      return new Promise(function (resolve, reject) {
+        try {
+          var canvas = drawShareCanvas(sentText, draftText);
+          canvas.toBlob(function (blob) {
+            if (blob) resolve(blob); else reject(new Error("toBlob returned nothing"));
+          }, "image/png");
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    saveImageBtn.addEventListener("click", async function () {
+      if (saveImageBtn.disabled) return;
+      var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
+      var label = saveImageBtn.textContent;
+      saveImageBtn.disabled = true;
+      saveImageBtn.textContent = "making it…";
+      try {
+        var blob = await buildShareImageBlob(current, draftText);
+        logEvent("share", { via: "image" });
+        var file = new File([blob], "almost-sent.png", { type: "image/png" });
+        // The Instagram/Snapchat path — a mobile share sheet that can take
+        // a file, not just a URL/text. navigator.canShare has to be asked
+        // about THIS file specifically; some browsers implement share()
+        // for text/url but not files, and canShare({files}) is what tells
+        // the two apart.
+        if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+        } else {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "almost-sent.png";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        }
+      } catch (err) {
+        // A cancelled native share sheet throws too (AbortError) — not a
+        // real failure, nothing here needs to interrupt anyone over it.
+      } finally {
+        saveImageBtn.disabled = false;
+        saveImageBtn.textContent = label;
       }
     });
 
