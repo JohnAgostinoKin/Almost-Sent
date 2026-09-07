@@ -318,13 +318,37 @@
       sentEl.focus();
     }
 
+    // Rotates through in-voice lines on the submit button while a draft is
+    // generating, instead of sitting on a single static "typing…". Restarts
+    // from the first line every submit (startLoadingLines resets `i`), so a
+    // quick "another"-then-"new text" round doesn't pick up mid-rotation.
+    var LOADING_LINES = [
+      "reading between the lies…",
+      "checking their deleted drafts…",
+      "contacting their therapist…",
+      "oh no.",
+      "they absolutely cannot send this."
+    ];
+    var loadingTimer = null;
+    function startLoadingLines() {
+      var i = 0;
+      go.textContent = LOADING_LINES[i];
+      loadingTimer = setInterval(function () {
+        i = (i + 1) % LOADING_LINES.length;
+        go.textContent = LOADING_LINES[i];
+      }, 900);
+    }
+    function stopLoadingLines() {
+      if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
+    }
+
     document.getElementById("form").addEventListener("submit", async function (e) {
       e.preventDefault();
       var sent = sentEl.value.trim();
       if (!sent || go.disabled) return;
       logEvent("paste");
       go.disabled = true;
-      go.textContent = "typing…";
+      startLoadingLines();
       try {
         var res = await fetch("/api/draft", {
           method: "POST",
@@ -365,6 +389,7 @@
       } catch (err) {
         alert("the draft didn't come through. try again.");
       } finally {
+        stopLoadingLines();
         go.disabled = false;
         go.textContent = "here's what they almost sent";
       }
