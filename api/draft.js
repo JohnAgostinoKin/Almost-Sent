@@ -10,6 +10,50 @@ const { createLimiter } = require("../lib/rateLimit");
 const { maskPII } = require("../lib/mask");
 const { waitUntil } = require("@vercel/functions");
 
+// Captured once, the instant this module is first loaded into a container
+// (a cold start, or a deploy) — never again after that on a warm container,
+// since require() caches the module. t_cold (computed at the top of the
+// handler below) is the gap between that moment and this particular
+// request's handler actually running: near-zero on a genuine cold start
+// (module just finished loading, handler runs right after), and however
+// long this container has been sitting warm on every request after that.
+// Either way it rules cold start in or out as an explanation for a slow
+// request, which nothing else here could tell you.
+const MODULE_LOADED_AT = Date.now();
+
+// Per-request timing accumulator, threaded through fromAi -> callOnce
+// (mutated in place rather than returned/merged, since callOnce can run
+// more than once per request — a same-model retry or a fallback-model
+// attempt — and every stage's time across every attempt is what actually
+// explains where t_total went, not just the attempt that finally worked).
+// t_gen/t_judge (the existing per-response ?debug=1 fields) still only ever
+// reflect the FINAL attempt; this is the fuller picture, folded into `why`
+// by formatStages below.
+function newStages() {
+  return {
+    t_cold: 0,
+    t_body: 0,
+    t_block: 0,
+    t_prompt: 0,
+    t_llm: 0,
+    llmAttempts: 0,
+    llmRetried: false,
+    llmFallback: false,
+    t_filter: 0,
+    t_order: 0,
+    t_judge: 0,
+    t_response: 0
+  };
+}
+
+function formatStages(s) {
+  const llmNote = s.llmAttempts + (s.llmRetried ? ", retry" : "") + (s.llmFallback ? ", fallback" : "");
+  return "t_cold=" + s.t_cold + "ms t_body=" + s.t_body + "ms t_block=" + s.t_block + "ms" +
+    " t_prompt=" + s.t_prompt + "ms t_llm=" + s.t_llm + "ms (" + llmNote + ")" +
+    " t_filter=" + s.t_filter + "ms t_order=" + s.t_order + "ms t_judge=" + s.t_judge + "ms" +
+    " t_response=" + s.t_response + "ms";
+}
+
 function readBody(req) {
   const body = req.body;
   if (!body) return {};
@@ -32,11 +76,18 @@ function readBody(req) {
 // `t_gen`/`t_judge` (ms) ride along for ?debug=1 — t_gen from callLLM's own
 // latencyMs, t_judge measured around the judge dispatch below. Only set once
 // there's something to time; a no-parse/refusal result has no t_judge (never
-// reached the judge), and the outer catch has neither.
-async function callOnce(key, model, sent) {
+// reached the judge), and the outer catch has neither. `stages` (see
+// newStages above) accumulates the same numbers, plus t_prompt/t_filter/
+// t_order, across however many times callOnce runs this request — see
+// fromAi below, which is the only caller and always passes one.
+async function callOnce(key, model, sent, stages) {
+  stages = stages || newStages();
   try {
+    stages.llmAttempts++;
     const result = await callLLM(key, model, sent);
     const t_gen = result.latencyMs;
+    stages.t_prompt += result.t_prompt || 0;
+    stages.t_llm += t_gen || 0;
     // Tag every why with the upstream provider OpenRouter actually routed
     // to (also returned bare as `provider`, for the ?debug=1 view), so a
     // run of requests shows whether routing moved mid-session.
@@ -49,7 +100,9 @@ async function callOnce(key, model, sent) {
     }
     const items = parsed.map(normalizeItem);
     if (isRefusal(items)) return { lines: [], skip: true, t_gen: t_gen };
+    const filterStarted = Date.now();
     const filtered = filterLines(items, sent);
+    stages.t_filter += Date.now() - filterStarted;
     const drops = describeDrops(filtered);
     if (!filtered.kept.length) {
       return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all, t_gen: t_gen };
@@ -63,7 +116,9 @@ async function callOnce(key, model, sent) {
     // only runs once per request either way; dropping judge-flagged
     // candidates below is a plain filter that preserves relative order, so
     // there's nothing left to re-sort afterward.
+    const orderStarted = Date.now();
     const provisional = orderByShape(filtered.kept);
+    stages.t_order += Date.now() - orderStarted;
     const candidates = provisional.slice(0, 3);
 
     // lib/judge.js's applyJudgeVerdict expects its `kept`/`all` pair in
@@ -75,6 +130,7 @@ async function callOnce(key, model, sent) {
     const judgeStarted = Date.now();
     const judgeResult = await judgeLines(key, candidates.map(function (c) { return c.text; }));
     const t_judge = Date.now() - judgeStarted;
+    stages.t_judge += t_judge;
     const judged = applyJudgeVerdict(candidates, candidateAll, judgeResult.flagged);
     const judgeNote = "judge: " + judged.droppedJudge + " dropped" +
       (judgeResult.failedCount ? " (" + judgeResult.failedCount + " failed open)" : "");
@@ -126,6 +182,11 @@ async function callOnce(key, model, sent) {
       .concat(mergedAll.filter(function (entry) { return entry.dropped; }));
     return { lines: kept, why: why, provider: provider, debugLines: debugLines, t_gen: t_gen, t_judge: t_judge };
   } catch (err) {
+    // callLLM throwing (network/timeout/HTTP) is the only way to land here
+    // before stages.t_llm was already credited above — it stamps its own
+    // latencyMs/t_prompt on the error for exactly this case (see lib/llm.js).
+    stages.t_llm += (err && err.latencyMs) || 0;
+    stages.t_prompt += (err && err.t_prompt) || 0;
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
 }
@@ -141,12 +202,13 @@ function tagModel(result, model) {
 
 const FALLBACK_MODEL = "openai/gpt-5.4";
 
-async function fromAi(sent) {
+async function fromAi(sent, stages) {
+  stages = stages || newStages();
   const key = process.env.LLM_API_KEY;
   if (!key) return { lines: [], why: "no api key" };
 
   const model = process.env.LLM_MODEL || "nousresearch/hermes-4-405b";
-  const first = await callOnce(key, model, sent);
+  const first = await callOnce(key, model, sent, stages);
 
   // Every line from the first call got filtered — one retry before giving
   // up on the model. Temperature is 1.0, so a second draw is often clean
@@ -154,7 +216,8 @@ async function fromAi(sent) {
   // get this second chance (those fall to the fallback model below
   // instead), only a bad-content draw does.
   if (!first.skip && !first.lines.length && first.reason === "filtered") {
-    return tagModel(await callOnce(key, model, sent), model);
+    stages.llmRetried = true;
+    return tagModel(await callOnce(key, model, sent, stages), model);
   }
 
   // The primary model either refused outright (skip) or failed to produce
@@ -162,7 +225,8 @@ async function fromAi(sent) {
   // parse as JSON. One attempt on a different model before giving up
   // entirely; a content-filtered draw above isn't this path.
   if (first.skip || first.reason === "error" || first.reason === "unparsable") {
-    return tagModel(await callOnce(key, FALLBACK_MODEL, sent), FALLBACK_MODEL);
+    stages.llmFallback = true;
+    return tagModel(await callOnce(key, FALLBACK_MODEL, sent, stages), FALLBACK_MODEL);
   }
 
   return tagModel(first, model);
@@ -270,6 +334,10 @@ async function forget(sent) {
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
 
 module.exports = async function handler(req, res) {
+  // See newStages/MODULE_LOADED_AT above for what t_cold actually measures.
+  const stages = newStages();
+  stages.t_cold = Date.now() - MODULE_LOADED_AT;
+
   const origin = req.headers.origin;
   if (origin && ORIGINS.indexOf(origin) !== -1) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -283,14 +351,20 @@ module.exports = async function handler(req, res) {
   const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
   if (limited(ip)) { res.status(429).json({ error: "slow down" }); return; }
 
+  const bodyStarted = Date.now();
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
+  stages.t_body = Date.now() - bodyStarted;
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
+
+  const blockStarted = Date.now();
+  const blocked = isBlocked(sent);
+  stages.t_block = Date.now() - blockStarted;
   // waitUntil (from @vercel/functions) keeps this invocation alive for the
   // given promise without making the client's response wait on it — the
   // opposite of `await`. Nothing here reads forget()'s result, so there's
   // nothing to gate the response on in the first place.
-  if (isBlocked(sent)) { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
+  if (blocked) { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // t_total (ms) covers from here — the point past the cheap synchronous
   // checks above — to just before responding, so it reflects "how long did
@@ -304,7 +378,7 @@ module.exports = async function handler(req, res) {
   const rememberPromise = remember(sent);
   waitUntil(rememberPromise);
 
-  const ai = await fromAi(sent);
+  const ai = await fromAi(sent, stages);
   // A model skip is a refusal, full stop — never paper over it with the
   // fallback lines below. forget() has to run after remember() actually
   // lands (not race it) or the delete could fire before the insert does and
@@ -317,6 +391,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const responseStarted = Date.now();
   // Each draft carries its shape along ({shape, text}) — the client needs
   // it to log which shape a reaction tap (see index.html's #react buttons)
   // was against. A stall line isn't one of the model's shapes, so it's
@@ -357,11 +432,19 @@ module.exports = async function handler(req, res) {
   // still means what it always did: no Supabase config, nothing fired.
   const logged = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "deferred" : null;
 
+  stages.t_response = Date.now() - responseStarted;
+  // Every stage timer this request touched, folded into `why` — see
+  // newStages/formatStages above. ai.why already carries the drop/judge
+  // breakdown for the winning attempt; this appends the full per-stage
+  // accounting across every attempt (a same-model retry or a fallback-model
+  // attempt each add their own t_llm/t_filter/t_order/t_judge on top).
+  const why = (ai.why ? ai.why + " · " : "") + "stages: " + formatStages(stages);
+
   res.status(200).json({
     sent: sent,
     drafts: drafts.slice(0, 6),
     source: source,
-    why: ai.why || null,
+    why: why || null,
     provider: ai.provider || null,
     logged: logged,
     // Every line the model wrote this call — shape-tagged, kept/dropped and

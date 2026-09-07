@@ -322,6 +322,9 @@
     // generating, instead of sitting on a single static "typing…". Restarts
     // from the first line every submit (startLoadingLines resets `i`), so a
     // quick "another"-then-"new text" round doesn't pick up mid-rotation.
+    // Waits 600ms before the first line so a fast response never flashes a
+    // loading line at all — the button just stays put — and once it does
+    // start, holds each line 1500ms.
     var LOADING_LINES = [
       "reading between the lies…",
       "checking their deleted drafts…",
@@ -329,16 +332,22 @@
       "oh no.",
       "they absolutely cannot send this."
     ];
+    var LOADING_START_DELAY_MS = 600;
+    var LOADING_INTERVAL_MS = 1500;
+    var loadingStartTimer = null;
     var loadingTimer = null;
     function startLoadingLines() {
-      var i = 0;
-      go.textContent = LOADING_LINES[i];
-      loadingTimer = setInterval(function () {
-        i = (i + 1) % LOADING_LINES.length;
+      loadingStartTimer = setTimeout(function () {
+        var i = 0;
         go.textContent = LOADING_LINES[i];
-      }, 900);
+        loadingTimer = setInterval(function () {
+          i = (i + 1) % LOADING_LINES.length;
+          go.textContent = LOADING_LINES[i];
+        }, LOADING_INTERVAL_MS);
+      }, LOADING_START_DELAY_MS);
     }
     function stopLoadingLines() {
+      if (loadingStartTimer) { clearTimeout(loadingStartTimer); loadingStartTimer = null; }
       if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
     }
 
