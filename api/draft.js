@@ -2,7 +2,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { ACTIVE_SHAPES } = require("../lib/prompt");
+const { ACTIVE_SHAPES, normalizeBefore } = require("../lib/prompt");
 const {
   extractArray, extractSingle, normalizeItem, isRefusal, orderByShape, filterLines,
   describeDrops, createDiversityTracker
@@ -12,6 +12,7 @@ const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { checkCrisis } = require("../lib/crisis");
+const { curatedLeadFor } = require("../lib/curated");
 const { createLimiter } = require("../lib/rateLimit");
 const { maskPII } = require("../lib/mask");
 const { waitUntil } = require("@vercel/functions");
@@ -518,6 +519,48 @@ module.exports = async function handler(req, res) {
   const rememberPromise = remember(sent);
   waitUntil(rememberPromise);
 
+  // `logged` used to be remember()'s own awaited result ("ok" / a status
+  // code / "error") — it can't be anymore now that remember() runs via
+  // waitUntil, unawaited, after this response is already on its way out.
+  // "deferred" just means Supabase is configured and the write was fired;
+  // whether it actually landed is in the function logs (t_remember, and
+  // any "supabase inbox insert failed/threw" line) now, not here. null
+  // still means what it always did: no Supabase config, nothing fired.
+  // Computed here (rather than down by the model response) so the curated
+  // short-circuit right below can report it too.
+  const logged = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "deferred" : null;
+
+  // Curated leads (lib/curated.js) — a tiny hand-picked bank for exactly
+  // the four featured example chips (see index.html's #chips), matched on
+  // normalizeBefore(sent) (lib/prompt.js — lowercase, trailing punctuation
+  // stripped). Those four inputs are the app's whole demo: a weak or
+  // random model draw for one of them is the worst possible first
+  // impression, so a match skips generation, the crisis check, and the
+  // judge entirely and returns one of the pre-vetted lines instead. Lead
+  // (n=1) only — alternates (n=4) always come from the model, even for a
+  // curated sent text, so "another" never shows the same fixed handful.
+  // remember() above still fires for a curated match (this text was still
+  // submitted, same retention policy applies), but nothing else in the
+  // usual pipeline runs.
+  if (n === 1) {
+    const curated = curatedLeadFor(normalizeBefore(sent));
+    if (curated) {
+      res.status(200).json({
+        sent: sent,
+        drafts: [{ shape: curated.shape, text: curated.text }],
+        source: "curated",
+        why: "curated",
+        provider: null,
+        logged: logged,
+        debug: null,
+        t_gen: null,
+        t_judge: null,
+        t_total: Date.now() - requestStarted
+      });
+      return;
+    }
+  }
+
   // Crisis pre-check (lib/crisis.js) — a second, semantic layer past
   // isBlocked() above, for ambiguous phrasing ("i don't want to be here
   // anymore") that keyword matching structurally can't catch. Only fired
@@ -617,14 +660,8 @@ module.exports = async function handler(req, res) {
     source = "empty";
   }
 
-  // `logged` used to be remember()'s own awaited result ("ok" / a status
-  // code / "error") — it can't be anymore now that remember() runs via
-  // waitUntil, unawaited, after this response is already on its way out.
-  // "deferred" just means Supabase is configured and the write was fired;
-  // whether it actually landed is in the function logs (t_remember, and
-  // any "supabase inbox insert failed/threw" line) now, not here. null
-  // still means what it always did: no Supabase config, nothing fired.
-  const logged = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "deferred" : null;
+  // `logged` is computed earlier now — see the curated-lead short-circuit
+  // above, which needs it too.
 
   stages.t_response = Date.now() - responseStarted;
   // Every stage timer this request touched, folded into `why` — see
