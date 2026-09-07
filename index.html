@@ -128,11 +128,12 @@
       <!-- Reroll is the primary action now — a full-width, primary-styled
            button directly under the reactions (default button styling: red,
            full width, same as #go — no .ghost here on purpose), not a small
-           ghost tucked below the share row. It never dead-ends: once the
-           current batch of alternates is exhausted, a click fetches a fresh
-           n=4 batch instead of just disabling — see fetchMoreAlternates and
-           the click handler below. Capped at MAX_ALTERNATE_FETCHES batches
-           per result, then it disables for real. -->
+           ghost tucked below the share row. The first two taps just reveal
+           drafts already sitting in the pool from the initial request; only
+           once those run out does a click fetch a fresh escalated batch
+           instead of just disabling — see fetchEscalation and the click
+           handler below. Capped at MAX_ESCALATE_FETCHES refetches per
+           result, then it disables for real. -->
       <div class="row worse"><button type="button" id="another" disabled>make it worse</button></div>
 
       <div class="debug hidden" id="debug"></div>
@@ -241,7 +242,7 @@
     var OPENER_RE = /^[,.!?\s]/;
     var SENT_END_PUNCT_RE = /[.,!?]$/;
     var LEADING_DOT_COMMA_RE = /^[.,]/;
-    // draftText must already be the .text string off a {shape, text} draft
+    // draftText must already be the .text string off a {lane, text} draft
     // (see pool below) — never the whole object. Coercing a non-string
     // (typeof guard, not String(x)||"") is deliberate: String() on an
     // object silently renders "[object Object]" instead of failing loudly,
@@ -279,19 +280,25 @@
     }
 
     // ?debug=1 shows the response's source/why/provider under the draft,
-    // plus every line the model wrote this call — shape-tagged, and marked
+    // plus every line each generator call wrote — lane-tagged, and marked
     // which were dropped and by which filter (data.debug, from
     // lib/postprocess.js's filterLines via api/draft.js) — never rendered
     // for a normal visitor, the param has to be there.
     var DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
-    // Two requests per result now (the lead, then the alternates — see the
-    // submit handler below), each with its own response to show. Appends a
-    // labeled block per call instead of replacing debugEl's content, so the
-    // lead's block is still there once the alternates block lands after it.
-    // reset() (see below) is what actually clears debugEl between results —
-    // this never has to, since a fresh submit is only ever reachable after
-    // reset() ran (the form is read-only until then).
+    // One request per result now (v3 fires both generator calls server-side
+    // in parallel — see api/draft.js's handler), plus one more per
+    // escalation refetch (see the "make it worse" click handler below).
+    // Appends a labeled block per call instead of replacing debugEl's
+    // content, so an escalation's block is still there once it lands after
+    // the initial one. reset() (see below) is what actually clears debugEl
+    // between results — this never has to, since a fresh submit is only
+    // ever reachable after reset() ran (the form is read-only until then).
+    //
+    // data.debug is {primary: [...], wildcard: [...]} — the two generator
+    // calls' own line lists (see api/draft.js) — rendered as two labeled
+    // sub-lists rather than one merged one, so it's visible which call
+    // wrote which line.
     function renderDebug(label, data) {
       var block = document.createElement("div");
       var summary = document.createElement("div");
@@ -304,17 +311,25 @@
         " · t_judge: " + (data.t_judge != null ? data.t_judge + "ms" : "—") +
         " · t_total: " + (data.t_total != null ? data.t_total + "ms" : "—");
       block.appendChild(summary);
-      if (data.debug && data.debug.length) {
+      function renderLines(sublabel, lines) {
+        if (!lines || !lines.length) return;
+        var sub = document.createElement("div");
+        sub.textContent = sublabel + ":";
+        block.appendChild(sub);
         var list = document.createElement("ul");
-        data.debug.forEach(function (d) {
+        lines.forEach(function (d) {
           var li = document.createElement("li");
-          li.textContent = "[" + (d.shape || "?") + "] " +
+          li.textContent = "[" + (d.lane || "?") + "] " +
             (d.dropped ? "dropped (" + (d.filter || "?") + ")" : "kept") +
             " — " + (typeof d.text === "string" ? d.text : "(non-text)");
           if (d.dropped) li.className = "dropped";
           list.appendChild(li);
         });
         block.appendChild(list);
+      }
+      if (data.debug) {
+        renderLines("primary", data.debug.primary);
+        renderLines("wildcard", data.debug.wildcard);
       }
       debugEl.appendChild(block);
       debugEl.classList.remove("hidden");
@@ -377,72 +392,44 @@
     }
     var DEVICE_ID = getDeviceId();
 
-    // Which shape leads used to rotate server-side, one active shape at a
-    // time, per api/draft.js request — meaningless once generation split
-    // into two requests (see the submit handler below): the lead shape now
-    // has to be decided BEFORE either request goes out, since the n=1 call
-    // needs it and the n=4 call needs to exclude it. So the rotation moved
-    // here, to the device. Mirrors lib/prompt.js's ACTIVE_SHAPES — keep the
-    // two in sync by hand, same as OPENER_RE elsewhere on this page.
-    //
-    // Same storage-blocked tolerance as getDeviceId() above: a read or
-    // write that throws falls back to memoryLeadIndex, so rotation still
-    // advances correctly for the rest of this page load — it just won't
-    // survive a reload if storage is unavailable.
-    var SHAPES = ["shock", "raunchy", "deranged", "gross"];
-    var memoryLeadIndex = -1;
-    function nextLeadShape() {
-      var idx = memoryLeadIndex;
-      try {
-        var stored = localStorage.getItem("lead_rotation");
-        if (stored !== null) {
-          var parsed = parseInt(stored, 10);
-          if (!isNaN(parsed)) idx = parsed;
-        }
-      } catch (err) { /* storage blocked — idx stays memoryLeadIndex */ }
-      idx = (idx + 1) % SHAPES.length;
-      memoryLeadIndex = idx;
-      try {
-        localStorage.setItem("lead_rotation", String(idx));
-      } catch (err) { /* storage blocked — memoryLeadIndex above still works this page load */ }
-      return SHAPES[idx];
-    }
-
-    var pool = [];       // the {shape, text} drafts for this result: the lead (from the n=1
-                          // call), then alternates (from n=4 calls, appended as they land —
-                          // see fetchMoreAlternates below), in display order
+    var pool = [];       // the {lane, text} drafts for this result: up to three from the
+                          // initial request, then more appended per escalation fetch (see
+                          // the "make it worse" click handler below), in display order —
+                          // display order IS the server's ranking now (lib/judge.js via
+                          // api/draft.js), not something this page decides.
     var cursor = 0;      // which one is on screen
     var current = "";    // the input this result belongs to
     var currentSource = null;   // this result's data.source, reused in later draft_shown/another logs
     var currentProvider = null; // this result's data.provider, same reuse
-    var currentShape = null;    // pool[cursor]'s shape, read by the reaction buttons below
-    var currentLeadShape = null; // the shape the lead call used — every alternates fetch for
-                                  // this result (the automatic first one and any "make it
-                                  // worse"-triggered refetch) excludes the same shape.
-    var alternatesAllowed = false; // false for a refusal — never fetch alternates for one (set
+    var currentLane = null;     // pool[cursor]'s lane, read by the reaction buttons below
+    var alternatesAllowed = false; // false for a refusal — never fetch an escalation for one (set
                                     // alongside currentSource/currentProvider below)
-    var alternateFetches = 0;      // n=4 batches fetched for this result so far — logged as
-                                    // meta.fetch on every "another" event, so how many people
-                                    // click deep into fetch 2 or 3 is visible later.
-    var MAX_ALTERNATE_FETCHES = 3; // "make it worse" never dead-ends into a disabled button on
-                                    // its own — it fetches a fresh batch instead — until this
-                                    // many batches have been asked for, then it disables for real.
-    var fetchingAlternates = false; // true for the life of any n=4 call — guards against a
+    var escalateFetches = 0;       // escalation refetches for this result so far — NOT counting
+                                    // the initial request, which already returns up to three
+                                    // drafts for free. Logged as meta.fetch on every "another"
+                                    // event, so how often people actually escalate (vs. just
+                                    // cycling the free three) is visible later.
+    var MAX_ESCALATE_FETCHES = 3;  // "make it worse" never dead-ends into a disabled button on
+                                    // its own — it fetches a fresh escalated batch instead — until
+                                    // this many refetches have been asked for, then it disables
+                                    // for real.
+    var fetchingEscalation = false; // true for the life of any escalation call — guards against a
                                      // double-click firing two overlapping fetches.
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
     var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
     var beatOpened = false;     // one beat_open log per result — see the toggle's click handler below
 
-    // Enabled whenever there's still a line to reveal (its own or a fresh
-    // fetch's worth), disabled while a fetch is in flight, and disabled for
-    // good once alternates aren't allowed at all (a refusal) or the fetch
-    // cap is spent — "reroll should never dead-end" on its own, so the only
-    // real disable is the fetch cap; see the click handler below for what
-    // happens on an exhausted-but-still-fetchable click.
+    // Enabled whenever there's still a line to reveal (already in the pool,
+    // free) or an escalation fetch could still produce one, disabled while
+    // a fetch is in flight, and disabled for good once escalation isn't
+    // allowed at all (a refusal) or the fetch cap is spent — "reroll should
+    // never dead-end" on its own, so the only real disable is the fetch
+    // cap; see the click handler below for what happens on an
+    // exhausted-but-still-fetchable click.
     function refreshAnotherState() {
-      if (fetchingAlternates) { anotherBtn.disabled = true; return; }
+      if (fetchingEscalation) { anotherBtn.disabled = true; return; }
       var hasMore = cursor + 1 < pool.length;
-      var canFetchMore = alternatesAllowed && alternateFetches < MAX_ALTERNATE_FETCHES;
+      var canFetchMore = alternatesAllowed && escalateFetches < MAX_ESCALATE_FETCHES;
       anotherBtn.disabled = !(hasMore || canFetchMore);
     }
 
@@ -507,11 +494,10 @@
       cursor = 0;
       currentSource = null;
       currentProvider = null;
-      currentShape = null;
-      currentLeadShape = null;
+      currentLane = null;
       alternatesAllowed = false;
-      alternateFetches = 0;
-      fetchingAlternates = false;
+      escalateFetches = 0;
+      fetchingEscalation = false;
       ownLineLogged = false;
       resetReact();
       anotherBtn.disabled = true;
@@ -551,33 +537,26 @@
       if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
     }
 
-    // One n=4 batch fetch — the automatic one right after the lead renders
-    // is fetch #1, and any "make it worse" click past the end of the
-    // current batch (see the click handler below) fetches another, up to
-    // MAX_ALTERNATE_FETCHES. Increments alternateFetches itself (so the
-    // caller doesn't have to remember to), and always resolves — a network
-    // failure just leaves the pool where it was, counted against the fetch
-    // cap same as a real attempt (still worth the cap either way, so a
-    // consistently-failing draft call can't be retried forever).
-    //
-    // Fetch #1 is the normal batch, unescalated — the visitor hasn't asked
-    // for worse yet, there's nothing to be worse than. Fetch #2 and #3 are
-    // always a "make it worse" click past an exhausted batch (the only
-    // caller of this function once fetch #1 is spent — see the click
-    // handler below), so those pass escalate:true plus every line already
+    // One escalation refetch — always a "make it worse" click past an
+    // exhausted pool (see the click handler below, the only caller), up to
+    // MAX_ESCALATE_FETCHES. Sends escalate:true plus every line already
     // revealed for this result (pool up through cursor, read directly off
     // the closure rather than a param — see api/draft.js's handler and
-    // lib/prompt.js's systemPrompt for what the server does with them).
-    async function fetchMoreAlternates(sent, leadShape) {
-      fetchingAlternates = true;
-      alternateFetches++;
-      var fetchNum = alternateFetches;
-      var escalate = fetchNum >= 2;
-      var reqBody = { sent: sent, n: 4, lead: leadShape };
-      if (escalate) {
-        reqBody.escalate = true;
-        reqBody.shown = pool.slice(0, cursor + 1).map(function (d) { return d.text; });
-      }
+    // lib/prompt.js's buildEscalateBlock for what the server does with
+    // them). Increments escalateFetches itself (so the caller doesn't have
+    // to remember to), and always resolves — a network failure just
+    // leaves the pool where it was, counted against the fetch cap same as
+    // a real attempt (still worth the cap either way, so a consistently-
+    // failing draft call can't be retried forever).
+    async function fetchEscalation(sent) {
+      fetchingEscalation = true;
+      escalateFetches++;
+      var fetchNum = escalateFetches;
+      var reqBody = {
+        sent: sent,
+        escalate: true,
+        shown: pool.slice(0, cursor + 1).map(function (d) { return d.text; })
+      };
       try {
         var res = await fetch("/api/draft", {
           method: "POST",
@@ -587,14 +566,14 @@
         var data = await res.json();
         // A "new text" click (or another submit) could land between firing
         // this and it resolving — `current` would have moved on by then.
-        // Don't splice alternates for an old result onto a new one.
+        // Don't splice an escalation result for an old result onto a new one.
         if (sent !== current) return;
         if (data.drafts && data.drafts.length) pool = pool.concat(data.drafts);
-        if (DEBUG) renderDebug("alternates " + fetchNum, data);
+        if (DEBUG) renderDebug("escalation " + fetchNum, data);
       } catch (err) {
         // pool unchanged this attempt — still counted against the fetch cap above.
       } finally {
-        fetchingAlternates = false;
+        fetchingEscalation = false;
       }
     }
 
@@ -614,21 +593,23 @@
       logEvent("paste");
       go.disabled = true;
       startLoadingLines();
-      var leadShape = nextLeadShape();
-      var gotLead = false;
+      var gotResult = false;
       try {
-        // The lead: one line, exactly this shape, judged, awaited — this is
-        // the part the visitor is actually waiting on.
+        // One request now — both generator calls (primary and wildcard,
+        // see api/draft.js's handler) fire server-side in parallel, judged
+        // together, up to three drafts back. This is the part the visitor
+        // is actually waiting on; "make it worse" reveals the rest of this
+        // same batch for free (see the click handler below).
         var res = await fetch("/api/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sent: sent, n: 1, lead: leadShape })
+          body: JSON.stringify({ sent: sent })
         });
         var data = await res.json();
-        gotLead = true;
+        gotResult = true;
 
         if (data.crisis) {
-          // No draft, no pool, no reactions, no share, no alternates call —
+          // No draft, no pool, no reactions, no share, no escalation call —
           // #out.crisis-mode's CSS hides all of that chrome, leaving just
           // the message and "new text" to get back to the form.
           current = sent;
@@ -636,10 +617,9 @@
           cursor = 0;
           currentSource = null;
           currentProvider = null;
-          currentShape = null;
-          currentLeadShape = null;
+          currentLane = null;
           alternatesAllowed = false;
-          alternateFetches = 0;
+          escalateFetches = 0;
           turnEl.classList.add("hidden");
           beatToggleEl.classList.remove("hidden");
           beatOpened = false;
@@ -654,7 +634,7 @@
           // api/draft.js's handler, which is what sets data.source) — so
           // the two can be counted separately.
           logEvent("crisis", { source: data.source || "model" });
-          if (DEBUG) renderDebug("lead", data);
+          if (DEBUG) renderDebug("result", data);
           sentEl.readOnly = true;
           writeEl.value = "";
           setShareDisabled(true);
@@ -668,27 +648,26 @@
         // output — so it needs its own leading connector written in here
         // rather than relying on a fix that only ever runs server-side.
         pool = (data.refuse || !data.drafts || !data.drafts.length)
-          ? [{ shape: "stall", text: ". even the draft wouldn't send that" }]
+          ? [{ lane: "stall", text: ". even the draft wouldn't send that" }]
           : data.drafts;
 
         current = sent;
         cursor = 0;
         currentSource = data.source || null;
         currentProvider = data.provider || null;
-        currentShape = pool[0].shape || null;
-        currentLeadShape = leadShape;
+        currentLane = pool[0].lane || null;
         alternatesAllowed = !data.refuse;
-        alternateFetches = 0;
+        escalateFetches = 0;
         ownLineLogged = false;
         resetReact();
         renderDraft(sent, pool[0].text);
         sentContextEl.textContent = sent;
-        // Nothing to reveal yet regardless of pool.length — the alternates
-        // call kicked off below is what actually earns "make it worse" its
-        // enabled state, via refreshAnotherState() once fetchMoreAlternates lands.
-        anotherBtn.disabled = true;
+        // Unlike v2, the rest of this batch (up to two more drafts) is
+        // already sitting in `pool` — no second call to wait on, so
+        // "make it worse" is live immediately.
+        refreshAnotherState();
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
-        if (DEBUG) renderDebug("lead", data);
+        if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
         writeEl.value = "";
         // Enabled the moment the draft is up, not gated on the visitor
@@ -699,21 +678,11 @@
         whewEl.classList.add("hidden");
         outEl.classList.remove("hidden");
         writeEl.focus({ preventScroll: true });
-
-        // A refusal is final — never ask for alternates to a refused input
-        // (alternatesAllowed above is what keeps the click handler from
-        // trying later too).
-        if (!data.refuse) {
-          fetchMoreAlternates(sent, leadShape).then(function () {
-            if (sent !== current) return;
-            refreshAnotherState();
-          });
-        }
       } catch (err) {
-        if (!gotLead) alert("the draft didn't come through. try again.");
+        if (!gotResult) alert("the draft didn't come through. try again.");
       } finally {
-        // The lead answered (or failed) either way — this is the moment
-        // #go stops looking busy, whether or not alternates ever show up.
+        // The request answered (or failed) either way — this is the
+        // moment #go stops looking busy.
         stopLoadingLines();
         go.disabled = false;
         go.textContent = "here's what they almost sent";
@@ -726,33 +695,35 @@
       // just a defensive no-op, not a real fallback path.
       if (anotherBtn.disabled) return;
 
-      // A line is already sitting in the pool — reveal it, no fetch needed.
+      // A line is already sitting in the pool (positions 2 and 3 from the
+      // initial request, or a previous escalation's batch) — reveal it, no
+      // fetch needed.
       if (cursor + 1 < pool.length) {
         cursor++;
-        currentShape = pool[cursor].shape || null;
+        currentLane = pool[cursor].lane || null;
         resetReact();
         renderDraft(current, pool[cursor].text);
         refreshAnotherState();
-        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: alternateFetches });
+        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         return;
       }
 
-      // Exhausted the current batch — reroll never dead-ends on its own, so
-      // fetch a fresh one (up to MAX_ALTERNATE_FETCHES total) and reveal
-      // its first line the moment it lands, rather than making this click
-      // just prime the pool for a second one.
+      // Exhausted the current batch — the third "make it worse" tap and
+      // beyond. Reroll never dead-ends on its own, so fetch a fresh
+      // escalated batch (up to MAX_ESCALATE_FETCHES total) and reveal its
+      // first line the moment it lands, rather than making this click just
+      // prime the pool for a second one.
       var sent = current;
-      var leadShape = currentLeadShape;
       anotherBtn.disabled = true;
-      await fetchMoreAlternates(sent, leadShape);
+      await fetchEscalation(sent);
       if (sent !== current) return; // moved on to a new result while this was in flight
       if (cursor + 1 < pool.length) {
         cursor++;
-        currentShape = pool[cursor].shape || null;
+        currentLane = pool[cursor].lane || null;
         resetReact();
         renderDraft(current, pool[cursor].text);
-        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: alternateFetches });
+        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
       }
       refreshAnotherState();
@@ -760,7 +731,7 @@
 
     // One tap on 😂/😐/😬, then the whole row greys out until the next draft
     // is shown (resetReact, called on initial render and on "another").
-    // Never logs the draft text itself — only its shape, the tapped value,
+    // Never logs the draft text itself — only its lane, the tapped value,
     // and which of the (at most 3 visible) positions it was in.
     reactButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -768,7 +739,7 @@
         reacted = true;
         reactButtons.forEach(function (b) { b.disabled = true; });
         btn.classList.add("picked");
-        logEvent("rate", { shape: currentShape, value: btn.dataset.value, position: cursor + 1 });
+        logEvent("rate", { lane: currentLane, value: btn.dataset.value, position: cursor + 1 });
       });
     });
 

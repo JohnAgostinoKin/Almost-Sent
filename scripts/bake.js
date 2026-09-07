@@ -22,6 +22,13 @@ const { composeDraft } = require("../lib/compose");
 // a line surviving that production would still catch and drop. Read the
 // table for voice/format quality, not as a preview of what a real visitor
 // would see filtered.
+//
+// Bakes lib/prompt.js's CURRENT primary generator prompt (v3's eight lanes,
+// see buildPrimaryRequest, which lib/llm.js's callLLM reaches for by
+// default) across whatever models BAKE_MODELS names — useful for picking
+// GENERATOR_MODEL. It does not exercise the wildcard call, the judge, or
+// the retired v2 four-shape prompt — see lib/legacy/ and
+// scripts/bake-blind.js for comparing against that.
 
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {
@@ -54,14 +61,14 @@ const REQUESTED_MODELS = (process.env.BAKE_MODELS
 // The 30-input harness. Mixed length, every relationship type, no
 // category label passed — the model has to infer relationship from text.
 //
-// None of these may duplicate (or closely echo) a "before" example from the
-// system prompt's EXAMPLES pool in lib/prompt.js — the model would just be
-// pattern matching an example it was already handed the answer to, not
-// writing one cold. If you add an input, check it against lib/prompt.js
-// first. ("made it home", "thanks for your patience", "let's grab a coffee
-// sometime", "you awake", and "love ya" were swapped out for exactly this
-// reason when the pool grew to cover the continuation mechanic's four
-// shapes — they collided with or closely echoed new pool entries.)
+// None of these may duplicate (or closely echo) a "before" example from any
+// lane's example pool in lib/prompt.js — the model would just be pattern
+// matching an example it was already handed the answer to, not writing one
+// cold. If you add an input, check it against lib/prompt.js first. ("we
+// should catch a movie", "congrats on the promotion", "text me when you
+// land", "long day", and "running 10 minutes late" were swapped out for
+// exactly this reason when the v3 lanes rewrite taught an entirely new
+// example pool that happened to collide with five inputs here.)
 const INPUTS = [
   "k",
   "ok",
@@ -69,11 +76,11 @@ const INPUTS = [
   "got your message",
   "back at my place",
   "you busy this weekend",
-  "we should catch a movie",
-  "congrats on the promotion",
-  "text me when you land",
+  "let's grab drinks after work",
+  "proud of you for finishing the race",
+  "call me when you're free",
   "how's it going",
-  "long day",
+  "rough week",
   "all good",
   "we'll see",
   "i'll let you know",
@@ -84,7 +91,7 @@ const INPUTS = [
   "you free to chat",
   "let's circle back on this",
   "as previously discussed",
-  "running 10 minutes late",
+  "stuck in traffic, be there soon",
   "this isn't working out",
   "i'm not mad",
   "do what you want",
@@ -293,7 +300,7 @@ async function main() {
     const cells = row.results.map((r) => {
       if (r.refused) return "REFUSE";
       if (!r.ok) return `_${r.note}_`;
-      return r.lines.map((l) => `[${l.shape}] "${composeDraft(row.input, l.text)}"`).join("<br>");
+      return r.lines.map((l) => `[${l.lane}] "${composeDraft(row.input, l.text)}"`).join("<br>");
     });
     table += `| ${md(row.input)} | ${cells.map(md).join(" | ")} | ${row.source} | ${md(row.why)} |\n`;
   }

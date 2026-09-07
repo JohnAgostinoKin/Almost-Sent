@@ -16,7 +16,7 @@ const { waitUntil } = require("@vercel/functions");
 // nothing else.
 //
 // "rate" is the one-tap 😂/😐/😬 reaction under a draft (see index.html's
-// #react buttons). meta carries { shape, value: "hit"|"meh"|"far",
+// #react buttons). meta carries { lane, value: "hit"|"meh"|"far",
 // position: 1|2|3 } — never the draft text itself, same "no text stored"
 // rule as every other event here.
 //
