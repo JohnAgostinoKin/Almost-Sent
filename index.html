@@ -601,6 +601,11 @@
           crisisMsgEl.classList.remove("hidden");
           sentContextEl.textContent = sent;
           logEvent("draft_shown", { source: "crisis", provider: null, revealIndex: 0 });
+          // Which layer caught it — lib/block.js's synchronous keyword
+          // regex or lib/crisis.js's semantic pre-check (see
+          // api/draft.js's handler, which is what sets data.source) — so
+          // the two can be counted separately.
+          logEvent("crisis", { source: data.source || "model" });
           if (DEBUG) renderDebug("lead", data);
           sentEl.readOnly = true;
           writeEl.value = "";

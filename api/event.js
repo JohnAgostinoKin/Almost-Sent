@@ -19,7 +19,13 @@ const { waitUntil } = require("@vercel/functions");
 // #react buttons). meta carries { shape, value: "hit"|"meh"|"far",
 // position: 1|2|3 } — never the draft text itself, same "no text stored"
 // rule as every other event here.
-const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate"];
+//
+// "crisis" is a lead request that came back flagged (see index.html's
+// submit handler and api/draft.js's handler). meta carries { source:
+// "keyword" | "model" } — which layer caught it, lib/block.js's
+// synchronous regex or lib/crisis.js's semantic pre-check — so the two
+// can be counted separately, never the pasted text itself.
+const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate", "crisis"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {

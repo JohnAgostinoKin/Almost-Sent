@@ -10,7 +10,7 @@ const {
 const { judgeOneLine, judgeRelevance } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
-const { isBlocked } = require("../lib/block");
+const { classifyBlock } = require("../lib/block");
 const { checkCrisis } = require("../lib/crisis");
 const { curatedLeadFor } = require("../lib/curated");
 const { createLimiter } = require("../lib/rateLimit");
@@ -629,13 +629,24 @@ module.exports = async function handler(req, res) {
   if (ACTIVE_SHAPES.indexOf(lead) === -1) { res.status(400).json({ error: "lead must be a valid shape" }); return; }
 
   const blockStarted = Date.now();
-  const blocked = isBlocked(sent);
+  // classifyBlock (lib/block.js) says which of two things a keyword hit
+  // means, not just whether one happened: "crisis" is the pasted text
+  // itself describing suicide/self-harm — that gets the same 988 resource
+  // screen as a lib/crisis.js semantic hit below, never the generic
+  // refusal — "block" is everything else this list catches (threats,
+  // minors, abuse), which still gets the plain refusal.
+  const blockReason = classifyBlock(sent);
   stages.t_block = Date.now() - blockStarted;
   // waitUntil (from @vercel/functions) keeps this invocation alive for the
   // given promise without making the client's response wait on it — the
   // opposite of `await`. Nothing here reads forget()'s result, so there's
   // nothing to gate the response on in the first place.
-  if (blocked) { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
+  if (blockReason === "crisis") {
+    waitUntil(forget(sent));
+    res.status(200).json({ crisis: true, source: "keyword", drafts: [] });
+    return;
+  }
+  if (blockReason === "block") { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
 
   // t_total (ms) covers from here — the point past the cheap synchronous
   // checks above — to just before responding, so it reflects "how long did
@@ -692,7 +703,7 @@ module.exports = async function handler(req, res) {
   }
 
   // Crisis pre-check (lib/crisis.js) — a second, semantic layer past
-  // isBlocked() above, for ambiguous phrasing ("i don't want to be here
+  // classifyBlock() above, for ambiguous phrasing ("i don't want to be here
   // anymore") that keyword matching structurally can't catch. Only fired
   // for the lead request: index.html never fires the alternates (n=4) call
   // at all once a lead response comes back flagged (same as it already
@@ -733,7 +744,7 @@ module.exports = async function handler(req, res) {
   const crisis = await crisisPromise;
   if (crisis) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
-    res.status(200).json({ crisis: true, drafts: [] });
+    res.status(200).json({ crisis: true, source: "model", drafts: [] });
     return;
   }
 
