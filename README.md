@@ -35,15 +35,18 @@ The page will load. `/api/draft` only works with `vercel dev` or after deploy.
 
 1. Push this folder to a GitHub repo.
 2. Import the repo in Vercel.
-3. Add env var `LLM_API_KEY` (and `LLM_MODEL` once you've picked one via `npm run bake`).
+3. Add env var `LLM_API_KEY` (and `GENERATOR_MODEL`/`WILDCARD_MODEL`/`JUDGE_MODEL` once
+   you've picked them — see `.env.example` and `npm run bake`).
 4. In the domain registrar, point `almostsent.app` to Vercel.
 5. In Vercel → Project → Domains → add `almostsent.app`.
 
 ## Prompt quality
 
-The product lives or dies in `lib/prompt.js` (`systemPrompt`/`EXAMPLES`).
-Write 20 real texts through it before you show anyone.
-If a line sounds like therapy, change the prompt, not the page.
+The product lives or dies in `lib/prompt.js` (`LANES`, `buildPrimaryPrompt`/
+`buildWildcardPrompt`) and `lib/judge.js` (the gate-and-score taste judge that
+picks which three of the ten candidates actually ship). Write 20 real texts
+through it before you show anyone. If a line sounds like therapy, change the
+prompt, not the page.
 
 ## Do not add yet
 
