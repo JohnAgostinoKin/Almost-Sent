@@ -473,6 +473,28 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
+
+  // Keep-warm ping (see vercel.json's cron — every 5 minutes) — a GET, not
+  // a POST, so it has to be handled before the POST-only check below. No
+  // parsing, no model call, no Supabase: the entire point is to keep this
+  // function's container warm without doing any real work, so a cold
+  // start lands on an actual visitor's request as rarely as possible.
+  // Guarded by CRON_SECRET exactly like api/cron/cleanup.js's isAuthorized
+  // — Vercel attaches Authorization: Bearer <CRON_SECRET> to its own
+  // scheduled invocations once that env var is set on the project, so this
+  // rejects anyone else pinging it directly. With no CRON_SECRET configured
+  // the guard is skipped (same as cleanup.js — useful for local/dev,
+  // set it in production).
+  if (req.method === "GET" && req.query && req.query.ping === "1") {
+    const secret = process.env.CRON_SECRET;
+    if (secret && req.headers.authorization !== "Bearer " + secret) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
 
   const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
