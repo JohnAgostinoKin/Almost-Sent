@@ -7,7 +7,7 @@ const {
   extractArray, extractSingle, normalizeItem, isRefusal, orderByShape, filterLines,
   describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
-const { judgeOneLine } = require("../lib/judge");
+const { judgeOneLine, judgeRelevance } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
@@ -175,6 +175,112 @@ async function callOnce(key, model, sent, genOpts, judgeCount, stages) {
     const eligible = excludeShape
       ? provisional.filter(function (item) { return item.shape !== excludeShape; })
       : provisional;
+
+    // The lead call (genOpts.pickBest — see the handler below, which also
+    // sets count: 2) asks the model for 2 candidates of the same shape
+    // instead of 1, then picks the better one here — replaces the whole
+    // backfill loop below for this call, since there's no "keep judging
+    // until enough survive" question when the goal is choosing 1 winner
+    // out of exactly 2. Safety-judge both in parallel first (the exact
+    // same judgeOneLine call the backfill loop uses); a lone safety
+    // survivor wins by default — nothing to compare it against, so no
+    // relevance call spent on it. Two survivors go through a second judge
+    // question — lib/judge.js's judgeRelevance, the reviewer's "connection
+    // test" — as a mechanical gate: does the punchline actually turn on
+    // something specific in the sent text, or would it work as a reply to
+    // anything? Prefer the YES line; both YES, both NO, or an inconclusive
+    // call on either side (judgeRelevance failed, or came back null) falls
+    // back to the shorter line — a deterministic tiebreak either way, and
+    // "shorter wins" also just tends to read tighter.
+    if (genOpts && genOpts.pickBest) {
+      const candidates = eligible.slice(0, 2);
+      const judgeStarted = Date.now();
+      const safetyVerdicts = await Promise.all(candidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }));
+      const judgeModelsSeen = [];
+      let judgeLatencyTotal = 0;
+      let judgeRetries = 0;
+      let droppedJudgeCount = 0;
+      let judgeFailedCount = 0;
+      const verdictByItem = new Map(); // item -> "judge" | "relevance" | null (null = winner)
+      const safe = [];
+      candidates.forEach(function (item, i) {
+        const result = safetyVerdicts[i];
+        judgeLatencyTotal += result.latencyMs || 0;
+        if (result.retried) judgeRetries++;
+        if (result.model && judgeModelsSeen.indexOf(result.model) === -1) judgeModelsSeen.push(result.model);
+        if (result.verdict === null) judgeFailedCount++;
+        if (result.verdict === true) {
+          droppedJudgeCount++;
+          verdictByItem.set(item, "judge");
+          return;
+        }
+        safe.push(item);
+      });
+      const judgeNote = "judge: " + droppedJudgeCount + " dropped" +
+        (judgeFailedCount ? " (" + judgeFailedCount + " failed open)" : "") +
+        (judgeModelsSeen.length
+          ? " · judge model: " + judgeModelsSeen.join("+") + " (" + judgeLatencyTotal + "ms" +
+            (judgeRetries ? ", " + judgeRetries + " retried" : "") + ")"
+          : "");
+      // Same merge pattern as the backfill loop's mergedAll below (an item
+      // -> verdict map, walked in lockstep against filtered.all/kept) — see
+      // its own comment there for the invariant this relies on.
+      function mergeDebug() {
+        let ki = 0;
+        return filtered.all.map(function (entry) {
+          if (entry.dropped) return entry;
+          const keptItem = filtered.kept[ki];
+          ki++;
+          if (!verdictByItem.has(keptItem)) {
+            return { shape: entry.shape, text: entry.text, dropped: true, filter: "unjudged" };
+          }
+          const filter = verdictByItem.get(keptItem);
+          return filter === null
+            ? { shape: entry.shape, text: entry.text, dropped: false, filter: null }
+            : { shape: entry.shape, text: entry.text, dropped: true, filter: filter };
+        });
+      }
+
+      if (!safe.length) {
+        const t_judge = Date.now() - judgeStarted;
+        stages.t_judge += t_judge;
+        return { lines: [], why: judgeNote + providerTag, provider: provider, reason: "filtered", debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
+      }
+
+      if (safe.length === 1) {
+        verdictByItem.set(safe[0], null);
+        const t_judge = Date.now() - judgeStarted;
+        stages.t_judge += t_judge;
+        const why = "ok, kept 1 — only safety survivor, no connection test needed" + providerTag + " · " + judgeNote;
+        return { lines: safe, why: why, provider: provider, debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
+      }
+
+      // Both candidates cleared safety — the connection test decides.
+      const relVerdicts = await Promise.all(safe.map(function (item) { return judgeRelevance(key, composeDraft(sent, item.text)); }));
+      const t_judge = Date.now() - judgeStarted;
+      stages.t_judge += t_judge;
+
+      const relA = relVerdicts[0].verdict, relB = relVerdicts[1].verdict;
+      let winnerIdx, pickReason;
+      if (relA === true && relB !== true) {
+        winnerIdx = 0;
+        pickReason = "connection test: line 1 YES, line 2 " + (relB === false ? "NO" : "inconclusive");
+      } else if (relB === true && relA !== true) {
+        winnerIdx = 1;
+        pickReason = "connection test: line 2 YES, line 1 " + (relA === false ? "NO" : "inconclusive");
+      } else {
+        winnerIdx = safe[0].text.length <= safe[1].text.length ? 0 : 1;
+        const tieKind = (relA === true && relB === true) ? "both YES" : (relA === false && relB === false) ? "both NO" : "inconclusive";
+        pickReason = "connection test tied (" + tieKind + "), shorter line won";
+      }
+      const winner = safe[winnerIdx];
+      const loser = safe[1 - winnerIdx];
+      verdictByItem.set(winner, null);
+      verdictByItem.set(loser, "relevance");
+
+      const why = "ok, kept 1 — " + pickReason + providerTag + " · " + judgeNote;
+      return { lines: [winner], why: why, provider: provider, debugLines: mergeDebug(), t_gen: t_gen, t_judge: t_judge };
+    }
 
     // Backfill, not a fixed top-N: judge lines in display order, in waves,
     // until `judgeCount` survive or MAX_JUDGE_ATTEMPTS is reached —
@@ -505,14 +611,16 @@ module.exports = async function handler(req, res) {
   const sent = String(body.sent || "").trim().slice(0, 500);
   // Two-request generation (see lib/prompt.js's systemPrompt and
   // api/draft.js's callOnce for what these actually drive): n=1&lead=<shape>
-  // is the lead request — one line of exactly that shape, judged, returned.
-  // n=4&lead=<shape> is the alternates request — four lines across the
-  // OTHER active shapes (lead excluded, since the client already has that
-  // one from the n=1 call), the first two in display order judged and
-  // returned. `lead` is required either way: for n=1 it's what to write,
-  // for n=4 it's what to exclude. Which shape leads at all is a client-side
-  // decision now (the device's own rotation — see index.html) — the server
-  // no longer tracks or rotates a "current lead shape" itself.
+  // is the lead request — two candidates of exactly that shape, safety- and
+  // relevance-judged against each other (callOnce's pickBest branch), one
+  // winner returned. n=4&lead=<shape> is the alternates request — four
+  // lines across the OTHER active shapes (lead excluded, since the client
+  // already has that one from the n=1 call), the first two in display
+  // order judged and returned. `lead` is required either way: for n=1 it's
+  // what to write, for n=4 it's what to exclude. Which shape leads at all
+  // is a client-side decision now (the device's own rotation — see
+  // index.html) — the server no longer tracks or rotates a "current lead
+  // shape" itself.
   const n = Number(body.n);
   const lead = String(body.lead || "").trim().toLowerCase();
   stages.t_parse = Date.now() - parseStarted;
@@ -595,19 +703,24 @@ module.exports = async function handler(req, res) {
   // almost always already resolved.
   const crisisPromise = n === 1 ? checkCrisis(process.env.LLM_API_KEY, sent) : Promise.resolve(false);
 
-  // n=1: write exactly the lead shape. n=4: write everything else — the
-  // client already has (or is getting) the lead shape from its own n=1
-  // call, so asking for it again here would just be a duplicate the model
-  // could write instead of a genuinely different alternate. `exclude` is
+  // n=1: write 2 candidates of exactly the lead shape — pickBest (see
+  // callOnce) safety-judges both and picks the one that actually engages
+  // with the sent text, rather than generating (and judging) just one with
+  // nothing to compare it against. n=4: write everything else — the client
+  // already has (or is getting) the lead shape from its own n=1 call, so
+  // asking for it again here would just be a duplicate the model could
+  // write instead of a genuinely different alternate. `exclude` is
   // callOnce's own defensive backstop for when the model ignores that
   // anyway (see its own comment there) — not read by buildRequest/
   // systemPrompt, only by callOnce's backfill loop.
   const genOpts = n === 1
-    ? { shapes: [lead], count: 1 }
+    ? { shapes: [lead], count: 2, pickBest: true }
     : { shapes: ACTIVE_SHAPES.filter(function (s) { return s !== lead; }), count: 4, exclude: lead };
-  // 1 to judge for the lead (there's only ever one). 2 for alternates —
-  // exactly what "another" needs (MAX_REVEALS=2 in index.html) — generated
-  // as 4 so the keyword wall dropping a couple doesn't come back empty.
+  // Only read by the n=4 backfill loop now — pickBest (n=1) always judges
+  // both candidates regardless of this number and returns exactly 1, so it
+  // ignores judgeCount entirely. 2 for alternates — exactly what "make it
+  // worse" needs per fetch (see index.html) — generated as 4 so the
+  // keyword wall dropping a couple doesn't come back empty.
   const judgeCount = n === 1 ? 1 : 2;
 
   const ai = await fromAi(sent, genOpts, judgeCount, stages);
