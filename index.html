@@ -329,9 +329,12 @@
         if (DEBUG) renderDebug(data);
         sentEl.readOnly = true;
         writeEl.value = "";
-        textShareBtn.disabled = true;
-        emailShareBtn.disabled = true;
-        copyShareBtn.disabled = true;
+        // Enabled the moment the draft is up, not gated on the visitor
+        // typing anything into #write — buildShareText() below already
+        // handles an empty #write by leaving "i almost sent" out.
+        textShareBtn.disabled = false;
+        emailShareBtn.disabled = false;
+        copyShareBtn.disabled = false;
         copyShareBtn.textContent = "copy it";
         whewEl.classList.add("hidden");
         document.getElementById("out").classList.remove("hidden");
@@ -375,9 +378,6 @@
 
     writeEl.addEventListener("input", function () {
       var hasText = writeEl.value.trim().length > 0;
-      textShareBtn.disabled = !hasText;
-      emailShareBtn.disabled = !hasText;
-      copyShareBtn.disabled = !hasText;
       if (!ownLineLogged && hasText) {
         ownLineLogged = true;
         logEvent("own_line");
@@ -386,31 +386,31 @@
 
     // ?r=<device_id> makes this a referral link — see getDeviceId() above,
     // which logs an "arrival" event for whoever's first visit lands on it.
+    // "i almost sent" only shows up when #write actually has something in
+    // it — the share buttons work the moment a draft is on screen (see the
+    // submit handler above), before anyone's typed their own line.
     function buildShareText() {
       var mine = writeEl.value.trim();
       var shareUrl = "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
-      return "they sent: " + current + "\n" +
-        "they almost sent: " + draftEl.textContent + "\n" +
-        "i almost sent: " + current + mine + "\n\n" +
-        shareUrl;
+      var text = "they sent: " + current + "\n" +
+        "they almost sent: " + draftEl.textContent + "\n";
+      if (mine) text += "i almost sent: " + current + mine + "\n";
+      return text + "\n" + shareUrl;
     }
 
     textShareBtn.addEventListener("click", function () {
-      if (!writeEl.value.trim()) return;
       logEvent("share", { via: "sms" });
       whewEl.classList.remove("hidden");
       location.href = "sms:?&body=" + encodeURIComponent(buildShareText());
     });
 
     emailShareBtn.addEventListener("click", function () {
-      if (!writeEl.value.trim()) return;
       logEvent("share", { via: "email" });
       whewEl.classList.remove("hidden");
       location.href = "mailto:?subject=" + encodeURIComponent("almost sent") + "&body=" + encodeURIComponent(buildShareText());
     });
 
     copyShareBtn.addEventListener("click", async function () {
-      if (!writeEl.value.trim()) return;
       logEvent("share", { via: "copy" });
       whewEl.classList.remove("hidden");
       try {
