@@ -32,10 +32,19 @@ const MODULE_LOADED_AT = Date.now();
 function newStages() {
   return {
     t_cold: 0,
-    t_body: 0,
+    t_parse: 0, // parsing the incoming request body — was named t_body; renamed to make
+    // room for the LLM response's OWN t_body below, which is the one that
+    // actually matters (see callOnce and lib/llm.js).
     t_block: 0,
     t_prompt: 0,
-    t_llm: 0,
+    // t_ttfb/t_body split what used to be one undifferentiated t_llm number
+    // — t_ttfb is time to the response headers, t_body is everything after
+    // that until the full response (the model's complete output) is read.
+    // For a non-streaming completion, t_body IS the generation wait; t_ttfb
+    // alone was silently passing as "the LLM call took Xms" while missing
+    // almost all of it. See lib/llm.js's callLLM for where these come from.
+    t_ttfb: 0,
+    t_body: 0,
     llmAttempts: 0,
     llmRetried: false,
     llmFallback: false,
@@ -48,8 +57,8 @@ function newStages() {
 
 function formatStages(s) {
   const llmNote = s.llmAttempts + (s.llmRetried ? ", retry" : "") + (s.llmFallback ? ", fallback" : "");
-  return "t_cold=" + s.t_cold + "ms t_body=" + s.t_body + "ms t_block=" + s.t_block + "ms" +
-    " t_prompt=" + s.t_prompt + "ms t_llm=" + s.t_llm + "ms (" + llmNote + ")" +
+  return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
+    " t_prompt=" + s.t_prompt + "ms t_ttfb=" + s.t_ttfb + "ms t_body=" + s.t_body + "ms (" + llmNote + ")" +
     " t_filter=" + s.t_filter + "ms t_order=" + s.t_order + "ms t_judge=" + s.t_judge + "ms" +
     " t_response=" + s.t_response + "ms";
 }
@@ -87,11 +96,17 @@ async function callOnce(key, model, sent, stages) {
     const result = await callLLM(key, model, sent);
     const t_gen = result.latencyMs;
     stages.t_prompt += result.t_prompt || 0;
-    stages.t_llm += t_gen || 0;
+    stages.t_ttfb += result.t_ttfb || 0;
+    stages.t_body += result.t_body || 0;
     // Tag every why with the upstream provider OpenRouter actually routed
     // to (also returned bare as `provider`, for the ?debug=1 view), so a
-    // run of requests shows whether routing moved mid-session.
+    // run of requests shows whether routing moved mid-session. Also
+    // console.log'd directly — provider routing (see lib/prompt.js's
+    // buildRequest, which now asks OpenRouter to sort by throughput) is
+    // exactly the kind of thing worth seeing in the raw function logs
+    // without having to go find a specific request's `why`.
     const provider = result.provider || null;
+    console.log("provider: " + (provider || "unknown") + " (" + model + ")");
     const providerTag = provider ? " [" + provider + "]" : "";
     const parsed = extractArray(result.text);
     if (!parsed) {
@@ -183,9 +198,11 @@ async function callOnce(key, model, sent, stages) {
     return { lines: kept, why: why, provider: provider, debugLines: debugLines, t_gen: t_gen, t_judge: t_judge };
   } catch (err) {
     // callLLM throwing (network/timeout/HTTP) is the only way to land here
-    // before stages.t_llm was already credited above — it stamps its own
-    // latencyMs/t_prompt on the error for exactly this case (see lib/llm.js).
-    stages.t_llm += (err && err.latencyMs) || 0;
+    // before stages.t_ttfb/t_body were already credited above — it stamps
+    // its own latencyMs/t_ttfb/t_body/t_prompt on the error for exactly
+    // this case (see lib/llm.js).
+    stages.t_ttfb += (err && err.t_ttfb) || 0;
+    stages.t_body += (err && err.t_body) || 0;
     stages.t_prompt += (err && err.t_prompt) || 0;
     return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
   }
@@ -351,10 +368,10 @@ module.exports = async function handler(req, res) {
   const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
   if (limited(ip)) { res.status(429).json({ error: "slow down" }); return; }
 
-  const bodyStarted = Date.now();
+  const parseStarted = Date.now();
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
-  stages.t_body = Date.now() - bodyStarted;
+  stages.t_parse = Date.now() - parseStarted;
   if (!sent) { res.status(400).json({ error: "paste a text" }); return; }
 
   const blockStarted = Date.now();
@@ -437,7 +454,7 @@ module.exports = async function handler(req, res) {
   // newStages/formatStages above. ai.why already carries the drop/judge
   // breakdown for the winning attempt; this appends the full per-stage
   // accounting across every attempt (a same-model retry or a fallback-model
-  // attempt each add their own t_llm/t_filter/t_order/t_judge on top).
+  // attempt each add their own t_ttfb/t_body/t_filter/t_order/t_judge on top).
   const why = (ai.why ? ai.why + " · " : "") + "stages: " + formatStages(stages);
 
   res.status(200).json({
