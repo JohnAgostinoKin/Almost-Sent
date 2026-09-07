@@ -46,7 +46,7 @@
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
     #out.crisis-mode #lead-actions,
-    #out.crisis-mode .swap,
+    #out.crisis-mode .worse,
     #out.crisis-mode .turn { display:none; }
     .react { display:flex; gap:8px; margin-top:16px; }
     .react button { width:auto; padding:8px 13px; font-size:20px; line-height:1; background:transparent; border:1px solid #2a2a2a; color:var(--fg); }
@@ -57,8 +57,8 @@
     .debug ul { margin-top:6px; padding-left:16px; }
     .debug li { margin-top:2px; }
     .debug li.dropped { color:#8a4a42; }
-    .swap { margin-top:14px; }
-    .swap button { width:auto; padding:7px 13px; font-size:12px; }
+    .minor { margin-top:14px; }
+    .minor button { width:auto; padding:7px 13px; font-size:12px; }
     .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
     .turn .label { margin-top:0; }
     .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
@@ -107,20 +107,32 @@
         <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
         <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
       </div>
+      <!-- Reroll is the primary action now — a full-width, primary-styled
+           button directly under the reactions (default button styling: red,
+           full width, same as #go — no .ghost here on purpose), not a small
+           ghost tucked below the share row. It never dead-ends: once the
+           current batch of alternates is exhausted, a click fetches a fresh
+           n=4 batch instead of just disabling — see fetchMoreAlternates and
+           the click handler below. Capped at MAX_ALTERNATE_FETCHES batches
+           per result, then it disables for real. -->
+      <div class="row worse"><button type="button" id="another" disabled>make it worse</button></div>
+
       <div class="debug hidden" id="debug"></div>
 
       <!-- Sharing the AI line is the obvious next step, so this row sits
-           right under the draft and the reactions, not buried below the
-           "write your own" box. The same three buttons (by class, not id —
-           see the script) appear again in .turn below for whoever scrolls
-           down to write their own line; both rows call buildShareText(). -->
+           right under the draft, the reactions, and the reroll button — not
+           buried below the "write your own" box. The same three buttons (by
+           class, not id — see the script) appear again in .turn below for
+           whoever scrolls down to write their own line; both rows call
+           buildShareText(). -->
       <div class="actions" id="lead-actions">
         <button class="ghost text-share" type="button" disabled>text it</button>
         <button class="ghost email-share" type="button" disabled>email it</button>
         <button class="ghost copy-share" type="button" disabled>copy it</button>
       </div>
-      <div class="row"><button class="ghost" type="button" id="again">new text</button></div>
-      <div class="swap"><button class="ghost" type="button" id="another" disabled>another</button></div>
+      <!-- "new text" is the minor action now — a small ghost link after the
+           share row, so it no longer competes with reroll for attention. -->
+      <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
 
       <div class="turn">
         <label class="label" for="write">think you can do better? show us.</label>
@@ -338,26 +350,41 @@
       return SHAPES[idx];
     }
 
-    var pool = [];       // the (up to) three {shape, text} drafts for this result: the lead (from
-                          // the n=1 call), then up to two alternates (from the n=4 call, appended
-                          // once it lands — see fetchAlternates below), in display order
+    var pool = [];       // the {shape, text} drafts for this result: the lead (from the n=1
+                          // call), then alternates (from n=4 calls, appended as they land —
+                          // see fetchMoreAlternates below), in display order
     var cursor = 0;      // which one is on screen
-    var reveals = 0;     // "another" clicks used on this result, capped below
-    var MAX_REVEALS = 2; // two free reveals past the first — three lines, total
     var current = "";    // the input this result belongs to
     var currentSource = null;   // this result's data.source, reused in later draft_shown/another logs
     var currentProvider = null; // this result's data.provider, same reuse
     var currentShape = null;    // pool[cursor]'s shape, read by the reaction buttons below
+    var currentLeadShape = null; // the shape the lead call used — every alternates fetch for
+                                  // this result (the automatic first one and any "make it
+                                  // worse"-triggered refetch) excludes the same shape.
+    var alternatesAllowed = false; // false for a refusal — never fetch alternates for one (set
+                                    // alongside currentSource/currentProvider below)
+    var alternateFetches = 0;      // n=4 batches fetched for this result so far — logged as
+                                    // meta.fetch on every "another" event, so how many people
+                                    // click deep into fetch 2 or 3 is visible later.
+    var MAX_ALTERNATE_FETCHES = 3; // "make it worse" never dead-ends into a disabled button on
+                                    // its own — it fetches a fresh batch instead — until this
+                                    // many batches have been asked for, then it disables for real.
+    var fetchingAlternates = false; // true for the life of any n=4 call — guards against a
+                                     // double-click firing two overlapping fetches.
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
     var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
 
-    // "another" reveals the next line in display order while there's one
-    // left to reveal and the free-reveal cap isn't hit; once either runs
-    // out it just disables — "new text" is its own permanent, full-width
-    // button now (see the #out section), not something "another" turns
-    // into, so there's no dead-end label to manage here anymore.
+    // Enabled whenever there's still a line to reveal (its own or a fresh
+    // fetch's worth), disabled while a fetch is in flight, and disabled for
+    // good once alternates aren't allowed at all (a refusal) or the fetch
+    // cap is spent — "reroll should never dead-end" on its own, so the only
+    // real disable is the fetch cap; see the click handler below for what
+    // happens on an exhausted-but-still-fetchable click.
     function refreshAnotherState() {
-      anotherBtn.disabled = !(reveals < MAX_REVEALS && cursor + 1 < pool.length);
+      if (fetchingAlternates) { anotherBtn.disabled = true; return; }
+      var hasMore = cursor + 1 < pool.length;
+      var canFetchMore = alternatesAllowed && alternateFetches < MAX_ALTERNATE_FETCHES;
+      anotherBtn.disabled = !(hasMore || canFetchMore);
     }
 
     // Re-arms the 😂/😐/😬 row for a newly shown draft — one tap is allowed
@@ -400,10 +427,13 @@
       sentContextEl.textContent = "";
       pool = [];
       cursor = 0;
-      reveals = 0;
       currentSource = null;
       currentProvider = null;
       currentShape = null;
+      currentLeadShape = null;
+      alternatesAllowed = false;
+      alternateFetches = 0;
+      fetchingAlternates = false;
       ownLineLogged = false;
       resetReact();
       anotherBtn.disabled = true;
@@ -443,13 +473,18 @@
       if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
     }
 
-    // Fired right after the lead renders (see the submit handler below),
-    // never awaited by it — the visitor already has something to read and
-    // share by the time this even starts. Populates the rest of `pool` and
-    // turns "another" on when it lands; silently leaves "another" off on
-    // failure, since a background call that was never promised in the
-    // first place doesn't deserve an alert() interrupting anyone.
-    async function fetchAlternates(sent, leadShape) {
+    // One n=4 batch fetch — the automatic one right after the lead renders
+    // is fetch #1, and any "make it worse" click past the end of the
+    // current batch (see the click handler below) fetches another, up to
+    // MAX_ALTERNATE_FETCHES. Increments alternateFetches itself (so the
+    // caller doesn't have to remember to), and always resolves — a network
+    // failure just leaves the pool where it was, counted against the fetch
+    // cap same as a real attempt (still worth the cap either way, so a
+    // consistently-failing draft call can't be retried forever).
+    async function fetchMoreAlternates(sent, leadShape) {
+      fetchingAlternates = true;
+      alternateFetches++;
+      var fetchNum = alternateFetches;
       try {
         var res = await fetch("/api/draft", {
           method: "POST",
@@ -462,10 +497,11 @@
         // Don't splice alternates for an old result onto a new one.
         if (sent !== current) return;
         if (data.drafts && data.drafts.length) pool = pool.concat(data.drafts);
-        refreshAnotherState();
-        if (DEBUG) renderDebug("alternates", data);
+        if (DEBUG) renderDebug("alternates " + fetchNum, data);
       } catch (err) {
-        // anotherBtn stays disabled — refreshAnotherState() never ran.
+        // pool unchanged this attempt — still counted against the fetch cap above.
+      } finally {
+        fetchingAlternates = false;
       }
     }
 
@@ -505,10 +541,12 @@
           current = sent;
           pool = [];
           cursor = 0;
-          reveals = 0;
           currentSource = null;
           currentProvider = null;
           currentShape = null;
+          currentLeadShape = null;
+          alternatesAllowed = false;
+          alternateFetches = 0;
           resetReact();
           outEl.classList.add("crisis-mode");
           crisisMsgEl.innerHTML = CRISIS_MESSAGE_HTML;
@@ -534,17 +572,19 @@
 
         current = sent;
         cursor = 0;
-        reveals = 0;
         currentSource = data.source || null;
         currentProvider = data.provider || null;
         currentShape = pool[0].shape || null;
+        currentLeadShape = leadShape;
+        alternatesAllowed = !data.refuse;
+        alternateFetches = 0;
         ownLineLogged = false;
         resetReact();
         renderDraft(sent, pool[0].text);
         sentContextEl.textContent = sent;
         // Nothing to reveal yet regardless of pool.length — the alternates
-        // call kicked off below is what actually earns "another" its enabled
-        // state, via refreshAnotherState() in fetchAlternates.
+        // call kicked off below is what actually earns "make it worse" its
+        // enabled state, via refreshAnotherState() once fetchMoreAlternates lands.
         anotherBtn.disabled = true;
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
         if (DEBUG) renderDebug("lead", data);
@@ -559,8 +599,15 @@
         outEl.classList.remove("hidden");
         writeEl.focus({ preventScroll: true });
 
-        // A refusal is final — never ask for alternates to a refused input.
-        if (!data.refuse) fetchAlternates(sent, leadShape);
+        // A refusal is final — never ask for alternates to a refused input
+        // (alternatesAllowed above is what keeps the click handler from
+        // trying later too).
+        if (!data.refuse) {
+          fetchMoreAlternates(sent, leadShape).then(function () {
+            if (sent !== current) return;
+            refreshAnotherState();
+          });
+        }
       } catch (err) {
         if (!gotLead) alert("the draft didn't come through. try again.");
       } finally {
@@ -572,19 +619,42 @@
       }
     });
 
-    anotherBtn.addEventListener("click", function () {
-      // Disabled once there's nothing left to reveal (see
-      // refreshAnotherState) — a disabled button doesn't fire click events,
-      // so this guard is just a defensive no-op, not a real fallback path.
-      if (!(reveals < MAX_REVEALS && cursor + 1 < pool.length)) return;
-      cursor++;
-      reveals++;
-      currentShape = pool[cursor].shape || null;
-      resetReact();
-      renderDraft(current, pool[cursor].text);
+    anotherBtn.addEventListener("click", async function () {
+      // Disabled once there's truly nothing left (see refreshAnotherState)
+      // — a disabled button doesn't fire click events, so this guard is
+      // just a defensive no-op, not a real fallback path.
+      if (anotherBtn.disabled) return;
+
+      // A line is already sitting in the pool — reveal it, no fetch needed.
+      if (cursor + 1 < pool.length) {
+        cursor++;
+        currentShape = pool[cursor].shape || null;
+        resetReact();
+        renderDraft(current, pool[cursor].text);
+        refreshAnotherState();
+        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: alternateFetches });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+        return;
+      }
+
+      // Exhausted the current batch — reroll never dead-ends on its own, so
+      // fetch a fresh one (up to MAX_ALTERNATE_FETCHES total) and reveal
+      // its first line the moment it lands, rather than making this click
+      // just prime the pool for a second one.
+      var sent = current;
+      var leadShape = currentLeadShape;
+      anotherBtn.disabled = true;
+      await fetchMoreAlternates(sent, leadShape);
+      if (sent !== current) return; // moved on to a new result while this was in flight
+      if (cursor + 1 < pool.length) {
+        cursor++;
+        currentShape = pool[cursor].shape || null;
+        resetReact();
+        renderDraft(current, pool[cursor].text);
+        logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: alternateFetches });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+      }
       refreshAnotherState();
-      logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor });
-      logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
     });
 
     // One tap on 😂/😐/😬, then the whole row greys out until the next draft
