@@ -307,6 +307,7 @@
         " · why: " + (data.why || "—") +
         " · provider: " + (data.provider || "—") +
         " · logged: " + (data.logged || "—") +
+        " · safety: " + (data.safety ? data.safety.state + "/" + data.safety.source : "—") +
         " · t_gen: " + (data.t_gen != null ? data.t_gen + "ms" : "—") +
         " · t_judge: " + (data.t_judge != null ? data.t_judge + "ms" : "—") +
         " · t_total: " + (data.t_total != null ? data.t_total + "ms" : "—");
@@ -564,6 +565,12 @@
           body: JSON.stringify(reqBody)
         });
         var data = await res.json();
+        // Same "log every safety decision" convention as the submit
+        // handler — an escalation request always comes back state:
+        // "skipped" (see api/draft.js's handler, which never re-runs the
+        // classifier against unchanged text), but it's still a real
+        // decision worth counting, not a reason to skip the log itself.
+        logEvent("safety", data.safety || {});
         // A "new text" click (or another submit) could land between firing
         // this and it resolving — `current` would have moved on by then.
         // Don't splice an escalation result for an old result onto a new one.
@@ -607,6 +614,14 @@
         });
         var data = await res.json();
         gotResult = true;
+        // Every response carries a safety verdict now, not just a crisis
+        // hit (see api/draft.js's handler) — state is "clear" |
+        // "ambiguous_distress" | "explicit_crisis" | "block" | "crisis" |
+        // "skipped" | "failed", source is "keyword" | "classifier" |
+        // "curated" (see lib/crisis.js/lib/block.js for what each means).
+        // Logged once per request, whatever the outcome, so the full split
+        // is visible, not just the crisis-positive slice of it.
+        logEvent("safety", data.safety || {});
 
         if (data.crisis) {
           // No draft, no pool, no reactions, no share, no escalation call —
@@ -629,11 +644,6 @@
           crisisMsgEl.classList.remove("hidden");
           sentContextEl.textContent = sent;
           logEvent("draft_shown", { source: "crisis", provider: null, revealIndex: 0 });
-          // Which layer caught it — lib/block.js's synchronous keyword
-          // regex or lib/crisis.js's semantic pre-check (see
-          // api/draft.js's handler, which is what sets data.source) — so
-          // the two can be counted separately.
-          logEvent("crisis", { source: data.source || "model" });
           if (DEBUG) renderDebug("result", data);
           sentEl.readOnly = true;
           writeEl.value = "";

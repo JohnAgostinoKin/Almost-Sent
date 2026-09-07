@@ -20,12 +20,17 @@ const { waitUntil } = require("@vercel/functions");
 // position: 1|2|3 } — never the draft text itself, same "no text stored"
 // rule as every other event here.
 //
-// "crisis" is a lead request that came back flagged (see index.html's
-// submit handler and api/draft.js's handler). meta carries { source:
-// "keyword" | "model" } — which layer caught it, lib/block.js's
-// synchronous regex or lib/crisis.js's semantic pre-check — so the two
-// can be counted separately, never the pasted text itself.
-const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate", "crisis"];
+// "safety" is logged once per api/draft.js request/response, whatever the
+// outcome — every response now carries a `safety` field (see the
+// handler), not just a crisis hit. meta carries { state, source }: state
+// is "clear" | "ambiguous_distress" | "explicit_crisis" | "block" |
+// "crisis" | "skipped" | "failed" (see lib/crisis.js's checkCrisis and
+// lib/block.js's classifyBlock for what each means); source is which
+// layer produced it — "keyword" (lib/block.js's synchronous regex),
+// "classifier" (lib/crisis.js's model pre-check), or "curated" (a
+// hand-picked line that never ran either check). Never the pasted text
+// itself.
+const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate", "safety"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {

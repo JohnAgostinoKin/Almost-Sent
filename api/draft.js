@@ -261,15 +261,22 @@ module.exports = async function handler(req, res) {
   // means: "crisis" is the pasted text itself describing suicide/self-harm
   // — gets the 988 resource screen, same as a lib/crisis.js semantic hit
   // below — "block" is everything else this list catches (threats,
-  // minors, abuse), which gets the plain refusal.
+  // minors, abuse), which gets the plain refusal. Both are logged as a
+  // `safety` event by index.html (meta.state/meta.source, source always
+  // "keyword" here) — see lib/crisis.js's checkCrisis for the classifier
+  // layer's own states, logged the same way further down.
   const blockReason = classifyBlock(sent);
   stages.t_block = Date.now() - blockStarted;
   if (blockReason === "crisis") {
     waitUntil(forget(sent));
-    res.status(200).json({ crisis: true, source: "keyword", drafts: [] });
+    res.status(200).json({ crisis: true, source: "keyword", drafts: [], safety: { state: "crisis", source: "keyword" } });
     return;
   }
-  if (blockReason === "block") { waitUntil(forget(sent)); res.status(200).json({ refuse: true, drafts: [] }); return; }
+  if (blockReason === "block") {
+    waitUntil(forget(sent));
+    res.status(200).json({ refuse: true, drafts: [], safety: { state: "block", source: "keyword" } });
+    return;
+  }
 
   const requestStarted = Date.now();
   const rememberPromise = remember(sent);
@@ -296,7 +303,12 @@ module.exports = async function handler(req, res) {
         debug: null,
         t_gen: null,
         t_judge: null,
-        t_total: Date.now() - requestStarted
+        t_total: Date.now() - requestStarted,
+        // A curated match never runs the classifier below (or even reaches
+        // it) — hand-picked benign text needs neither check, but the
+        // client's "safety" event still expects a state/source on every
+        // response, so this says so explicitly rather than leaving it out.
+        safety: { state: "clear", source: "curated" }
       });
       return;
     }
@@ -308,12 +320,19 @@ module.exports = async function handler(req, res) {
   // an escalation refetch — `sent` hasn't changed since the request that
   // already cleared it, and re-running a model classification call on
   // text that hasn't changed just adds latency and cost for the same
-  // answer.
-  const crisisPromise = !escalate ? checkCrisis(process.env.LLM_API_KEY, sent) : Promise.resolve(false);
+  // answer. Resolves to { state, crisis } — see checkCrisis's own comment
+  // for what `state` ("clear" | "ambiguous_distress" | "explicit_crisis" |
+  // "skipped" | "failed") means; `crisis` is the boolean actually routed on
+  // below (true for both explicit_crisis and ambiguous_distress, which
+  // currently share the same 988 treatment — see lib/crisis.js's header
+  // comment on why they're still logged as separate states regardless).
+  const crisisPromise = !escalate
+    ? checkCrisis(process.env.LLM_API_KEY, sent)
+    : Promise.resolve({ state: "skipped", crisis: false });
 
   const key = process.env.LLM_API_KEY;
   if (!key) {
-    await crisisPromise; // still resolve it so nothing is left dangling, even though there's no model call to gate on it
+    const crisisResult = await crisisPromise; // still resolve it so nothing is left dangling, even though there's no model call to gate on it
     res.status(200).json({
       sent: sent,
       drafts: [{ lane: "stall", text: stallLine() }],
@@ -324,7 +343,8 @@ module.exports = async function handler(req, res) {
       debug: null,
       t_gen: null,
       t_judge: null,
-      t_total: Date.now() - requestStarted
+      t_total: Date.now() - requestStarted,
+      safety: { state: crisisResult.state, source: "classifier" }
     });
     return;
   }
@@ -337,10 +357,10 @@ module.exports = async function handler(req, res) {
     runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { stages.t_wildcard = Date.now() - wildcardStarted; return r; })
   ]);
 
-  const crisis = await crisisPromise;
-  if (crisis) {
+  const crisisResult = await crisisPromise;
+  if (crisisResult.crisis) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
-    res.status(200).json({ crisis: true, source: "model", drafts: [] });
+    res.status(200).json({ crisis: true, source: "model", drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
     return;
   }
 
@@ -352,7 +372,7 @@ module.exports = async function handler(req, res) {
   // covers the same abusive/minor/threat ground).
   if (primary.skip) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
-    res.status(200).json({ refuse: true, drafts: [] });
+    res.status(200).json({ refuse: true, drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
     return;
   }
 
@@ -437,6 +457,7 @@ module.exports = async function handler(req, res) {
     },
     t_gen: primary.t_gen != null ? primary.t_gen : null,
     t_judge: stages.t_judge,
-    t_total: Date.now() - requestStarted
+    t_total: Date.now() - requestStarted,
+    safety: { state: crisisResult.state, source: "classifier" }
   });
 };
