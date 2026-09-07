@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>privacy — almost sent.</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <meta name="theme-color" content="#070707">
+  <style>
+    :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --line:#242424; --red:#e23b2f; }
+    .dot { color:var(--red); }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body { background:var(--bg); color:var(--fg); }
+    body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
+    main { width:100%; max-width:440px; }
+    @media (min-width:800px) { main { max-width:560px; } h1 { font-size:44px; } }
+    h1 { font-weight:400; font-size:clamp(30px,7vw,44px); letter-spacing:-0.02em; line-height:1.05; margin-bottom:28px; }
+    h2 { font-weight:400; font-size:19px; margin-top:32px; margin-bottom:8px; }
+    p, li { font-size:16px; line-height:1.6; color:var(--fg); }
+    p + p { margin-top:10px; }
+    ul { margin-top:8px; padding-left:20px; }
+    li + li { margin-top:6px; }
+    a, .back { font-family:ui-sans-serif,system-ui,sans-serif; }
+    a { color:var(--fg); text-decoration:underline; text-underline-offset:2px; }
+    a:hover { color:var(--red); }
+    .back { display:inline-block; margin-top:44px; font-size:13px; color:var(--mute); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>privacy<span class="dot">.</span></h1>
+
+    <p>almost sent is a joke generator. Here's exactly what happens to what
+    you paste.</p>
+
+    <h2>what's kept</h2>
+    <p>The line you paste is sent to an AI provider to write the draft, and
+    a copy is stored so we can improve future drafts. Before it's stored,
+    anything that looks like a phone number or an email address is
+    replaced with <code>[phone]</code> or <code>[email]</code> — that
+    scrubbing is best-effort, not a guarantee, so still don't paste
+    someone's full name, number, or other identifying details.</p>
+    <p>We don't keep whatever you type into the "think you can do better"
+    box, and we don't keep your name — the app never asks for one.</p>
+
+    <h2>for how long</h2>
+    <p>30 days. A nightly job deletes anything older than that automatically.</p>
+
+    <h2>training</h2>
+    <p>we don't use your text to train anything. it's sent to a
+    third-party AI provider to generate the result, under their policies.</p>
+
+    <h2>anonymous usage</h2>
+    <p>The app also logs anonymous interaction events — a random id
+    generated in your browser, which button you tapped, and small
+    structured details like which joke "shape" it was. Never the text of
+    what you pasted or wrote, and never anything tied to your identity.</p>
+
+    <h2>age</h2>
+    <p>18+. The jokes are crude on purpose.</p>
+
+    <a class="back" href="/">&larr; back to almost sent</a>
+  </main>
+</body>
+</html>

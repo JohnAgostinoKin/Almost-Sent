@@ -7,6 +7,7 @@ const { judgeLines, applyJudgeVerdict } = require("../lib/judge");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
 const { createLimiter } = require("../lib/rateLimit");
+const { maskPII } = require("../lib/mask");
 
 function readBody(req) {
   const body = req.body;
@@ -180,6 +181,13 @@ async function remember(sent) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   try {
+    // Phone numbers and email addresses are masked before either field is
+    // built — the dedupe key included, so a phone number embedded mid-line
+    // doesn't survive into `key` even though norm() itself doesn't strip
+    // it. The unmasked `sent` is never touched here — the LLM call already
+    // happened with the real text before remember() runs; this is a
+    // storage-only concern (see lib/mask.js).
+    const masked = maskPII(sent);
     // inbox.key is unique — a repeat input used to 409 here, since a plain
     // POST is an insert, not an upsert. on_conflict=key + resolution=merge-
     // duplicates turns this into an upsert: a repeat key updates the
@@ -192,7 +200,7 @@ async function remember(sent) {
         "Content-Type": "application/json",
         Prefer: "return=minimal,resolution=merge-duplicates"
       },
-      body: JSON.stringify({ key: norm(sent) || sent.trim(), sent: sent.trim().slice(0, 500) })
+      body: JSON.stringify({ key: norm(masked) || masked.trim(), sent: masked.trim().slice(0, 500) })
     });
     if (!res.ok) {
       const body = await res.text().catch(function () { return ""; });

@@ -52,6 +52,8 @@
     .actions button { width:auto; padding:12px 14px; font-size:13px; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
     footer { margin-top:auto; padding-top:80px; color:#6e6960; font-size:13px; max-width:440px; width:100%; line-height:1.7; }
+    footer a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+    footer a:hover { color:var(--fg); }
     .hidden { display:none; }
     @media (prefers-reduced-motion:no-preference) {
       .draft { animation:rise .22s ease-out; }
@@ -96,7 +98,7 @@
     </section>
   </main>
 
-  <footer>we keep the incoming line so we can write a better draft. we do not keep your reply or your name. 18+ only. almostsent.app</footer>
+  <footer>your text is used to make the draft and deleted after 30 days. don't paste names, numbers, or private details. 18+. <a href="/privacy">privacy</a></footer>
 
   <script>
     var go = document.getElementById("go");
