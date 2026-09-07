@@ -10,6 +10,7 @@ const {
 const { judgeOneLine } = require("../lib/judge");
 const { stallLine } = require("../lib/fallback");
 const { isBlocked } = require("../lib/block");
+const { checkCrisis } = require("../lib/crisis");
 const { createLimiter } = require("../lib/rateLimit");
 const { maskPII } = require("../lib/mask");
 const { waitUntil } = require("@vercel/functions");
@@ -493,6 +494,18 @@ module.exports = async function handler(req, res) {
   const rememberPromise = remember(sent);
   waitUntil(rememberPromise);
 
+  // Crisis pre-check (lib/crisis.js) — a second, semantic layer past
+  // isBlocked() above, for ambiguous phrasing ("i don't want to be here
+  // anymore") that keyword matching structurally can't catch. Only fired
+  // for the lead request: index.html never fires the alternates (n=4) call
+  // at all once a lead response comes back flagged (same as it already
+  // skips alternates on a plain refusal), so checking there too would just
+  // be a second call for the same verdict. Fired here, in parallel with
+  // generation, specifically so it costs nothing on the common path — by
+  // the time generation finishes, this small classification call has
+  // almost always already resolved.
+  const crisisPromise = n === 1 ? checkCrisis(process.env.LLM_API_KEY, sent) : Promise.resolve(false);
+
   // n=1: write exactly the lead shape. n=4: write everything else — the
   // client already has (or is getting) the lead shape from its own n=1
   // call, so asking for it again here would just be a duplicate the model
@@ -509,6 +522,19 @@ module.exports = async function handler(req, res) {
   const judgeCount = n === 1 ? 1 : 2;
 
   const ai = await fromAi(sent, genOpts, judgeCount, stages);
+
+  // Checked ahead of ai.skip below — a crisis verdict wins regardless of
+  // what the model itself did with the line, and it's a more specific,
+  // more useful response than a generic refusal. crisisPromise (fired
+  // above, in parallel with fromAi) has almost always already settled by
+  // now, so this rarely adds any real wait.
+  const crisis = await crisisPromise;
+  if (crisis) {
+    waitUntil(rememberPromise.then(function () { return forget(sent); }));
+    res.status(200).json({ crisis: true, drafts: [] });
+    return;
+  }
+
   // A model skip is a refusal, full stop — never paper over it with the
   // fallback lines below. forget() has to run after remember() actually
   // lands (not race it) or the delete could fire before the insert does and
