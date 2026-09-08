@@ -65,7 +65,16 @@
     .ghost { background:transparent; color:var(--mute); border:1px solid #4a4742; }
     .ghost:hover { color:var(--fg); border-color:#6e6960; }
     .hint { margin-top:12px; font-size:10px; color:#6e6960; }
-    .hide-toggle { display:flex; align-items:center; gap:6px; width:auto; margin-top:10px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; color:#6e6960; cursor:pointer; }
+    /* Options for the card, not places to send it — separated from the
+       destination row above (#share-icons), smaller and muted so they
+       read as a different kind of control, not a 9th share target. */
+    .card-controls { display:flex; align-items:center; gap:16px; margin-top:10px; }
+    /* 16px, same as the button text elsewhere on the page — muted color
+       is fine for "these are secondary", but 11px wasn't reliably
+       tappable on a phone. */
+    .card-controls button { width:auto; background:transparent; border:0; padding:0; font-family:ui-sans-serif,system-ui,sans-serif; font-size:16px; color:#6e6960; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+    .card-controls button:hover { color:var(--mute); }
+    .hide-toggle { display:flex; align-items:center; gap:6px; width:auto; margin-top:0; font-family:ui-sans-serif,system-ui,sans-serif; font-size:16px; color:#6e6960; cursor:pointer; }
     .hide-toggle:hover { color:var(--mute); }
     .hide-toggle input { width:auto; }
     /* One finished example, right under the tagline — proof before anyone
@@ -102,8 +111,8 @@
     #out.crisis-mode .react,
     #out.crisis-mode #share-this-row,
     #out.crisis-mode #share-icons,
+    #out.crisis-mode #card-controls,
     #out.crisis-mode #save-image-fallback,
-    #out.crisis-mode #hide-toggle-row,
     #out.crisis-mode .worse,
     #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
@@ -215,33 +224,51 @@
            there's no share sheet to hand off to on desktop, ever (see
            saveImageBtn's own isDesktopLayout() guard below for why that
            matters beyond just this button). Under it, on every
-           breakpoint, the same icon row: text/email reuse the .text-share/
+           breakpoint, the same icon row of DESTINATIONS only (see
+           #card-controls further down for "save image"/"hide their
+           text" — options for the card, not places to send it, so they
+           don't belong in this row): text/email reuse the .text-share/
            .email-share classes that also drive .turn's own copy further
            down (shared click handlers, see the script); whatsapp,
-           facebook, x, copy, and save image are new here, each carrying
+           facebook, x, and copy are new here, each carrying
            buildShareText()'s block (which already ends in the referral
            URL) — facebook actually just wants that URL, not the whole
            block, so its own click handler pulls that back out via
-           buildReferralUrl() — except save image, which carries the PNG
-           instead. Instagram/snapchat/tiktok (.mobile-share-icon, hidden
-           past 800px in the same media query) don't have a share URL to
-           link to at all — no web intent for any of the three — so each
-           just triggers the same native sheet "share this" does
+           buildReferralUrl(). Instagram/snapchat/tiktok (.mobile-share-icon,
+           hidden past 800px in the same media query) don't have a share
+           URL to link to at all — no web intent for any of the three —
+           so each just triggers the same native sheet "share this" does
            (attemptNativeImageShare below), individually labeled and
            logged so which app someone was headed for is still visible,
            even though the OS sheet is the same one either way. -->
       <div class="row" id="share-this-row"><button type="button" id="share-this" disabled>share this</button></div>
       <div class="share-icons" id="share-icons">
-        <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
-        <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
-        <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
         <button class="ghost" type="button" id="share-facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
         <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+        <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+        <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
+        <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
         <button class="ghost mobile-share-icon" type="button" id="share-instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
         <button class="ghost mobile-share-icon" type="button" id="share-snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
         <button class="ghost mobile-share-icon" type="button" id="share-tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
         <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
-        <button class="ghost" type="button" id="save-image" disabled><span class="icon" aria-hidden="true">🖼️</span><span class="label">save image</span></button>
+      </div>
+      <!-- Card controls, not destinations — "save image" and "hide their
+           text" both describe or produce the card, they don't send it
+           anywhere, so they sit on their own line beneath the row above,
+           smaller and muted rather than styled like a share target.
+           "hide their text" is card-only — the live page above keeps its
+           own styling either way — off by default, and read at share
+           time (see saveImageBtn's and shareThisBtn's click handlers,
+           both of which pass it straight into drawShareCanvas) rather
+           than cached, so flipping it after looking at one card changes
+           the very next one. -->
+      <div class="card-controls" id="card-controls">
+        <button type="button" id="save-image" disabled>save image</button>
+        <label class="hide-toggle" id="hide-toggle-row" for="hide-original">
+          <input type="checkbox" id="hide-original">
+          hide their text
+        </label>
       </div>
       <!-- In-app browsers (Instagram, TikTok, etc.) often can't hand back
            a real file — no native share sheet for files, and a silently
@@ -251,15 +278,6 @@
         <img id="save-image-fallback-img" alt="almost sent — image to save">
         <p class="hint">press and hold to save.</p>
       </div>
-      <!-- Card only — the live page above keeps its own styling either
-           way. Off by default. Read at share time (see saveImageBtn's and
-           shareThisBtn's click handlers, both of which pass it straight
-           into drawShareCanvas) rather than cached, so flipping it after
-           looking at one card changes the very next one. -->
-      <label class="hide-toggle" id="hide-toggle-row" for="hide-original">
-        <input type="checkbox" id="hide-original">
-        hide their text
-      </label>
 
       <div class="debug hidden" id="debug"></div>
 
@@ -317,14 +335,15 @@
     var saveImageBtn = document.getElementById("save-image");
     var hideOriginalEl = document.getElementById("hide-original");
     // save-image and copy-share both relabel on the fly (see below and
-    // their click handlers) — the top row's icon-row buttons carry their
+    // their click handlers). The icon row's copy-share button carries its
     // changeable text in a .label span so relabeling never clobbers the
-    // icon span next to it; .turn's own copy-share button has no icon at
-    // all, so this just falls back to the button itself, same as before.
+    // icon span next to it; save-image (a plain card-control now, not an
+    // icon — see #card-controls) and .turn's own copy-share button have
+    // no icon at all, so this just falls back to the button itself.
     function labelTarget(el) {
       return el.querySelector(".label") || el;
     }
-    var SAVE_IMAGE_LABEL = labelTarget(saveImageBtn).textContent; // "save as image" — captured once, restored after every outcome
+    var SAVE_IMAGE_LABEL = labelTarget(saveImageBtn).textContent; // "save image" — captured once, restored after every outcome
     // One idle label per copy-share button, not one shared string — the
     // top row's reads "copy" (see the icon row's markup), .turn's own
     // reads "copy it", and resetCopyLabel below has to restore each to
