@@ -23,15 +23,13 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    /* "share this" (native share sheet) is mobile-only, full stop — no
-       native sheet on desktop, ever (see saveImageBtn's own
-       isDesktopLayout() guard in the script for why that has to be
-       checked in JS too, not just here). .mobile-share-icon (instagram/
-       snapchat/tiktok — each one's own way into that same native sheet,
-       see attemptNativeImageShare) is mobile-only for the same reason.
-       #share-icons itself is NOT gated by this media query at all — it
-       shows on every breakpoint, as the mobile fallback under "share
-       this" and as the only share row desktop ever gets. */
+    /* No native share sheet on desktop, ever — .mobile-share-icon
+       (instagram/snapchat/tiktok, each one's own way into that sheet, see
+       attemptNativeImageShare) is mobile-only, and saveImageBtn's own
+       isDesktopLayout() guard checks the same thing in JS for the one
+       icon that isn't hidden outright there. #share-icons itself is NOT
+       gated by this media query at all — the icon row IS the share, on
+       every breakpoint. */
     @media (min-width:800px) {
       main, footer { max-width:560px; }
       h1 { font-size:80px; }
@@ -39,7 +37,7 @@
       /* .share-icons button (0,1,1) outranks a bare .mobile-share-icon
          (0,1,0) — has to be scoped under .share-icons too to actually
          win the specificity fight and hide these three. */
-      #share-this-row, .share-icons .mobile-share-icon { display:none; }
+      .share-icons .mobile-share-icon { display:none; }
     }
     .share-icons { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
     .share-icons button { width:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 12px; font-size:11px; }
@@ -109,7 +107,6 @@
        response. See index.html's submit handler for when this gets set. */
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
-    #out.crisis-mode #share-this-row,
     #out.crisis-mode #share-icons,
     #out.crisis-mode #card-controls,
     #out.crisis-mode #save-image-fallback,
@@ -197,51 +194,43 @@
         <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
       </div>
       <!-- Escalation comes next — after reactions now, still ahead of
-           share — ghost styling (only "share this" stays the one red/
-           primary button below the draft). A
-           three-tap progression, not a static "make it worse" label —
-           see ESCALATE_LABELS below — that implies the first draft was
-           the best one and every tap past it is a deliberate dare, not
-           "here's another." Reveals whatever's already sitting in the
-           pool when it qualifies (see api/draft.js's intensity-gated
-           position 2/3 selection), or fetches a fresh escalated batch
-           when it doesn't — see fetchEscalation and the click handler
-           below. Disables for good after the third tap, full stop,
-           regardless of which taps needed a fetch underneath. -->
-      <div class="row worse"><button class="ghost" type="button" id="another" disabled>take it further</button></div>
+           share. Red/primary again (no more .ghost) — the icon row below
+           is the share now, there's no "share this" button left to be
+           the one red button instead. A three-tap progression, not a
+           static "make it worse" label — see ESCALATE_LABELS below —
+           that implies the first draft was the best one and every tap
+           past it is a deliberate dare, not "here's another." Reveals
+           whatever's already sitting in the pool when it qualifies (see
+           api/draft.js's intensity-gated position 2/3 selection), or
+           fetches a fresh escalated batch when it doesn't — see
+           fetchEscalation and the click handler below. Disables for good
+           after the third tap, full stop, regardless of which taps
+           needed a fetch underneath. -->
+      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
 
-      <!-- Share follows escalation now, not the other way around — it
-           always acts on whatever's currently on screen (renderDraft's
-           latest call), never what was there when the page first
-           rendered. buildShareText() reads draftEl.textContent live and
-           attemptNativeImageShare/buildShareImageBlob read pool[cursor]
-           live, both at share time, not render time — reordering this
-           markup needed no script changes to keep that true. Mobile gets
-           a full-width native-share-sheet button (#share-this) on top —
-           the 9:16 PNG plus the text block when
-           navigator.canShare({files}) allows it, the text block alone
-           otherwise — hidden past the 800px breakpoint above, since
-           there's no share sheet to hand off to on desktop, ever (see
-           saveImageBtn's own isDesktopLayout() guard below for why that
-           matters beyond just this button). Under it, on every
-           breakpoint, the same icon row of DESTINATIONS only (see
-           #card-controls further down for "save image"/"hide their
-           text" — options for the card, not places to send it, so they
-           don't belong in this row): text/email reuse the .text-share/
-           .email-share classes that also drive .turn's own copy further
-           down (shared click handlers, see the script); whatsapp,
-           facebook, x, and copy are new here, each carrying
-           buildShareText()'s block (which already ends in the referral
-           URL) — facebook actually just wants that URL, not the whole
-           block, so its own click handler pulls that back out via
+      <!-- The icon row IS the share now — no separate native-share-sheet
+           button above it. It always acts on whatever's currently on
+           screen (renderDraft's latest call), never what was there when
+           the page first rendered: buildShareText() reads
+           draftEl.textContent live and attemptNativeImageShare/
+           buildShareImageBlob read pool[cursor] live, both at share time,
+           not render time. Destinations only (see #card-controls further
+           down for "save image"/"hide their text" — options for the
+           card, not places to send it, so they don't belong in this
+           row): text/email reuse the .text-share/.email-share classes
+           that also drive .turn's own copy further down (shared click
+           handlers, see the script); whatsapp, facebook, x, and copy
+           carry buildShareText()'s block (which already ends in the
+           referral URL) — facebook actually just wants that URL, not the
+           whole block, so its own click handler pulls that back out via
            buildReferralUrl(). Instagram/snapchat/tiktok (.mobile-share-icon,
-           hidden past 800px in the same media query) don't have a share
-           URL to link to at all — no web intent for any of the three —
-           so each just triggers the same native sheet "share this" does
-           (attemptNativeImageShare below), individually labeled and
-           logged so which app someone was headed for is still visible,
-           even though the OS sheet is the same one either way. -->
-      <div class="row" id="share-this-row"><button type="button" id="share-this" disabled>share this</button></div>
+           hidden past 800px, same as before) don't have a share URL to
+           link to at all — no web intent for any of the three — so each
+           just triggers the native share sheet (attemptNativeImageShare
+           below, the same PNG-attached flow "share this" used to run),
+           individually labeled and logged so which app someone was
+           headed for is still visible, even though the OS sheet is the
+           same one either way. -->
       <div class="share-icons" id="share-icons">
         <button class="ghost" type="button" id="share-facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
         <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
@@ -259,10 +248,10 @@
            smaller and muted rather than styled like a share target.
            "hide their text" is card-only — the live page above keeps its
            own styling either way — off by default, and read at share
-           time (see saveImageBtn's and shareThisBtn's click handlers,
-           both of which pass it straight into drawShareCanvas) rather
-           than cached, so flipping it after looking at one card changes
-           the very next one. -->
+           time (see saveImageBtn's and the mobile-only icons' own click
+           handlers, all of which pass it straight into drawShareCanvas)
+           rather than cached, so flipping it after looking at one card
+           changes the very next one. -->
       <div class="card-controls" id="card-controls">
         <button type="button" id="save-image" disabled>save image</button>
         <label class="hide-toggle" id="hide-toggle-row" for="hide-original">
@@ -323,7 +312,6 @@
     var textShareBtns = Array.prototype.slice.call(document.querySelectorAll(".text-share"));
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
-    var shareThisBtn = document.getElementById("share-this");
     var shareWhatsappBtn = document.getElementById("share-whatsapp");
     var shareFacebookBtn = document.getElementById("share-facebook");
     var shareXBtn = document.getElementById("share-x");
@@ -663,7 +651,6 @@
       emailShareBtns.forEach(function (b) { b.disabled = disabled; });
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
       saveImageBtn.disabled = disabled;
-      shareThisBtn.disabled = disabled;
       shareWhatsappBtn.disabled = disabled;
       shareFacebookBtn.disabled = disabled;
       shareXBtn.disabled = disabled;
@@ -1207,7 +1194,7 @@
       return /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|BytedanceWebview|Snapchat|WhatsApp/i.test(ua);
     }
 
-    // Same 800px breakpoint as #share-this-row's own CSS (see the
+    // Same 800px breakpoint as .mobile-share-icon's own CSS (see the
     // stylesheet) — read here in JS wherever "no native sheet on desktop,
     // ever" has to be enforced in code, not just by hiding a button.
     function isDesktopLayout() {
@@ -1299,13 +1286,15 @@
       return text + "\n" + buildReferralUrl();
     }
 
-    // Core native-share attempt, shared by "share this" and the
-    // mobile-only instagram/snapchat/tiktok icons below — all four want
-    // the exact same files -> text -> clipboard fallback chain. Resolves
-    // to whichever path actually fired ("files" | "text" | "copy") so
-    // each caller can log its own meta.via; a cancelled share sheet's
-    // AbortError (not a real failure) propagates same as any other
-    // rejection, left for the caller to swallow.
+    // Core native-share attempt, shared by the mobile-only instagram/
+    // snapchat/tiktok icons below — all three want the exact same files
+    // -> text -> clipboard fallback chain (the same one a standalone
+    // "share this" button used to run before the icon row became the
+    // whole share UI). Resolves to whichever path actually fired
+    // ("files" | "text" | "copy") so each caller can log its own
+    // meta.via; a cancelled share sheet's AbortError (not a real
+    // failure) propagates same as any other rejection, left for the
+    // caller to swallow.
     async function attemptNativeImageShare(hideOriginal) {
       var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
       var text = buildShareText();
@@ -1331,39 +1320,14 @@
       }
     }
 
-    // The mobile primary action — one button, native share sheet, instead
-    // of picking between text/email/copy up front. See
-    // attemptNativeImageShare for the actual files/text/clipboard chain;
-    // this button keeps its own via convention (native_image/native_text)
-    // rather than the flat per-icon tag instagram/snapchat/tiktok use
-    // below, since it isn't tied to any one destination app.
-    shareThisBtn.addEventListener("click", async function () {
-      if (shareThisBtn.disabled) return;
-      shareThisBtn.disabled = true;
-      try {
-        var hidden = hideOriginalEl.checked;
-        var result = await attemptNativeImageShare(hidden);
-        // hidden only means anything for the branch that actually carried
-        // the card (files) — same rule as saveImageBtn's own log.
-        var meta = { via: result === "files" ? "native_image" : result === "text" ? "native_text" : "copy" };
-        if (result === "files") meta.hidden = hidden;
-        logEvent("share", meta);
-        whewEl.classList.remove("hidden");
-      } catch (err) {
-        // A cancelled native share sheet throws too (AbortError) — not a
-        // real failure, nothing here needs to interrupt anyone over it.
-      } finally {
-        shareThisBtn.disabled = false;
-      }
-    });
-
     // instagram/snapchat/tiktok: none of the three have a real web share
     // intent (no wa.me/twitter.com equivalent for any of them), so each
-    // just opens the same native sheet "share this" does — individually
-    // labeled and logged (meta.via: the icon actually tapped) so which
-    // app someone was headed for stays visible even though it's the same
-    // OS sheet underneath every time. Mobile-only (.mobile-share-icon,
-    // see the stylesheet) — there's no sheet to open on desktop at all.
+    // just opens the native share sheet (attemptNativeImageShare above)
+    // — individually labeled and logged (meta.via: the icon actually
+    // tapped) so which app someone was headed for stays visible even
+    // though it's the same OS sheet underneath every time. Mobile-only
+    // (.mobile-share-icon, see the stylesheet) — there's no sheet to
+    // open on desktop at all.
     [
       { id: "share-instagram", via: "instagram" },
       { id: "share-snapchat", via: "snapchat" },
@@ -1377,7 +1341,7 @@
           var hidden = hideOriginalEl.checked;
           var result = await attemptNativeImageShare(hidden);
           // Same "hidden only means anything for the files branch" rule
-          // as shareThisBtn and saveImageBtn's own logs.
+          // as saveImageBtn's own log.
           var meta = { via: spec.via };
           if (result === "files") meta.hidden = hidden;
           logEvent("share", meta);
