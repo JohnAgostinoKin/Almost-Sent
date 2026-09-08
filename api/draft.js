@@ -119,8 +119,12 @@ function tagModel(result, model, note) {
 // call: every line filtered gets one retry on the SAME model (temperature
 // is 1.0, so a second draw is often clean even when the first wasn't); an
 // outright refusal, parse failure, or thrown error gets one attempt on
-// FALLBACK_MODEL instead.
-const FALLBACK_MODEL = "openai/gpt-5.4";
+// FALLBACK_MODEL instead. Was openai/gpt-5.4 — the same value
+// GENERATOR_MODEL defaults to, which meant a "fallback" attempt after a
+// gpt-5.4 failure just retried gpt-5.4 again, diversifying nothing. A
+// different provider entirely now, so a bad day for OpenAI's models
+// doesn't take out both attempts.
+const FALLBACK_MODEL = "mistralai/mistral-large-2512";
 async function runGenerator(key, model, sent, kind, genOpts) {
   const first = await callOneGenerator(key, model, sent, kind, genOpts);
   if (!first.skip && !first.lines.length && first.reason === "filtered") {
@@ -418,6 +422,7 @@ module.exports = async function handler(req, res) {
   let safetyLatencyTotal = 0;
   let droppedSafetyCount = 0;
   let safetyFailedCount = 0;
+  let safetyRateLimitedCount = 0;
   const safetyReasons = [];
   // Candidates safety flagged — checked by identity (the exact objects in
   // allCandidates, which is also what taste.ranked/taste.details.candidate
@@ -429,19 +434,31 @@ module.exports = async function handler(req, res) {
     safetyLatencyTotal += result.latencyMs || 0;
     if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
     if (result.verdict === null) safetyFailedCount++;
+    // Every call's own latency, always — not just failures — so a slow
+    // stretch (queueing, an upstream having a bad day) is visible in the
+    // logs without a failure to trigger it. This is what actually caught
+    // the connection-pool contention behind "safety nano at 3.6s for ten
+    // calls" (see lib/judge.js's safetyDispatcher comment) — no 429s ever
+    // showed up in it, which is exactly how that turned out not to be
+    // rate limiting.
+    console.log("safety [" + (item.lane || "?") + "] latencyMs=" + (result.latencyMs != null ? result.latencyMs : "?"));
     // result.reason is set the moment SAFETY_MODEL's own first attempt
     // failed, even if a fallback then rescued the verdict (see
     // judgeOneLine's own comment) — logged in full here (Vercel function
     // logs), and a capped sample rides in `why` below so ?debug=1 shows it
-    // too, without one bad run making `why` enormous.
+    // too, without one bad run making `why` enormous. A 429 specifically
+    // (real rate limiting, distinct from a timeout) is counted separately
+    // so it's visible at a glance whether that's ever actually happening.
     if (result.reason) {
       console.error("safety judge fallback/failure [" + (item.lane || "?") + "]: " + result.reason);
       safetyReasons.push("[" + item.lane + "] " + result.reason);
+      if (/\bhttp 429\b/.test(result.reason)) safetyRateLimitedCount++;
     }
     if (result.verdict === true) { droppedSafetyCount++; flagged.add(item); }
   });
   const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
     (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
+    (safetyRateLimitedCount ? " (" + safetyRateLimitedCount + " rate-limited)" : "") +
     (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "") +
     (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
