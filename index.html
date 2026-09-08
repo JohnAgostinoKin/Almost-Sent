@@ -120,12 +120,10 @@
     <form id="form">
       <label class="label" for="sent">tell us what they sent</label>
       <textarea id="sent" maxlength="500" required placeholder="type what they sent"></textarea>
+      <!-- Populated on load from a rotating twelve-chip pool — see
+           CHIP_GROUPS/getChipGroup in the script — not hardcoded here. -->
       <div class="chips" id="chips">
         <span class="chips-lead">try:</span>
-        <button class="chip" type="button">sorry, i fell asleep</button>
-        <button class="chip" type="button">we should hang out sometime</button>
-        <button class="chip" type="button">i'm fine</button>
-        <button class="chip" type="button">who is she?</button>
       </div>
       <div class="row"><button id="go" type="submit">here's what they almost sent</button></div>
       <p class="hint">made up. nothing gets sent.</p>
@@ -260,6 +258,48 @@
     var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
     var chipsEl = document.getElementById("chips");
     var exampleEl = document.getElementById("example");
+
+    // Three fixed groups of four, drawn from the twelve-chip pool — one
+    // group per visit. Every chip across all three groups has its own
+    // three-line curated bank (lib/curated.js), so whichever group lands
+    // still bypasses the judge entirely, same as the original four always
+    // did.
+    var CHIP_GROUPS = [
+      ["sorry, i fell asleep", "we should hang out sometime", "i'm fine", "who is she?"],
+      ["we need to talk", "k", "no worries", "on my way"],
+      ["haha yeah", "call me", "miss you", "wish me luck tomorrow"]
+    ];
+
+    // Same rotation-index-on-device pattern as getDeviceId below, just for
+    // which group of four shows up — the stored index is THIS visit's
+    // group; advancing it (wrapping past the last group) here, before
+    // returning, is what makes the NEXT visit show a fresh set rather than
+    // the same four forever. Storage blocked (private mode, cookies off)
+    // just means every visit gets group 0 — same chips a first-time
+    // visitor would see, never a crash.
+    function getChipGroup() {
+      var idx = 0;
+      try {
+        var stored = parseInt(localStorage.getItem("chip_rotation"), 10);
+        if (!isNaN(stored) && stored >= 0 && stored < CHIP_GROUPS.length) idx = stored;
+      } catch (err) {
+        idx = 0;
+      }
+      try {
+        localStorage.setItem("chip_rotation", String((idx + 1) % CHIP_GROUPS.length));
+      } catch (err) {
+        // storage blocked — nothing to persist, this visit still gets a group above
+      }
+      return CHIP_GROUPS[idx];
+    }
+
+    getChipGroup().forEach(function (label) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip";
+      btn.textContent = label;
+      chipsEl.appendChild(btn);
+    });
 
     // Tap a chip to fill #sent with that example — doesn't submit, just
     // saves typing (or gives someone with a blank mind somewhere to start).
