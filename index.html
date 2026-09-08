@@ -23,21 +23,16 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    /* No native share sheet on desktop, ever — .mobile-share-icon
-       (instagram/snapchat/tiktok, each one's own way into that sheet, see
-       attemptNativeImageShare) is mobile-only, and saveImageBtn's own
-       isDesktopLayout() guard checks the same thing in JS for the one
-       icon that isn't hidden outright there. #share-icons itself is NOT
-       gated by this media query at all — the icon row IS the share, on
-       every breakpoint. */
+    /* No native share sheet on desktop, ever — saveImageBtn's own
+       isDesktopLayout() guard (and the .social-app-icon click handlers'
+       own check) keeps that true in JS. .social-app-icon (instagram/
+       snapchat/tiktok) shows on every breakpoint now, same as the rest
+       of #share-icons — desktop just gets a save-then-post download
+       instead of the sheet those three trigger on mobile. */
     @media (min-width:800px) {
       main, footer { max-width:560px; }
       h1 { font-size:80px; }
       .draft { font-size:38px; }
-      /* .share-icons button (0,1,1) outranks a bare .mobile-share-icon
-         (0,1,0) — has to be scoped under .share-icons too to actually
-         win the specificity fight and hide these three. */
-      .share-icons .mobile-share-icon { display:none; }
     }
     .share-icons { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
     .share-icons button { width:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 12px; font-size:11px; }
@@ -115,6 +110,7 @@
     #out.crisis-mode #share-icons,
     #out.crisis-mode #card-controls,
     #out.crisis-mode #save-image-fallback,
+    #out.crisis-mode #social-download-feedback,
     #out.crisis-mode .worse,
     #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
@@ -234,25 +230,34 @@
            carry buildShareText()'s block (which already ends in the
            referral URL) — facebook actually just wants that URL, not the
            whole block, so its own click handler pulls that back out via
-           buildReferralUrl(). Instagram/snapchat/tiktok (.mobile-share-icon,
-           hidden past 800px, same as before) don't have a share URL to
-           link to at all — no web intent for any of the three — so each
-           just triggers the native share sheet (attemptNativeImageShare
-           below, the same PNG-attached flow "share this" used to run),
-           individually labeled and logged so which app someone was
-           headed for is still visible, even though the OS sheet is the
-           same one either way. -->
+           buildReferralUrl(). Instagram/snapchat/tiktok (.social-app-icon)
+           don't have a share URL to link to at all — no web intent for
+           any of the three. On mobile each triggers the native share
+           sheet (attemptNativeImageShare below, the same PNG-attached
+           flow "share this" used to run); on desktop, where there's no
+           sheet to hand off to, each downloads the PNG instead and shows
+           "saved. post it from the [app] app or site." under this row
+           (#social-download-feedback) — see their own click handler for
+           the isDesktopLayout() branch. Both paths are individually
+           labeled and logged (meta.via) so which app someone was headed
+           for is still visible either way; the desktop path also logs
+           meta.mode: "download". -->
       <div class="share-icons" id="share-icons">
         <button class="ghost" type="button" id="share-facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
         <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
         <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
         <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
         <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
-        <button class="ghost mobile-share-icon" type="button" id="share-instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
-        <button class="ghost mobile-share-icon" type="button" id="share-snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
-        <button class="ghost mobile-share-icon" type="button" id="share-tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
+        <button class="ghost social-app-icon" type="button" id="share-instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
+        <button class="ghost social-app-icon" type="button" id="share-snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
+        <button class="ghost social-app-icon" type="button" id="share-tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
         <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
       </div>
+      <!-- Feedback for the desktop path of the three .social-app-icon
+           buttons above — "saved. post it from the instagram/snapchat/
+           tiktok app or site." Empty and hidden until one of them
+           actually downloads (see showSocialDownloadFeedback). -->
+      <p class="hint hidden" id="social-download-feedback"></p>
       <!-- Card controls, not destinations — "save image" and "hide their
            text" both describe or produce the card, they don't send it
            anywhere, so they sit on their own line beneath the row above,
@@ -333,7 +338,7 @@
     // just needs to flip all three together, same as every other share
     // control; their own click handlers still address them individually
     // by id (see below).
-    var mobileShareIconBtns = Array.prototype.slice.call(document.querySelectorAll(".mobile-share-icon"));
+    var socialAppIconBtns = Array.prototype.slice.call(document.querySelectorAll(".social-app-icon"));
     var saveImageBtn = document.getElementById("save-image");
     var hideOriginalEl = document.getElementById("hide-original");
     // save-image and copy-share both relabel on the fly (see below and
@@ -354,6 +359,8 @@
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
     var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
     var saveImageFeedbackTimer = null;
+    var socialDownloadFeedbackEl = document.getElementById("social-download-feedback");
+    var socialDownloadFeedbackTimer = null;
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
@@ -668,7 +675,7 @@
       shareWhatsappBtn.disabled = disabled;
       shareFacebookBtn.disabled = disabled;
       shareXBtn.disabled = disabled;
-      mobileShareIconBtns.forEach(function (b) { b.disabled = disabled; });
+      socialAppIconBtns.forEach(function (b) { b.disabled = disabled; });
       hideOriginalEl.disabled = disabled;
     }
     // Only the idle label resets here — the "copied." confirmation (see
@@ -692,6 +699,14 @@
       if (saveImageFallbackImgEl.src) { URL.revokeObjectURL(saveImageFallbackImgEl.src); saveImageFallbackImgEl.src = ""; }
     }
 
+    // Undoes showSocialDownloadFeedback's temporary message — same
+    // "clear the timer, hide it" shape as resetSaveImage above.
+    function resetSocialDownloadFeedback() {
+      if (socialDownloadFeedbackTimer) { clearTimeout(socialDownloadFeedbackTimer); socialDownloadFeedbackTimer = null; }
+      socialDownloadFeedbackEl.classList.add("hidden");
+      socialDownloadFeedbackEl.textContent = "";
+    }
+
     function reset() {
       outEl.classList.add("hidden");
       outEl.classList.remove("crisis-mode");
@@ -705,6 +720,7 @@
       hideOriginalEl.checked = false;
       resetCopyLabel();
       resetSaveImage();
+      resetSocialDownloadFeedback();
       whewEl.classList.add("hidden");
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
@@ -1208,7 +1224,7 @@
       return /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|BytedanceWebview|Snapchat|WhatsApp/i.test(ua);
     }
 
-    // Same 800px breakpoint as .mobile-share-icon's own CSS (see the
+    // Same 800px breakpoint as .social-app-icon's own CSS (see the
     // stylesheet) — read here in JS wherever "no native sheet on desktop,
     // ever" has to be enforced in code, not just by hiding a button.
     function isDesktopLayout() {
@@ -1234,6 +1250,22 @@
       if (saveImageFallbackImgEl.src) URL.revokeObjectURL(saveImageFallbackImgEl.src);
       saveImageFallbackImgEl.src = URL.createObjectURL(blob);
       saveImageFallbackEl.classList.remove("hidden");
+    }
+
+    // Plain <a download> — the ordinary desktop/browser path for both
+    // saveImageBtn's own fallback and the .social-app-icon buttons'
+    // desktop path below. Not used for the in-app-browser fallback
+    // (showInlineImageFallback) — that's a mobile-webview problem this
+    // never runs into.
+    function downloadBlobAsPng(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "almost-sent.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
     saveImageBtn.addEventListener("click", async function () {
@@ -1262,14 +1294,7 @@
           showInlineImageFallback(blob);
           labelTarget(saveImageBtn).textContent = SAVE_IMAGE_LABEL;
         } else {
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement("a");
-          a.href = url;
-          a.download = "almost-sent.png";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          downloadBlobAsPng(blob);
           showSavedFeedback();
         }
       } catch (err) {
@@ -1334,14 +1359,31 @@
       }
     }
 
+    // "saved. post it from the instagram/snapchat/tiktok app or site."
+    // under the icon row for 4 seconds, then clears — one tick longer
+    // than showSavedFeedback's 3s since this one's a full sentence, not
+    // a short label.
+    function showSocialDownloadFeedback(appLabel) {
+      if (socialDownloadFeedbackTimer) clearTimeout(socialDownloadFeedbackTimer);
+      socialDownloadFeedbackEl.textContent = "saved. post it from the " + appLabel + " app or site.";
+      socialDownloadFeedbackEl.classList.remove("hidden");
+      socialDownloadFeedbackTimer = setTimeout(function () {
+        socialDownloadFeedbackEl.classList.add("hidden");
+        socialDownloadFeedbackEl.textContent = "";
+        socialDownloadFeedbackTimer = null;
+      }, 4000);
+    }
+
     // instagram/snapchat/tiktok: none of the three have a real web share
-    // intent (no wa.me/twitter.com equivalent for any of them), so each
-    // just opens the native share sheet (attemptNativeImageShare above)
-    // — individually labeled and logged (meta.via: the icon actually
-    // tapped) so which app someone was headed for stays visible even
-    // though it's the same OS sheet underneath every time. Mobile-only
-    // (.mobile-share-icon, see the stylesheet) — there's no sheet to
-    // open on desktop at all.
+    // intent (no wa.me/twitter.com equivalent for any of them). On
+    // mobile each opens the native share sheet (attemptNativeImageShare
+    // above) — meta.via: the icon tapped, meta.hidden on the files
+    // branch only. On desktop, where there's no sheet to hand off to at
+    // all, each downloads the PNG instead (downloadBlobAsPng, same
+    // helper saveImageBtn's own desktop fallback uses) and shows
+    // showSocialDownloadFeedback under the row — meta.via plus
+    // meta.mode: "download", since there's no files/text/copy branch to
+    // report there.
     [
       { id: "share-instagram", via: "instagram" },
       { id: "share-snapchat", via: "snapchat" },
@@ -1353,15 +1395,23 @@
         btn.disabled = true;
         try {
           var hidden = hideOriginalEl.checked;
-          var result = await attemptNativeImageShare(hidden);
-          // Same "hidden only means anything for the files branch" rule
-          // as saveImageBtn's own log.
-          var meta = { via: spec.via };
-          if (result === "files") meta.hidden = hidden;
-          logEvent("share", meta);
-          whewEl.classList.remove("hidden");
+          if (isDesktopLayout()) {
+            var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
+            var blob = await buildShareImageBlob(current, draftText, hidden);
+            downloadBlobAsPng(blob);
+            showSocialDownloadFeedback(spec.via);
+            logEvent("share", { via: spec.via, mode: "download" });
+          } else {
+            var result = await attemptNativeImageShare(hidden);
+            // Same "hidden only means anything for the files branch" rule
+            // as saveImageBtn's own log.
+            var meta = { via: spec.via };
+            if (result === "files") meta.hidden = hidden;
+            logEvent("share", meta);
+            whewEl.classList.remove("hidden");
+          }
         } catch (err) {
-          // cancelled share sheet — not a real failure
+          // cancelled share sheet / blocked download — not a real failure
         } finally {
           btn.disabled = false;
         }
