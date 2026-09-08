@@ -303,7 +303,11 @@ module.exports = async function handler(req, res) {
     if (curated) {
       res.status(200).json({
         sent: sent,
-        drafts: curated,
+        // Curated lines never touch the judge, so there's no real q/shock
+        // to report — null, same convention the fixed-lane-order fallback
+        // above uses. `position` is still real (1-based, bank order) so
+        // index.html's escalation logging has something to key on.
+        drafts: curated.map(function (d, i) { return { lane: d.lane, text: d.text, q: null, shock: null, position: i + 1 }; }),
         source: "curated",
         why: "curated",
         provider: null,
@@ -343,7 +347,7 @@ module.exports = async function handler(req, res) {
     const crisisResult = await crisisPromise; // still resolve it so nothing is left dangling, even though there's no model call to gate on it
     res.status(200).json({
       sent: sent,
-      drafts: [{ lane: "stall", text: stallLine() }],
+      drafts: [{ lane: "stall", text: stallLine(), q: null, shock: null, position: 1 }],
       source: "stall",
       why: "no api key",
       provider: null,
@@ -481,35 +485,68 @@ module.exports = async function handler(req, res) {
       : "") +
     (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
-  let ranked, tasteNote;
+  // Escalation is intensity, not rank. Position 1 is still the highest-q
+  // candidate — unchanged. Position 2 has to be a real escalation from
+  // it: more shock (intensity) than position 1, AND still good enough to
+  // ship (q within 70% of position 1's) — highest-q-next isn't enough on
+  // its own, or "make it worse" would just mean "next best," which is
+  // what a plain rank-order reveal already was. Position 3 is the same
+  // rule applied against position 2, not position 1.
+  //
+  // A position that finds no qualifying survivor just isn't included in
+  // `positions` — this is deliberate, not a bug to patch here: a
+  // one-or-two-draft response is what tells index.html's anotherBtn
+  // handler to fire a fresh escalated fetch on the next tap (its existing
+  // "pool exhausted" path, unchanged), which is exactly the behavior the
+  // brief asks for. Nothing here pads a short result out to three.
+  let survivors, tasteNote;
   if (taste.ok) {
-    ranked = taste.ranked.filter(function (item) { return !flagged.has(item); });
-    // Every candidate's computed total, and the gate that killed each
-    // eliminated one — exactly what ?debug=1 needs to see the judge's
-    // actual reasoning, not just its final picks. A safety-flagged
-    // candidate is tagged here too, whatever taste made of it, since
-    // that's exactly why it's missing from `ranked` above.
+    survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
+    // Every candidate's q/shock, and the gate that killed each eliminated
+    // one — exactly what ?debug=1 needs to see the judge's actual
+    // reasoning, not just its final picks. A safety-flagged candidate is
+    // tagged here too, whatever taste made of it, since that's exactly
+    // why it's missing from `survivors` above.
     const totalsNote = taste.details.map(function (d) {
       const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
-      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "total:" + d.total) + flag;
+      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " shock:" + d.shock) + flag;
     }).join(", ");
     tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
   } else {
     // Fallback: fixed lane order, same as v3's original bridge selection —
     // still a reasonable "something is better than nothing" ordering, just
-    // not the ranked-by-taste one. Safety-flagged candidates are excluded
-    // here too, same as the ranked branch above.
-    ranked = allCandidates
+    // not the ranked-by-taste/intensity one. There's no real q/shock to
+    // gate escalation on here, so every position below just takes the
+    // next lane-ordered survivor — the same behavior this fallback
+    // always had, since q:null short-circuits the intensity check below.
+    survivors = allCandidates
       .filter(function (item) { return !flagged.has(item); })
-      .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); });
+      .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); })
+      .map(function (item) { return { candidate: item, q: null, shock: null }; });
     tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
   }
-  const top3 = ranked.slice(0, 3);
+
+  const positions = [];
+  if (survivors.length) positions.push(survivors[0]);
+  for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
+    const prev = positions[need - 2];
+    const remaining = survivors.slice(1).filter(function (s) { return positions.indexOf(s) === -1; });
+    // remaining is still q-descending (inherited from `survivors`'
+    // own order), so the first one clearing both bars is the highest-q
+    // qualifier — no separate re-sort needed.
+    const next = prev.shock == null
+      ? remaining[0]
+      : remaining.filter(function (s) { return s.shock > prev.shock && s.q >= 0.7 * prev.q; })[0];
+    if (!next) break;
+    positions.push(next);
+  }
 
   const responseStarted = Date.now();
-  const drafts = top3.map(function (item) { return { lane: item.lane, text: item.text }; });
+  const drafts = positions.map(function (p, i) {
+    return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, shock: p.shock, position: i + 1 };
+  });
   const source = drafts.length ? "model" : "stall";
-  if (!drafts.length) drafts.push({ lane: "stall", text: stallLine() });
+  if (!drafts.length) drafts.push({ lane: "stall", text: stallLine(), q: null, shock: null, position: 1 });
 
   stages.t_response = Date.now() - responseStarted;
   const primaryWhy = primaryResults.map(function (r, i) { return "primary #" + (i + 1) + ": " + (r.why || "?"); }).join(" · ");
