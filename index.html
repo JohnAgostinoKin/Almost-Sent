@@ -23,7 +23,14 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    @media (min-width:800px) { main, footer { max-width:560px; } h1 { font-size:80px; } .draft { font-size:38px; } }
+    /* Result hierarchy: "share this" is the primary mobile action right
+       under the draft, using the native share sheet (see #share-this's
+       click handler) — there's no share sheet to hand off to on desktop,
+       so the existing text it / email it / copy it row (#lead-actions)
+       takes its place there instead. Same 800px breakpoint everything
+       else on the page already uses. */
+    #lead-actions { display:none; }
+    @media (min-width:800px) { main, footer { max-width:560px; } h1 { font-size:80px; } .draft { font-size:38px; } #share-this-row { display:none; } #lead-actions { display:flex; } }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
     .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
@@ -58,6 +65,7 @@
        response. See index.html's submit handler for when this gets set. */
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
+    #out.crisis-mode #share-this-row,
     #out.crisis-mode #lead-actions,
     #out.crisis-mode #save-image-row,
     #out.crisis-mode #save-image-fallback,
@@ -120,42 +128,27 @@
            crisis pre-check (lib/crisis.js) flags the pasted text — a
            plain, serious line, not a joke that just failed to generate. -->
       <p class="crisis-msg hidden" id="crisis-msg"></p>
-      <div class="react" id="react">
-        <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
-        <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
-        <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
-      </div>
-      <!-- Reroll is the primary action now — a full-width, primary-styled
-           button directly under the reactions (default button styling: red,
-           full width, same as #go — no .ghost here on purpose), not a small
-           ghost tucked below the share row. A three-tap progression, not a
-           static "make it worse" label — see ESCALATE_LABELS below — that
-           implies the first draft was the best one and every tap past it
-           is a deliberate dare, not "here's another." Reveals whatever's
-           already sitting in the pool when it qualifies (see
-           api/draft.js's intensity-gated position 2/3 selection), or
-           fetches a fresh escalated batch when it doesn't — see
-           fetchEscalation and the click handler below. Disables for good
-           after the third tap, full stop, regardless of which taps needed
-           a fetch underneath. -->
-      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
-
-      <div class="debug hidden" id="debug"></div>
-
-      <!-- Sharing the AI line is the obvious next step, so this row sits
-           right under the draft, the reactions, and the reroll button — not
-           buried below the "write your own" box. The same three buttons (by
-           class, not id — see the script) appear again in .turn below for
-           whoever scrolls down to write their own line; both rows call
-           buildShareText(). -->
+      <!-- Share is the primary next step now, right under the draft. On
+           mobile this is a single full-width native-share-sheet button
+           (#share-this) — the 9:16 PNG plus the text block when
+           navigator.canShare({files}) allows it, the text block alone
+           otherwise. There's no share sheet to hand off to on desktop, so
+           the 800px breakpoint above swaps it for the existing text it /
+           email it / copy it row (#lead-actions) instead — the same three
+           buttons (by class, not id — see the script) that appear again in
+           .turn below for whoever scrolls down to write their own line;
+           every row here calls buildShareText() / buildShareImageBlob(). -->
+      <div class="row" id="share-this-row"><button type="button" id="share-this" disabled>share this</button></div>
       <div class="actions" id="lead-actions">
         <button class="ghost text-share" type="button" disabled>text it</button>
         <button class="ghost email-share" type="button" disabled>email it</button>
         <button class="ghost copy-share" type="button" disabled>copy it</button>
       </div>
       <!-- A 9:16 PNG drawn on canvas (see drawShareCanvas in the script) —
-           not a screenshot. Enabled/disabled in lockstep with the three
-           buttons above (see setShareDisabled). -->
+           not a screenshot. Secondary now, under "share this" — for mobile
+           visitors who want the file itself without going through the
+           sheet. Enabled/disabled in lockstep with the buttons above (see
+           setShareDisabled). -->
       <div class="row" id="save-image-row"><button class="ghost" type="button" id="save-image" disabled>save as image</button></div>
       <!-- In-app browsers (Instagram, TikTok, etc.) often can't hand back
            a real file — no native share sheet for files, and a silently
@@ -165,8 +158,31 @@
         <img id="save-image-fallback-img" alt="almost sent — image to save">
         <p class="hint">press and hold to save.</p>
       </div>
-      <!-- "new text" is the minor action now — a small ghost link after the
-           share row, so it no longer competes with reroll for attention. -->
+
+      <!-- Reroll is next — a full-width, primary-styled button (default
+           button styling: red, full width, same as #go — no .ghost here
+           on purpose). A three-tap progression, not a static "make it
+           worse" label — see ESCALATE_LABELS below — that implies the
+           first draft was the best one and every tap past it is a
+           deliberate dare, not "here's another." Reveals whatever's
+           already sitting in the pool when it qualifies (see
+           api/draft.js's intensity-gated position 2/3 selection), or
+           fetches a fresh escalated batch when it doesn't — see
+           fetchEscalation and the click handler below. Disables for good
+           after the third tap, full stop, regardless of which taps needed
+           a fetch underneath. -->
+      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
+
+      <div class="react" id="react">
+        <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
+        <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
+        <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
+      </div>
+
+      <div class="debug hidden" id="debug"></div>
+
+      <!-- "new text" is the minor action now — a small ghost link, so it no
+           longer competes with sharing or reroll for attention. -->
       <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
 
       <!-- "think you can do better" used to sit open on the page, competing
@@ -207,6 +223,7 @@
     var textShareBtns = Array.prototype.slice.call(document.querySelectorAll(".text-share"));
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
+    var shareThisBtn = document.getElementById("share-this");
     var saveImageBtn = document.getElementById("save-image");
     var SAVE_IMAGE_LABEL = saveImageBtn.textContent; // "save as image" — captured once, restored after every outcome
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
@@ -464,6 +481,7 @@
       emailShareBtns.forEach(function (b) { b.disabled = disabled; });
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
       saveImageBtn.disabled = disabled;
+      shareThisBtn.disabled = disabled;
     }
     // Only the "copy it" label resets here — the "copied." confirmation
     // (see copyShareBtns' click handler below) is per-button, scoped to
@@ -1021,6 +1039,49 @@
       }
     });
 
+    // The mobile primary action — one button, native share sheet, instead
+    // of picking between text/email/copy up front. Shares the 9:16 PNG
+    // (see buildShareImageBlob) alongside the text block when
+    // navigator.canShare says this browser can actually hand off a file;
+    // falls back to sharing just the text block otherwise (still via
+    // navigator.share, not the text/email/copy row — that row only exists
+    // for desktop, see the 800px breakpoint). A canvas failure here just
+    // means no file, not a dead button — the text share still goes out.
+    shareThisBtn.addEventListener("click", async function () {
+      if (shareThisBtn.disabled) return;
+      var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
+      var text = buildShareText();
+      shareThisBtn.disabled = true;
+      try {
+        var file = null;
+        try {
+          var blob = await buildShareImageBlob(current, draftText);
+          file = new File([blob], "almost-sent.png", { type: "image/png" });
+        } catch (err) {
+          file = null; // canvas failed — still share the text block below
+        }
+        if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], text: text });
+          logEvent("share", { via: "native_image" });
+        } else if (navigator.share) {
+          await navigator.share({ text: text });
+          logEvent("share", { via: "native_text" });
+        } else {
+          // No Web Share API at all — shouldn't happen on the mobile
+          // viewport this button is scoped to, but copy is the closest
+          // equivalent to "share the text block" if it ever does.
+          await navigator.clipboard.writeText(text);
+          logEvent("share", { via: "copy" });
+        }
+        whewEl.classList.remove("hidden");
+      } catch (err) {
+        // A cancelled native share sheet throws too (AbortError) — not a
+        // real failure, nothing here needs to interrupt anyone over it.
+      } finally {
+        shareThisBtn.disabled = false;
+      }
+    });
+
     // ?r=<device_id> makes this a referral link — see getDeviceId() above,
     // which logs an "arrival" event for whoever's first visit lands on it.
     // "i almost sent" only shows up when #write actually has something in
@@ -1062,7 +1123,7 @@
           await navigator.clipboard.writeText(buildShareText());
           // Only the button actually clicked relabels — the other copy
           // stays "copy it" until someone taps it too.
-          btn.textContent = "copied.";
+          btn.textContent = "copied. use irresponsibly.";
         } catch (err) { /* clipboard blocked — button just doesn't relabel */ }
       });
     });
