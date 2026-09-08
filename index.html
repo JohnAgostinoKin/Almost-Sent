@@ -128,13 +128,17 @@
       <!-- Reroll is the primary action now — a full-width, primary-styled
            button directly under the reactions (default button styling: red,
            full width, same as #go — no .ghost here on purpose), not a small
-           ghost tucked below the share row. The first two taps just reveal
-           drafts already sitting in the pool from the initial request; only
-           once those run out does a click fetch a fresh escalated batch
-           instead of just disabling — see fetchEscalation and the click
-           handler below. Capped at MAX_ESCALATE_FETCHES refetches per
-           result, then it disables for real. -->
-      <div class="row worse"><button type="button" id="another" disabled>make it worse</button></div>
+           ghost tucked below the share row. A three-tap progression, not a
+           static "make it worse" label — see ESCALATE_LABELS below — that
+           implies the first draft was the best one and every tap past it
+           is a deliberate dare, not "here's another." Reveals whatever's
+           already sitting in the pool when it qualifies (see
+           api/draft.js's intensity-gated position 2/3 selection), or
+           fetches a fresh escalated batch when it doesn't — see
+           fetchEscalation and the click handler below. Disables for good
+           after the third tap, full stop, regardless of which taps needed
+           a fetch underneath. -->
+      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
 
       <div class="debug hidden" id="debug"></div>
 
@@ -409,29 +413,38 @@
                                     // the initial request, which already returns up to three
                                     // drafts for free. Logged as meta.fetch on every "another"
                                     // event, so how often people actually escalate (vs. just
-                                    // cycling the free three) is visible later.
-    var MAX_ESCALATE_FETCHES = 3;  // "make it worse" never dead-ends into a disabled button on
-                                    // its own — it fetches a fresh escalated batch instead — until
-                                    // this many refetches have been asked for, then it disables
-                                    // for real.
+                                    // cycling the free three) is visible later. No longer what
+                                    // gates the button's disabled state — see tapCount below —
+                                    // but still worth tracking for that log field, and it can
+                                    // never exceed tapCount's own cap anyway (at most one fetch
+                                    // per tap).
     var fetchingEscalation = false; // true for the life of any escalation call — guards against a
                                      // double-click firing two overlapping fetches.
     var ownLineLogged = false;  // one own_line log per result, not one per keystroke
     var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
     var beatOpened = false;     // one beat_open log per result — see the toggle's click handler below
 
-    // Enabled whenever there's still a line to reveal (already in the pool,
-    // free) or an escalation fetch could still produce one, disabled while
-    // a fetch is in flight, and disabled for good once escalation isn't
-    // allowed at all (a refusal) or the fetch cap is spent — "reroll should
-    // never dead-end" on its own, so the only real disable is the fetch
-    // cap; see the click handler below for what happens on an
-    // exhausted-but-still-fetchable click.
+    // "make it worse" three times in a row used to imply the first draft
+    // was mediocre — a fixed label repeated at you reads as "here's
+    // another, and another." A progression instead implies the opposite:
+    // the first one was the best available, and every tap past it is a
+    // deliberate dare. tapCount is taps on THIS button for THIS result,
+    // capped at 3 regardless of how many of those taps needed a real
+    // escalation fetch underneath (see the click handler below) — the
+    // visible lifecycle is simple even when what's happening underneath
+    // (stored reveal vs. fetch, see api/draft.js's intensity-gated
+    // selection) isn't.
+    var tapCount = 0;
+    var ESCALATE_LABELS = ["take it further", "cross the line", "call a lawyer"];
+
+    // Sets the button's label to whatever tapCount's NEXT click will do,
+    // and its disabled state. A click always does SOMETHING now — reveal
+    // from the pool, or fetch (see the click handler below) — so the only
+    // real disable conditions are: mid-fetch already, a refusal (no
+    // escalation ever allowed), or the third tap already spent.
     function refreshAnotherState() {
-      if (fetchingEscalation) { anotherBtn.disabled = true; return; }
-      var hasMore = cursor + 1 < pool.length;
-      var canFetchMore = alternatesAllowed && escalateFetches < MAX_ESCALATE_FETCHES;
-      anotherBtn.disabled = !(hasMore || canFetchMore);
+      anotherBtn.textContent = ESCALATE_LABELS[Math.min(tapCount, ESCALATE_LABELS.length - 1)];
+      anotherBtn.disabled = fetchingEscalation || !alternatesAllowed || tapCount >= 3;
     }
 
     // Re-arms the 😂/😐/😬 row for a newly shown draft — one tap is allowed
@@ -499,8 +512,10 @@
       alternatesAllowed = false;
       escalateFetches = 0;
       fetchingEscalation = false;
+      tapCount = 0;
       ownLineLogged = false;
       resetReact();
+      anotherBtn.textContent = ESCALATE_LABELS[0];
       anotherBtn.disabled = true;
       sentEl.focus();
     }
@@ -538,10 +553,12 @@
       if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
     }
 
-    // One escalation refetch — always a "make it worse" click past an
-    // exhausted pool (see the click handler below, the only caller), up to
-    // MAX_ESCALATE_FETCHES. Sends escalate:true plus every line already
-    // revealed for this result (pool up through cursor, read directly off
+    // One escalation refetch — always an escalation-button click past an
+    // exhausted pool (see the click handler below, the only caller); the
+    // overall 3-tap cap (tapCount) is what actually bounds how many of
+    // these can ever happen, not a separate fetch-specific limit. Sends
+    // escalate:true plus every line already revealed for this result
+    // (pool up through cursor, read directly off
     // the closure rather than a param — see api/draft.js's handler and
     // lib/prompt.js's buildEscalateBlock for what the server does with
     // them). Increments escalateFetches itself (so the caller doesn't have
@@ -635,6 +652,7 @@
           currentLane = null;
           alternatesAllowed = false;
           escalateFetches = 0;
+          tapCount = 0;
           turnEl.classList.add("hidden");
           beatToggleEl.classList.remove("hidden");
           beatOpened = false;
@@ -668,6 +686,7 @@
         currentLane = pool[0].lane || null;
         alternatesAllowed = !data.refuse;
         escalateFetches = 0;
+        tapCount = 0;
         ownLineLogged = false;
         resetReact();
         renderDraft(sent, pool[0].text);
@@ -704,6 +723,11 @@
       // — a disabled button doesn't fire click events, so this guard is
       // just a defensive no-op, not a real fallback path.
       if (anotherBtn.disabled) return;
+      // Every real click is a tap, whether it turns out to reveal a
+      // stored line or has to fetch one — the label/disable progression
+      // (see refreshAnotherState) is driven by this count alone, not by
+      // how many of those taps needed a fetch underneath.
+      tapCount++;
 
       // A line is already sitting in the pool (positions 2 and 3 from the
       // initial request, or a previous escalation's batch) — reveal it, no
@@ -723,11 +747,11 @@
         return;
       }
 
-      // Exhausted the current batch — the third "make it worse" tap and
-      // beyond. Reroll never dead-ends on its own, so fetch a fresh
-      // escalated batch (up to MAX_ESCALATE_FETCHES total) and reveal its
-      // first line the moment it lands, rather than making this click just
-      // prime the pool for a second one.
+      // Exhausted the current batch — reroll never dead-ends on its own,
+      // so fetch a fresh escalated batch and reveal its first line the
+      // moment it lands, rather than making this click just prime the
+      // pool for a second one. Still bounded to at most 3 taps total
+      // (tapCount, above) regardless of how many of them land here.
       var sent = current;
       anotherBtn.disabled = true;
       await fetchEscalation(sent);
