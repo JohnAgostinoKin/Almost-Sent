@@ -39,7 +39,7 @@
     .share-icons .icon { font-size:20px; line-height:1; }
     /* Facebook has no free unicode glyph — a bold "f" reads clearly next
        to its own "facebook" label without needing a trademarked logo. */
-    #share-facebook .icon { font-weight:700; font-size:22px; }
+    [data-via="facebook"] .icon { font-weight:700; font-size:22px; }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
     .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
@@ -131,8 +131,6 @@
     .turn .label { margin-top:0; }
     .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
     #write { min-height:76px; margin-top:8px; }
-    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
-    .actions button { width:auto; padding:12px 14px; font-size:13px; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
     footer { margin-top:auto; padding-top:80px; color:#6e6960; font-size:13px; max-width:440px; width:100%; line-height:1.7; }
     footer a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
@@ -243,21 +241,21 @@
            for is still visible either way; the desktop path also logs
            meta.mode: "download". -->
       <div class="share-icons" id="share-icons">
-        <button class="ghost" type="button" id="share-facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
-        <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
-        <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+        <button class="ghost link-share-icon" type="button" data-via="facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
+        <button class="ghost link-share-icon" type="button" data-via="x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+        <button class="ghost link-share-icon" type="button" data-via="whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
         <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
         <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
-        <button class="ghost social-app-icon" type="button" id="share-instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
-        <button class="ghost social-app-icon" type="button" id="share-snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
-        <button class="ghost social-app-icon" type="button" id="share-tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
         <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
       </div>
       <!-- Feedback for the desktop path of the three .social-app-icon
            buttons above — "saved. post it from the instagram/snapchat/
            tiktok app or site." Empty and hidden until one of them
            actually downloads (see showSocialDownloadFeedback). -->
-      <p class="hint hidden" id="social-download-feedback"></p>
+      <p class="hint hidden download-feedback" id="social-download-feedback"></p>
       <!-- Card controls, not destinations — "save image" and "hide their
            text" both describe or produce the card, they don't send it
            anywhere, so they sit on their own line beneath the row above,
@@ -304,11 +302,26 @@
         <label class="label" for="write">think you can do better? show us.</label>
         <p class="sent-context" id="sent-context"></p>
         <textarea id="write" maxlength="180" placeholder="finish it."></textarea>
-        <div class="actions">
-          <button class="ghost text-share" type="button" disabled>text it</button>
-          <button class="ghost email-share" type="button" disabled>email it</button>
-          <button class="ghost copy-share" type="button" disabled>copy it</button>
+        <!-- Same component as #share-icons above — every button here is
+             matched by the same classes/data-via, so it's wired up by
+             the exact same click handlers (see the script's
+             shareSection() helper for how they tell the two rows
+             apart for logging). buildShareText() already folds in "i
+             almost sent: ..." whenever #write has something in it — see
+             its own comment — so that's true here for free, same as it
+             always was. -->
+        <div class="share-icons" id="share-icons-turn">
+          <button class="ghost link-share-icon" type="button" data-via="facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
+          <button class="ghost link-share-icon" type="button" data-via="x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+          <button class="ghost link-share-icon" type="button" data-via="whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+          <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
+          <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
+          <button class="ghost social-app-icon" type="button" data-via="instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
+          <button class="ghost social-app-icon" type="button" data-via="snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
+          <button class="ghost social-app-icon" type="button" data-via="tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
+          <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
         </div>
+        <p class="hint hidden download-feedback"></p>
         <p class="whew hidden" id="whew">whew.</p>
       </div>
     </section>
@@ -323,30 +336,28 @@
     var crisisMsgEl = document.getElementById("crisis-msg");
     var outEl = document.getElementById("out");
     var writeEl = document.getElementById("write");
-    // Two copies of each share button on the page now (see the #out
-    // section — one under the draft, one under the "write your own" box),
-    // matched by class rather than id since ids have to be unique. Every
-    // place that used to touch the single textShareBtn/etc. element now
-    // loops over the pair.
+    // Every share control appears twice now — once under the draft
+    // (#share-icons), once under "write your own" (#share-icons-turn) —
+    // one and the same component (identical markup), matched by class
+    // (text-share/email-share/copy-share) or by class+data-via
+    // (link-share-icon: facebook/x/whatsapp; social-app-icon: instagram/
+    // snapchat/tiktok) rather than id, since ids have to be unique.
+    // shareSection() below is how a click handler tells the two rows
+    // apart for logging (meta.section: "beat" for the .turn copy, no
+    // section field for the top one).
     var textShareBtns = Array.prototype.slice.call(document.querySelectorAll(".text-share"));
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
-    var shareWhatsappBtn = document.getElementById("share-whatsapp");
-    var shareFacebookBtn = document.getElementById("share-facebook");
-    var shareXBtn = document.getElementById("share-x");
-    // instagram/snapchat/tiktok — matched by class since setShareDisabled
-    // just needs to flip all three together, same as every other share
-    // control; their own click handlers still address them individually
-    // by id (see below).
+    var linkShareIconBtns = Array.prototype.slice.call(document.querySelectorAll(".link-share-icon"));
     var socialAppIconBtns = Array.prototype.slice.call(document.querySelectorAll(".social-app-icon"));
     var saveImageBtn = document.getElementById("save-image");
     var hideOriginalEl = document.getElementById("hide-original");
     // save-image and copy-share both relabel on the fly (see below and
-    // their click handlers). The icon row's copy-share button carries its
-    // changeable text in a .label span so relabeling never clobbers the
-    // icon span next to it; save-image (a plain card-control now, not an
-    // icon — see #card-controls) and .turn's own copy-share button have
-    // no icon at all, so this just falls back to the button itself.
+    // their click handlers). copy-share carries its changeable text in a
+    // .label span (both rows now — see #share-icons/#share-icons-turn's
+    // markup) so relabeling never clobbers the icon span next to it;
+    // save-image (a plain card-control, not an icon — see #card-controls)
+    // has no icon at all, so this just falls back to the button itself.
     function labelTarget(el) {
       return el.querySelector(".label") || el;
     }
@@ -359,8 +370,13 @@
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
     var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
     var saveImageFeedbackTimer = null;
+    // Fallback only — the real lookup (showSocialDownloadFeedback below)
+    // finds whichever row's own .download-feedback actually sits next to
+    // the button that got clicked, since #share-icons-turn has its own
+    // copy of this paragraph now too. Each one tracks its own timer as
+    // an expando property (el._feedbackTimer), not a single shared var —
+    // a click in one row can't cut short the other row's message.
     var socialDownloadFeedbackEl = document.getElementById("social-download-feedback");
-    var socialDownloadFeedbackTimer = null;
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
@@ -672,9 +688,7 @@
       emailShareBtns.forEach(function (b) { b.disabled = disabled; });
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
       saveImageBtn.disabled = disabled;
-      shareWhatsappBtn.disabled = disabled;
-      shareFacebookBtn.disabled = disabled;
-      shareXBtn.disabled = disabled;
+      linkShareIconBtns.forEach(function (b) { b.disabled = disabled; });
       socialAppIconBtns.forEach(function (b) { b.disabled = disabled; });
       hideOriginalEl.disabled = disabled;
     }
@@ -702,9 +716,11 @@
     // Undoes showSocialDownloadFeedback's temporary message — same
     // "clear the timer, hide it" shape as resetSaveImage above.
     function resetSocialDownloadFeedback() {
-      if (socialDownloadFeedbackTimer) { clearTimeout(socialDownloadFeedbackTimer); socialDownloadFeedbackTimer = null; }
-      socialDownloadFeedbackEl.classList.add("hidden");
-      socialDownloadFeedbackEl.textContent = "";
+      Array.prototype.slice.call(document.querySelectorAll(".download-feedback")).forEach(function (el) {
+        if (el._feedbackTimer) { clearTimeout(el._feedbackTimer); el._feedbackTimer = null; }
+        el.classList.add("hidden");
+        el.textContent = "";
+      });
     }
 
     function reset() {
@@ -1363,15 +1379,28 @@
     // under the icon row for 4 seconds, then clears — one tick longer
     // than showSavedFeedback's 3s since this one's a full sentence, not
     // a short label.
-    function showSocialDownloadFeedback(appLabel) {
-      if (socialDownloadFeedbackTimer) clearTimeout(socialDownloadFeedbackTimer);
-      socialDownloadFeedbackEl.textContent = "saved. post it from the " + appLabel + " app or site.";
-      socialDownloadFeedbackEl.classList.remove("hidden");
-      socialDownloadFeedbackTimer = setTimeout(function () {
-        socialDownloadFeedbackEl.classList.add("hidden");
-        socialDownloadFeedbackEl.textContent = "";
-        socialDownloadFeedbackTimer = null;
+    function showSocialDownloadFeedback(appLabel, btn) {
+      var row = btn && btn.closest(".share-icons");
+      var el = (row && row.nextElementSibling && row.nextElementSibling.classList.contains("download-feedback"))
+        ? row.nextElementSibling
+        : socialDownloadFeedbackEl;
+      if (el._feedbackTimer) clearTimeout(el._feedbackTimer);
+      el.textContent = "saved. post it from the " + appLabel + " app or site.";
+      el.classList.remove("hidden");
+      el._feedbackTimer = setTimeout(function () {
+        el.classList.add("hidden");
+        el.textContent = "";
+        el._feedbackTimer = null;
       }, 4000);
+    }
+
+    // Every duplicated share control (text/email/copy always were; now
+    // link-share-icon and social-app-icon too — see the var declarations
+    // above) lives in both #share-icons and #share-icons-turn.
+    // meta.section: "beat" tags an event as coming from .turn's copy;
+    // the top row logs no section field at all.
+    function shareSection(btn) {
+      return btn.closest("#turn") ? "beat" : undefined;
     }
 
     // instagram/snapchat/tiktok: none of the three have a real web share
@@ -1381,32 +1410,32 @@
     // branch only. On desktop, where there's no sheet to hand off to at
     // all, each downloads the PNG instead (downloadBlobAsPng, same
     // helper saveImageBtn's own desktop fallback uses) and shows
-    // showSocialDownloadFeedback under the row — meta.via plus
-    // meta.mode: "download", since there's no files/text/copy branch to
-    // report there.
-    [
-      { id: "share-instagram", via: "instagram" },
-      { id: "share-snapchat", via: "snapchat" },
-      { id: "share-tiktok", via: "tiktok" }
-    ].forEach(function (spec) {
-      var btn = document.getElementById(spec.id);
+    // showSocialDownloadFeedback under whichever row it was tapped from
+    // — meta.via plus meta.mode: "download", since there's no
+    // files/text/copy branch to report there.
+    socialAppIconBtns.forEach(function (btn) {
       btn.addEventListener("click", async function () {
         if (btn.disabled) return;
         btn.disabled = true;
+        var via = btn.dataset.via;
+        var section = shareSection(btn);
         try {
           var hidden = hideOriginalEl.checked;
           if (isDesktopLayout()) {
             var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
             var blob = await buildShareImageBlob(current, draftText, hidden);
             downloadBlobAsPng(blob);
-            showSocialDownloadFeedback(spec.via);
-            logEvent("share", { via: spec.via, mode: "download" });
+            showSocialDownloadFeedback(via, btn);
+            var downloadMeta = { via: via, mode: "download" };
+            if (section) downloadMeta.section = section;
+            logEvent("share", downloadMeta);
           } else {
             var result = await attemptNativeImageShare(hidden);
             // Same "hidden only means anything for the files branch" rule
             // as saveImageBtn's own log.
-            var meta = { via: spec.via };
+            var meta = { via: via };
             if (result === "files") meta.hidden = hidden;
+            if (section) meta.section = section;
             logEvent("share", meta);
             whewEl.classList.remove("hidden");
           }
@@ -1423,7 +1452,10 @@
     // does the exact same share.
     textShareBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
-        logEvent("share", { via: "sms" });
+        var meta = { via: "sms" };
+        var section = shareSection(btn);
+        if (section) meta.section = section;
+        logEvent("share", meta);
         whewEl.classList.remove("hidden");
         location.href = "sms:?&body=" + encodeURIComponent(buildShareText());
       });
@@ -1431,7 +1463,10 @@
 
     emailShareBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
-        logEvent("share", { via: "email" });
+        var meta = { via: "email" };
+        var section = shareSection(btn);
+        if (section) meta.section = section;
+        logEvent("share", meta);
         whewEl.classList.remove("hidden");
         location.href = "mailto:?subject=" + encodeURIComponent("almost sent") + "&body=" + encodeURIComponent(buildShareText());
       });
@@ -1439,7 +1474,10 @@
 
     copyShareBtns.forEach(function (btn) {
       btn.addEventListener("click", async function () {
-        logEvent("share", { via: "copy" });
+        var meta = { via: "copy" };
+        var section = shareSection(btn);
+        if (section) meta.section = section;
+        logEvent("share", meta);
         whewEl.classList.remove("hidden");
         try {
           await navigator.clipboard.writeText(buildShareText());
@@ -1450,34 +1488,32 @@
       });
     });
 
-    // WhatsApp and X only ever exist in the icon row (no .turn copy of
-    // either) — real http(s) URLs, not a sms:/mailto: scheme the OS
-    // intercepts, so these open in a new tab (window.open, not
+    // facebook/x/whatsapp — real http(s) URLs, not a sms:/mailto: scheme
+    // the OS intercepts, so these open in a new tab (window.open, not
     // location.href) rather than navigating this tab away from a live
-    // result.
-    shareWhatsappBtn.addEventListener("click", function () {
-      if (shareWhatsappBtn.disabled) return;
-      logEvent("share", { via: "whatsapp" });
-      whewEl.classList.remove("hidden");
-      window.open("https://wa.me/?text=" + encodeURIComponent(buildShareText()), "_blank", "noopener");
-    });
+    // result. Facebook's sharer only ever takes a URL (its own "u"
+    // param) — no text/quote field worth relying on (Facebook has long
+    // since stopped reliably prefilling one) — so it's the one that
+    // carries buildReferralUrl() alone, not buildShareText()'s whole
+    // block; whatsapp and x get the full block same as text/email/copy.
+    function linkShareUrl(via, text) {
+      if (via === "facebook") return "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(buildReferralUrl());
+      if (via === "whatsapp") return "https://wa.me/?text=" + encodeURIComponent(text);
+      if (via === "x") return "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
+      return null;
+    }
 
-    shareXBtn.addEventListener("click", function () {
-      if (shareXBtn.disabled) return;
-      logEvent("share", { via: "x" });
-      whewEl.classList.remove("hidden");
-      window.open("https://twitter.com/intent/tweet?text=" + encodeURIComponent(buildShareText()), "_blank", "noopener");
-    });
-
-    // Facebook's sharer only ever takes a URL (its own "u" param) — no
-    // text/quote field worth relying on (Facebook has long since stopped
-    // reliably prefilling one) — so this is the one icon that carries
-    // buildReferralUrl() alone, not buildShareText()'s whole block.
-    shareFacebookBtn.addEventListener("click", function () {
-      if (shareFacebookBtn.disabled) return;
-      logEvent("share", { via: "facebook" });
-      whewEl.classList.remove("hidden");
-      window.open("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(buildReferralUrl()), "_blank", "noopener");
+    linkShareIconBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        var via = btn.dataset.via;
+        var meta = { via: via };
+        var section = shareSection(btn);
+        if (section) meta.section = section;
+        logEvent("share", meta);
+        whewEl.classList.remove("hidden");
+        window.open(linkShareUrl(via, buildShareText()), "_blank", "noopener");
+      });
     });
 
     // Two "new text" buttons now (top, next to escalation; bottom, after
