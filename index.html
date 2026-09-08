@@ -46,6 +46,16 @@
     .ghost { background:transparent; color:var(--mute); border:1px solid #2a2a2a; }
     .ghost:hover { color:var(--fg); border-color:#3d3d3d; }
     .hint { margin-top:12px; font-size:10px; color:#6e6960; }
+    /* One finished example under the primary button — proof before anyone
+       types anything. Restrained: same muted/bright two-tone convention as
+       a real result (reuses .draft/.sent-part), but sized well under
+       .draft's own 30/38px so it illustrates rather than competes with an
+       actual result once there is one (toggled alongside #out — see the
+       submit handler and reset()). The ".example .draft" override beats
+       plain ".draft" on specificity alone, no !important needed. */
+    .example { margin-top:22px; }
+    .example .draft { font-size:17px; }
+    .example .beat-toggle { margin-top:8px; }
     /* Shown instead of a download/share when neither can actually hand the
        visitor a file — see saveImageBtn's click handler. The image is the
        whole point (there's no button left to tap), so "press and hold to
@@ -120,6 +130,17 @@
       <div class="row"><button id="go" type="submit">here's what they almost sent</button></div>
       <p class="hint">made up. nothing gets sent.</p>
     </form>
+
+    <!-- Proof-first: one finished example, unconditional for every visitor
+         (no A/B — everyone sees this). Same two-tone convention as a real
+         result (muted sent text, bright continuation, one line), just
+         smaller — see .example above. Hidden the moment a real result is
+         up (see the submit handler and reset()), so it never sits next to
+         one. -->
+    <div class="example" id="example">
+      <p class="draft"><span class="sent-part">they sent: we should hang out sometime</span>. i'll pencil you in behind everyone i like</p>
+      <button class="beat-toggle" type="button" id="do-one-now">do one now</button>
+    </div>
 
     <section id="out" class="result hidden">
       <p class="draft" id="out-draft"></p>
@@ -238,6 +259,7 @@
     var reactEl = document.getElementById("react");
     var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
     var chipsEl = document.getElementById("chips");
+    var exampleEl = document.getElementById("example");
 
     // Tap a chip to fill #sent with that example — doesn't submit, just
     // saves typing (or gives someone with a blank mind somewhere to start).
@@ -507,6 +529,7 @@
     function reset() {
       outEl.classList.add("hidden");
       outEl.classList.remove("crisis-mode");
+      exampleEl.classList.remove("hidden");
       crisisMsgEl.classList.add("hidden");
       crisisMsgEl.textContent = "";
       sentEl.value = "";
@@ -685,6 +708,7 @@
           writeEl.value = "";
           setShareDisabled(true);
           whewEl.classList.add("hidden");
+          exampleEl.classList.add("hidden");
           outEl.classList.remove("hidden");
           return;
         }
@@ -723,6 +747,7 @@
         setShareDisabled(false);
         resetCopyLabel();
         whewEl.classList.add("hidden");
+        exampleEl.classList.add("hidden");
         outEl.classList.remove("hidden");
         writeEl.focus({ preventScroll: true });
       } catch (err) {
@@ -838,7 +863,10 @@
     var SHARE_IMG_MARGIN = 90;
     var SHARE_IMG_BG = "#070707";
     var SHARE_IMG_FG = "#f4f1ea";
-    var SHARE_IMG_MUTE = "#8a857c";
+    // Raised from #8a857c — too low-contrast to read on a phone held at
+    // arm's length. Matches the page's own --mute now (card only; the
+    // live page keeps its existing styling, it already used this value).
+    var SHARE_IMG_MUTE = "#b3ada2";
     var SHARE_IMG_RED = "#e23b2f";
     var SHARE_IMG_SERIF = "Georgia, 'Times New Roman', serif";
     var SHARE_IMG_SANS = "ui-sans-serif, system-ui, sans-serif";
@@ -915,6 +943,15 @@
       var wordmarkWidth = ctx.measureText("almost sent").width;
       ctx.fillStyle = SHARE_IMG_RED;
       ctx.fillText(".", SHARE_IMG_MARGIN + wordmarkWidth, wordmarkY);
+
+      // "they sent" — a small caption above the quote so the muted color
+      // reads as "this part is theirs", not just a style choice, at a
+      // glance. One size up from the footer's own caption size (32px)
+      // for the same arm's-length-legibility reason the contrast above
+      // just got raised.
+      ctx.font = "40px " + SHARE_IMG_SANS;
+      ctx.fillStyle = SHARE_IMG_MUTE;
+      ctx.fillText("they sent", SHARE_IMG_MARGIN, 300);
 
       // Middle: the composed exchange, wrapped, left-aligned, vertically
       // centered in the band between the wordmark and the footer. Starts
@@ -1129,6 +1166,13 @@
     });
 
     document.getElementById("again").addEventListener("click", reset);
+
+    // The example's own ghost link — just focuses the textarea, no value
+    // fill (unlike a chip tap). The example itself stays put until an
+    // actual result replaces it (see the submit handler and reset()).
+    document.getElementById("do-one-now").addEventListener("click", function () {
+      sentEl.focus();
+    });
   </script>
 </body>
 </html>
