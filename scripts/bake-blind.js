@@ -20,12 +20,12 @@
 //   LLM_API_KEY=...  node scripts/bake-blind.js
 //   BAKE_BLIND_SYSTEMS=B,C  node scripts/bake-blind.js   # subset, for a cheaper test run
 //   BAKE_BLIND_LIMIT=20     node scripts/bake-blind.js   # first N inputs only
-//   BAKE_ASTRA=1            node scripts/bake-blind.js   # adds system E if gpt-6-astra is on OpenRouter
+//   BAKE_ASTRA=1            node scripts/bake-blind.js   # adds systems E and F if gpt-6-astra is on OpenRouter
 //
-// Cost/time note: this is not cheap. Four systems × 200 inputs, each
-// input costing a generation call plus (for B/C/D) an expensive taste-
-// judge call, is a real bill and a real wait — use BAKE_BLIND_SYSTEMS/
-// BAKE_BLIND_LIMIT for a smaller pass first. Results are written
+// Cost/time note: this is not cheap. Four systems × 200 inputs (six with
+// BAKE_ASTRA=1), each input costing a generation call plus (every v3
+// system) an expensive taste-judge call, is a real bill and a real wait —
+// use BAKE_BLIND_SYSTEMS/BAKE_BLIND_LIMIT for a smaller pass first. Results are written
 // incrementally to bake/results/<system>.json (flushed after every
 // input), so an interrupted run doesn't lose what it already paid for —
 // re-running overwrites that file from scratch, it doesn't resume.
@@ -35,7 +35,7 @@ const path = require("path");
 const { fetch, Agent } = require("undici");
 
 const { callLLM, BASE_URL, CHAT_URL } = require("../lib/llm");
-const { extractArray, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
+const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 
@@ -77,14 +77,27 @@ const ALL_INPUTS = fs.readFileSync(INPUTS_PATH, "utf8").split("\n").map((s) => s
 const LIMIT = process.env.BAKE_BLIND_LIMIT ? parseInt(process.env.BAKE_BLIND_LIMIT, 10) : ALL_INPUTS.length;
 const INPUTS = ALL_INPUTS.slice(0, LIMIT);
 
-// The four systems from the brief. `kind` picks which pipeline below
-// (runLegacyInput vs runV3Input) actually handles it; `model` is the one
-// thing that varies between B/C/D — same v3 lanes prompt, same taste
-// judge, different generator.
+// The four systems from the brief, plus C's own judgeModel (see below).
+// `kind` picks which pipeline below (runLegacyInput vs runV3Input)
+// actually handles it; `model` is the generator, `judgeModel` is who
+// taste-judges its output — omitted (undefined) means judgeCandidates'
+// own default, TASTE_MODEL (see lib/judge.js), same as api/draft.js
+// always gets.
+//
+// B and D's own labels still say "sol taste judge" from before
+// judgeCandidates could take a model override at all — at the time that
+// meant "gpt-5.4, TASTE_MODEL's own default," not literally sol. Left
+// alone here rather than silently changed: neither was part of what this
+// commit was asked to fix, and re-pointing an existing system's judge
+// model changes what its own accumulated bake/results/*.json history
+// means.
 const SYSTEMS = [
   { key: "A", label: "legacy hermes (v2 four-shape) + mistral-small safety judge", kind: "legacy", model: "nousresearch/hermes-4-405b" },
   { key: "B", label: "hermes (v3 lanes) + sol taste judge", kind: "v3", model: "nousresearch/hermes-4-405b" },
-  { key: "C", label: "gpt-5.4 (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-5.4" },
+  // Now actually judged by sol, not just labeled that way — judgeCandidates
+  // couldn't take a per-call model override before this file's own
+  // lib/judge.js changed to support one.
+  { key: "C", label: "gpt-5.4 (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-5.4", judgeModel: "openai/gpt-5.6-sol" },
   { key: "D", label: "sol (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-5.6-sol" }
 ];
 
@@ -160,19 +173,28 @@ async function runLegacyInput(model, input) {
   }
 }
 
-// Systems B/C/D: v3's real pipeline — the primary (eight-lane) generator
+// Systems B/C/D/F: v3's real pipeline — the primary (eight-lane) generator
 // call only, no wildcard (raunchy/gross is always hermes in production
 // regardless of which primary model is under test here, so it isn't part
 // of what these three systems are actually comparing). Safety-judges
 // every survivor exactly like api/draft.js does, then the real taste
-// judge (judgeCandidates, JUDGE_MODEL — gpt-5.4 by default) gates and ranks
-// what's left. A failed taste call falls back to input order, same
-// graceful-degradation api/draft.js has, rather than failing this input
-// out of the run entirely.
-async function runV3Input(model, input) {
+// judge (judgeCandidates) gates and ranks what's left — `judgeModel`
+// (optional, from the system's own config) picks who does that judging;
+// omitted means judgeCandidates' own default, JUDGE_MODEL/gpt-5.4, same
+// as every system before this parameter existed. A failed taste call
+// falls back to input order, same graceful-degradation api/draft.js has,
+// rather than failing this input out of the run entirely.
+//
+// Parses the primary call's own premise-first {premises, candidates}
+// output (see lib/prompt.js's buildPrimaryPrompt) via
+// extractPremiseCandidates — same extractor api/draft.js uses; premises
+// themselves aren't recorded here, this harness only cares about what a
+// visitor would actually see.
+async function runV3Input(model, input, judgeModel) {
   try {
     const { text, finishReason } = await callLLM(apiKey, model, input);
-    const parsed = extractArray(text);
+    const parsedObj = extractPremiseCandidates(text);
+    const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) return { input: input, top3: [], note: finishReason === "length" ? "hit token limit" : "unparsable response" };
     const items = parsed.map(normalizeItem);
     if (isRefusal(items)) return { input: input, top3: [], note: "refused" };
@@ -183,9 +205,19 @@ async function runV3Input(model, input) {
     }));
     const safe = filtered.kept.filter(function (item, i) { return safetyVerdicts[i].verdict !== true; });
     if (!safe.length) return { input: input, top3: [], note: "all lines flagged" };
-    const taste = await judgeCandidates(apiKey, input, safe);
-    const ranked = taste.ok ? taste.ranked : safe;
-    return { input: input, top3: ranked.slice(0, 3).map(function (item) { return { tag: item.lane, text: composeDraft(input, item.text) }; }), note: taste.ok ? "" : "taste judge failed (" + taste.reason + "), input order used" };
+    const taste = await judgeCandidates(apiKey, input, safe, judgeModel);
+    // taste.ranked (on success) is [{candidate, q, shock}, ...] — a
+    // wrapper, not the bare {lane, text} candidate itself (see
+    // lib/judge.js's judgeCandidates) — has to be unwrapped before
+    // mapping below the same way `safe` (the fallback, already bare
+    // candidates) doesn't need to be. This was silently producing empty
+    // {text: ""} rows for every successful (non-timeout) taste judge call
+    // in this harness before this fix — nothing about item 4's changes
+    // caused it, ranked has looked like this since api/draft.js's own
+    // position-selection algorithm needed q/shock alongside the
+    // candidate, it just went unnoticed here until now.
+    const rankedCandidates = taste.ok ? taste.ranked.map(function (r) { return r.candidate; }) : safe;
+    return { input: input, top3: rankedCandidates.slice(0, 3).map(function (item) { return { tag: item.lane, text: composeDraft(input, item.text) }; }), note: taste.ok ? "" : "taste judge failed (" + taste.reason + "), input order used" };
   } catch (err) {
     return { input: input, top3: [], note: "error: " + (err && err.message) };
   }
@@ -206,7 +238,7 @@ async function runSystem(system) {
   for (let i = 0; i < INPUTS.length; i++) {
     const input = INPUTS[i];
     process.stdout.write("  [" + system.key + "] [" + (i + 1) + "/" + INPUTS.length + "] " + input + "\n");
-    const row = system.kind === "legacy" ? await runLegacyInput(system.model, input) : await runV3Input(system.model, input);
+    const row = system.kind === "legacy" ? await runLegacyInput(system.model, input) : await runV3Input(system.model, input, system.judgeModel);
     results.push(row);
     // Flushed after every input, not just at the end — a run that gets
     // interrupted partway (Ctrl-C, a rate limit, a laptop going to sleep)
@@ -215,6 +247,7 @@ async function runSystem(system) {
       system: system.key,
       label: system.label,
       model: system.model,
+      judgeModel: system.judgeModel || null,
       generatedAt: new Date().toISOString(),
       results: results
     }, null, 2));
@@ -231,13 +264,20 @@ async function main() {
       const data = res.ok ? await res.json() : null;
       const available = data ? (data.data || []).map(function (m) { return m.id; }) : [];
       if (available.indexOf("openai/gpt-6-astra") !== -1) {
-        systems = systems.concat([{ key: "E", label: "gpt-6-astra (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-6-astra" }]);
-        console.log("BAKE_ASTRA=1 and openai/gpt-6-astra is available — adding system E.");
+        systems = systems.concat([
+          { key: "E", label: "gpt-6-astra (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-6-astra" },
+          // The inverse of E: astra JUDGING rather than generating, sol
+          // generating rather than judging. Same BAKE_ASTRA=1 gate and
+          // same availability check as E — no point adding a config whose
+          // judge model isn't actually reachable either.
+          { key: "F", label: "sol (v3 lanes) + gpt-6-astra taste judge", kind: "v3", model: "openai/gpt-5.6-sol", judgeModel: "openai/gpt-6-astra" }
+        ]);
+        console.log("BAKE_ASTRA=1 and openai/gpt-6-astra is available — adding systems E and F.");
       } else {
-        console.log("BAKE_ASTRA=1 but openai/gpt-6-astra isn't in OpenRouter's current model list — skipping system E.");
+        console.log("BAKE_ASTRA=1 but openai/gpt-6-astra isn't in OpenRouter's current model list — skipping systems E and F.");
       }
     } catch (err) {
-      console.log("BAKE_ASTRA=1 but couldn't check model availability (" + (err && err.message) + ") — skipping system E.");
+      console.log("BAKE_ASTRA=1 but couldn't check model availability (" + (err && err.message) + ") — skipping systems E and F.");
     }
   }
   if (process.env.BAKE_BLIND_SYSTEMS) {

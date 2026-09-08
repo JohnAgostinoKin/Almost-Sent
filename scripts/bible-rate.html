@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>bible-rate</title>
+<style>
+  /* Internal tool, not part of the deployed app — this file lives in
+     scripts/, alongside bake-rate.html, never linked from index.html.
+     Loose dark-theme match with the main app for eyestrain reasons only,
+     not a design requirement. */
+  * { box-sizing: border-box; }
+  body { background: #070707; color: #f4f1ea; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 22px; font-weight: 600; }
+  p.sub { color: #b3ada2; font-size: 13px; margin-top: 4px; line-height: 1.5; }
+  section { margin-top: 28px; padding-top: 24px; border-top: 1px solid #242424; }
+  label { display: block; font-size: 12px; letter-spacing: 0.06em; color: #b3ada2; margin-bottom: 6px; text-transform: uppercase; }
+  textarea, input[type=text], input[type=file] { width: 100%; background: #101010; color: #f4f1ea; border: 1px solid #2a2a2a; padding: 10px; font: inherit; font-size: 14px; }
+  textarea { min-height: 140px; resize: vertical; }
+  button { font: inherit; border: 0; background: #e23b2f; color: #fff; padding: 10px 16px; cursor: pointer; font-size: 14px; }
+  button.ghost { background: transparent; color: #b3ada2; border: 1px solid #4a4742; }
+  button.ghost:hover { color: #f4f1ea; border-color: #6e6960; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .hidden { display: none !important; }
+  #progress { font-size: 12px; color: #6e6960; margin-bottom: 10px; }
+  #current-line { font-size: 22px; line-height: 1.4; margin: 18px 0; padding: 20px; background: #101010; border: 1px solid #2a2a2a; min-height: 60px; }
+  .rate-row button { flex: 1; padding: 16px 10px; font-size: 15px; }
+  #btn-love { background: #2f7a3d; }
+  #btn-forgettable { background: #4a4742; }
+  #btn-hate { background: #e23b2f; }
+  #reason { margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1c1c1c; vertical-align: top; }
+  th { color: #b3ada2; font-weight: 600; }
+  td.rating-love { color: #6fbf7a; }
+  td.rating-hate { color: #e88b83; }
+  td.rating-forgettable { color: #6e6960; }
+</style>
+</head>
+<body>
+  <h1>bible-rate</h1>
+  <p class="sub">
+    Rate real lines love / forgettable / hate, with a short reason each.
+    Downloads <code>bible.csv</code> — drop it at the repo root; lib/judge.js
+    reads it automatically as taste-judge calibration examples (five loved,
+    five hated, rotated per call — see lib/judge.js's own comment).
+  </p>
+
+  <section id="setup">
+    <label for="paste-box">paste lines (one per line)</label>
+    <textarea id="paste-box" placeholder="one line per row — e.g. exported drafts, inbox text, anything you want to rate"></textarea>
+
+    <div class="row">
+      <div style="flex:1">
+        <label for="file-input">or load a history export (.json array of {text} / {sent}, or .csv with a text column)</label>
+        <input type="file" id="file-input" accept=".json,.csv,.txt" />
+      </div>
+      <div style="flex:1">
+        <label for="resume-input">or resume an existing bible.csv (adds to it instead of starting over)</label>
+        <input type="file" id="resume-input" accept=".csv" />
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="start-btn">start rating</button>
+    </div>
+    <p class="sub" id="setup-status"></p>
+  </section>
+
+  <section id="review" class="hidden">
+    <div id="progress"></div>
+    <div id="current-line"></div>
+    <div class="row rate-row">
+      <button id="btn-love">😍 love</button>
+      <button id="btn-forgettable">😐 forgettable</button>
+      <button id="btn-hate">😡 hate</button>
+    </div>
+    <div id="reason">
+      <label for="reason-input">why (optional, short)</label>
+      <input type="text" id="reason-input" maxlength="140" placeholder="one sentence — what made it land or not" />
+    </div>
+    <div class="row">
+      <button class="ghost" id="skip-btn">skip (don't rate this one)</button>
+      <button class="ghost" id="finish-btn">finish now &amp; download</button>
+    </div>
+  </section>
+
+  <section id="done" class="hidden">
+    <p><strong id="done-summary"></strong></p>
+    <div class="row">
+      <button id="download-btn">download bible.csv</button>
+      <button class="ghost" id="restart-btn">rate more</button>
+    </div>
+    <table id="results-table">
+      <thead><tr><th>rating</th><th>text</th><th>reason</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+<script>
+  var pasteBox = document.getElementById("paste-box");
+  var fileInput = document.getElementById("file-input");
+  var resumeInput = document.getElementById("resume-input");
+  var startBtn = document.getElementById("start-btn");
+  var setupStatus = document.getElementById("setup-status");
+
+  var setupSection = document.getElementById("setup");
+  var reviewSection = document.getElementById("review");
+  var doneSection = document.getElementById("done");
+
+  var progressEl = document.getElementById("progress");
+  var currentLineEl = document.getElementById("current-line");
+  var reasonInput = document.getElementById("reason-input");
+
+  var doneSummaryEl = document.getElementById("done-summary");
+  var resultsTableBody = document.querySelector("#results-table tbody");
+
+  var queue = [];        // lines still to rate, in order
+  var cursor = 0;        // index into queue
+  var rated = [];         // {text, rating, reason} — new ratings from THIS session
+  var resumed = [];       // {text, rating, reason} — loaded from an existing bible.csv, carried through unchanged
+
+  // Minimal RFC4180-ish CSV: handles quoted fields, escaped "" quotes,
+  // commas inside quotes. Good enough for a file this tool itself writes
+  // the format of — not a general-purpose CSV library.
+  function parseCsvLine(line) {
+    var fields = [];
+    var cur = "";
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { fields.push(cur); cur = ""; }
+        else cur += c;
+      }
+    }
+    fields.push(cur);
+    return fields;
+  }
+
+  function csvField(value) {
+    var s = String(value == null ? "" : value);
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function buildCsv(rows) {
+    var lines = ["text,rating,reason"];
+    rows.forEach(function (r) {
+      lines.push([csvField(r.text), csvField(r.rating), csvField(r.reason || "")].join(","));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  function parseBibleCsv(raw) {
+    var lines = String(raw || "").split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (!lines.length) return [];
+    var start = /^text,rating,reason/i.test(lines[0]) ? 1 : 0;
+    var out = [];
+    for (var i = start; i < lines.length; i++) {
+      var fields = parseCsvLine(lines[i]);
+      if (fields[0]) out.push({ text: fields[0], rating: (fields[1] || "").trim().toLowerCase(), reason: fields[2] || "" });
+    }
+    return out;
+  }
+
+  function readFileAsText(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result || "")); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsText(file);
+    });
+  }
+
+  // Pulls a flat list of line strings out of whatever the loaded file
+  // turns out to be: a JSON array of strings, a JSON array of objects
+  // with a text/sent field (an events/inbox export shaped either way), or
+  // a plain-text/CSV file treated as one line per row (first cell if it
+  // looks like CSV).
+  function extractLinesFromFile(text, filename) {
+    var lower = (filename || "").toLowerCase();
+    if (lower.endsWith(".json")) {
+      try {
+        var data = JSON.parse(text);
+        var arr = Array.isArray(data) ? data : (Array.isArray(data.rows) ? data.rows : []);
+        return arr.map(function (item) {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object") return item.text || item.sent || item.line || "";
+          return "";
+        }).filter(Boolean);
+      } catch (err) {
+        setupStatus.textContent = "couldn't parse that as JSON — treating it as plain text instead.";
+      }
+    }
+    // .csv or fallback: one line per row, first comma-separated field if present.
+    return text.split(/\r?\n/).map(function (line) {
+      if (!line.trim()) return "";
+      var fields = parseCsvLine(line);
+      return fields[0] || "";
+    }).filter(Boolean);
+  }
+
+  fileInput.addEventListener("change", async function () {
+    var file = fileInput.files[0];
+    if (!file) return;
+    var text = await readFileAsText(file);
+    var lines = extractLinesFromFile(text, file.name);
+    setupStatus.textContent = "loaded " + lines.length + " line(s) from " + file.name + " — appended to the paste box below.";
+    var existing = pasteBox.value.trim();
+    pasteBox.value = (existing ? existing + "\n" : "") + lines.join("\n");
+  });
+
+  resumeInput.addEventListener("change", async function () {
+    var file = resumeInput.files[0];
+    if (!file) return;
+    var text = await readFileAsText(file);
+    resumed = parseBibleCsv(text);
+    setupStatus.textContent = "resuming from " + file.name + " — " + resumed.length + " existing rating(s) will be kept and re-downloaded alongside anything new.";
+  });
+
+  function showReviewLine() {
+    if (cursor >= queue.length) { finishRating(); return; }
+    progressEl.textContent = (cursor + 1) + " / " + queue.length;
+    currentLineEl.textContent = queue[cursor];
+    reasonInput.value = "";
+    reasonInput.focus();
+  }
+
+  function rateCurrentAndAdvance(rating) {
+    if (cursor >= queue.length) return;
+    rated.push({ text: queue[cursor], rating: rating, reason: reasonInput.value.trim() });
+    cursor++;
+    showReviewLine();
+  }
+
+  document.getElementById("btn-love").addEventListener("click", function () { rateCurrentAndAdvance("love"); });
+  document.getElementById("btn-forgettable").addEventListener("click", function () { rateCurrentAndAdvance("forgettable"); });
+  document.getElementById("btn-hate").addEventListener("click", function () { rateCurrentAndAdvance("hate"); });
+  document.getElementById("skip-btn").addEventListener("click", function () { cursor++; showReviewLine(); });
+  // Enter in the reason field is the common case (typed a reason, wants to
+  // move on) — defaults to "forgettable" only as a safe no-op; love/hate
+  // are deliberate button taps, never implied by pressing Enter.
+  reasonInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); }
+  });
+
+  document.getElementById("finish-btn").addEventListener("click", finishRating);
+
+  startBtn.addEventListener("click", function () {
+    var lines = pasteBox.value.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!lines.length) { setupStatus.textContent = "paste or load at least one line first."; return; }
+    queue = lines;
+    cursor = 0;
+    rated = [];
+    setupSection.classList.add("hidden");
+    reviewSection.classList.remove("hidden");
+    doneSection.classList.add("hidden");
+    showReviewLine();
+  });
+
+  function renderResultsTable(rows) {
+    resultsTableBody.innerHTML = "";
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      var ratingTd = document.createElement("td");
+      ratingTd.textContent = r.rating;
+      ratingTd.className = "rating-" + r.rating;
+      var textTd = document.createElement("td");
+      textTd.textContent = r.text;
+      var reasonTd = document.createElement("td");
+      reasonTd.textContent = r.reason || "";
+      tr.appendChild(ratingTd);
+      tr.appendChild(textTd);
+      tr.appendChild(reasonTd);
+      resultsTableBody.appendChild(tr);
+    });
+  }
+
+  function finishRating() {
+    reviewSection.classList.add("hidden");
+    doneSection.classList.remove("hidden");
+    var all = resumed.concat(rated);
+    var loved = all.filter(function (r) { return r.rating === "love"; }).length;
+    var hated = all.filter(function (r) { return r.rating === "hate"; }).length;
+    doneSummaryEl.textContent = "rated " + rated.length + " this session (" + all.length + " total in bible.csv) — " +
+      loved + " loved, " + hated + " hated.";
+    renderResultsTable(all);
+  }
+
+  document.getElementById("download-btn").addEventListener("click", function () {
+    var all = resumed.concat(rated);
+    var blob = new Blob([buildCsv(all)], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "bible.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  document.getElementById("restart-btn").addEventListener("click", function () {
+    doneSection.classList.add("hidden");
+    setupSection.classList.remove("hidden");
+    pasteBox.value = "";
+    setupStatus.textContent = "";
+  });
+</script>
+</body>
+</html>

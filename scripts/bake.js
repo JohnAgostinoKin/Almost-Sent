@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { callLLM, BASE_URL } = require("../lib/llm");
-const { extractArray, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
+const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { stallLine } = require("../lib/fallback");
 const { composeDraft } = require("../lib/compose");
 
@@ -146,7 +146,13 @@ const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, d
 async function runOneModel(model, input) {
   try {
     const { text, latencyMs, finishReason } = await callLLM(apiKey, model, input);
-    const parsed = extractArray(text);
+    // Premise-first generation (see lib/prompt.js's buildPrimaryPrompt)
+    // changed the primary call's own output contract from a bare array to
+    // {premises, candidates} — this harness only ever calls the primary
+    // builder (callLLM defaults to it — see lib/llm.js), so it needs the
+    // same extractor api/draft.js uses now, not the old bare-array one.
+    const parsedObj = extractPremiseCandidates(text);
+    const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) {
       const note = finishReason === "length" ? "hit token limit" : "unparsable response";
       return { model, ok: false, lines: [], ...EMPTY_DROPS, latencyMs, note };
