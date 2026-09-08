@@ -35,7 +35,7 @@ const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANE_GROUPS, ALL_LANES, normali
 const {
   extractArray, extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops
 } = require("../lib/postprocess");
-const { judgeOneLine, judgeCandidates } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates, judgePairwise } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { classifyBlock } = require("../lib/block");
@@ -60,6 +60,7 @@ function newStages() {
     t_primary: [],  // wall-clock of each primary generator call, one entry per PRIMARY_LANE_GROUPS group, index-aligned — all run in parallel with each other and with wildcard, including any retry/fallback
     t_wildcard: 0,  // same, for the wildcard (raunchy/gross) call
     t_judge: 0,     // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
+    t_pairwise: 0,  // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
     t_response: 0
   };
 }
@@ -67,7 +68,7 @@ function newStages() {
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
     " t_primary=" + JSON.stringify(s.t_primary) + "ms t_wildcard=" + s.t_wildcard + "ms" +
-    " t_judge=" + s.t_judge + "ms t_response=" + s.t_response + "ms";
+    " t_judge=" + s.t_judge + "ms t_pairwise=" + s.t_pairwise + "ms t_response=" + s.t_response + "ms";
 }
 
 function readBody(req) {
@@ -534,6 +535,34 @@ module.exports = async function handler(req, res) {
     tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
   }
 
+  // Pairwise final: after gates and scoring, the top two by q get one
+  // head-to-head call — "which of these would produce the stronger
+  // involuntary reaction in a stranger reading it as the first result" —
+  // and the winner becomes position 1. Only meaningful when taste
+  // actually produced real q scores to pick a "top two" from; the fixed-
+  // lane-order fallback above has nothing worth comparing on. Swaps
+  // `survivors[0]`/`survivors[1]` in place when 2 wins — the
+  // position-selection loop below stays exactly as it was, just starting
+  // from whichever candidate the pairwise call preferred. A failed or
+  // unparsable pairwise call just keeps taste's own order, same
+  // "degrade, don't block" pattern the taste judge itself follows.
+  let pairwiseNote = "";
+  if (taste.ok && survivors.length >= 2) {
+    const pairwiseStarted = Date.now();
+    const pw = await judgePairwise(key, sent, survivors[0].candidate, survivors[1].candidate);
+    stages.t_pairwise = Date.now() - pairwiseStarted;
+    if (pw.winner === 2) {
+      const tmp = survivors[0];
+      survivors[0] = survivors[1];
+      survivors[1] = tmp;
+      pairwiseNote = "pairwise: swapped, 2 won (" + pw.latencyMs + "ms)";
+    } else if (pw.winner === 1) {
+      pairwiseNote = "pairwise: kept, 1 won (" + pw.latencyMs + "ms)";
+    } else {
+      pairwiseNote = "pairwise: no verdict (" + pw.reason + "), kept taste's order";
+    }
+  }
+
   const positions = [];
   if (survivors.length) positions.push(survivors[0]);
   for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
@@ -560,7 +589,9 @@ module.exports = async function handler(req, res) {
   const primaryWhy = primaryResults.map(function (r, i) { return "primary #" + (i + 1) + ": " + (r.why || "?"); }).join(" · ");
   const why = primaryWhy +
     " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
-    " · " + safetyNote + " · " + tasteNote + " · stages: " + formatStages(stages);
+    " · " + safetyNote + " · " + tasteNote +
+    (pairwiseNote ? " · " + pairwiseNote : "") +
+    " · stages: " + formatStages(stages);
 
   const primaryDebugLines = primaryResults.reduce(function (acc, r) { return acc.concat(r.debugLines || []); }, []);
   const primaryTGens = primaryResults.map(function (r) { return r.t_gen; }).filter(function (t) { return t != null; });
