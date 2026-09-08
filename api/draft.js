@@ -33,7 +33,7 @@ const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
 const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANE_GROUPS, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
-  extractArray, normalizeItem, isRefusal, filterLines, describeDrops
+  extractArray, extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops
 } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
@@ -79,34 +79,42 @@ function readBody(req) {
 
 // One call to one generator (primary or wildcard). `kind` picks which
 // lib/prompt.js builder callLLM reaches for (see lib/llm.js) and is
-// carried into `why`/logs for ?debug=1. Always uses extractArray — unlike
-// v2's callOnce, there's no "n=1, so try the lenient bare-object parser"
-// branch: both v3 generator calls always ask for an array (eight objects
-// or two), never exactly one.
+// carried into `why`/logs for ?debug=1. Primary calls parse the
+// premise-first {premises, candidates} shape (extractPremiseCandidates —
+// see lib/prompt.js's buildPrimaryPrompt and lib/postprocess.js's own
+// comment on the new extractor); the wildcard call still asks for and
+// parses a bare array (extractArray, unchanged) — premises are a primary-
+// only mechanic. `premises` rides on the returned result (null for
+// wildcard, or a primary call that never got that far) purely for
+// api/draft.js's handler to fold into `debug` — never shown to a visitor,
+// see the handler's own comment on that.
 async function callOneGenerator(key, model, sent, kind, genOpts) {
+  const isPrimary = kind !== "wildcard";
   try {
     const result = await callLLM(key, model, sent, Object.assign({ kind: kind }, genOpts));
     const t_gen = result.latencyMs;
     const provider = result.provider || null;
     console.log("provider (" + kind + "): " + (provider || "unknown") + " (" + model + ")");
     const providerTag = provider ? " [" + provider + "]" : "";
-    const parsed = extractArray(result.text);
+    const parsedObj = isPrimary ? extractPremiseCandidates(result.text) : extractArray(result.text);
+    const parsed = isPrimary ? (parsedObj && parsedObj.candidates) : parsedObj;
     if (!parsed) {
       const why = result.finishReason === "length" ? "hit token limit" : (result.text ? "no json in output" : "empty output");
       console.error("parse failure (" + kind + ", " + why + ") model=" + model + " raw=" + JSON.stringify(String(result.text || "").slice(0, 800)));
-      return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable", t_gen: t_gen };
+      return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable", t_gen: t_gen, premises: null };
     }
+    const premises = isPrimary && parsedObj.premises.length ? parsedObj.premises : null;
     const items = parsed.map(normalizeItem);
-    if (isRefusal(items)) return { lines: [], skip: true, t_gen: t_gen };
+    if (isRefusal(items)) return { lines: [], skip: true, t_gen: t_gen, premises: premises };
     const filtered = filterLines(items, sent);
     const drops = describeDrops(filtered);
     if (!filtered.kept.length) {
-      return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all, t_gen: t_gen };
+      return { lines: [], why: (drops || "all " + items.length + " filtered") + providerTag, provider: provider, reason: "filtered", debugLines: filtered.all, t_gen: t_gen, premises: premises };
     }
     const why = "ok, kept " + filtered.kept.length + (drops ? " — " + drops : "") + providerTag;
-    return { lines: filtered.kept, why: why, provider: provider, debugLines: filtered.all, t_gen: t_gen };
+    return { lines: filtered.kept, why: why, provider: provider, debugLines: filtered.all, t_gen: t_gen, premises: premises };
   } catch (err) {
-    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error" };
+    return { lines: [], why: /timeout/i.test(err.message) ? "timed out" : err.message, provider: null, reason: "error", premises: null };
   }
 }
 
@@ -558,6 +566,16 @@ module.exports = async function handler(req, res) {
   const primaryTGens = primaryResults.map(function (r) { return r.t_gen; }).filter(function (t) { return t != null; });
   const primaryTGen = primaryTGens.length ? Math.max.apply(null, primaryTGens) : null;
   const primaryProvider = primaryResults.map(function (r) { return r.provider; }).filter(Boolean)[0] || null;
+  // One entry per primary lane-group call, each carrying whichever three
+  // premises that call worked out about the sent text before writing its
+  // own lanes (see lib/prompt.js's buildPrimaryPrompt) — never returned to
+  // the client's own display, only into `debug` for ?debug=1 to read. A
+  // group whose call never got that far (parse failure, refusal, timeout)
+  // just carries null premises here, same as debugLines does for its own
+  // "nothing to show" case.
+  const primaryPremises = primaryResults.map(function (r, i) {
+    return { lanes: PRIMARY_LANE_GROUPS[i], premises: r.premises || null };
+  });
 
   res.status(200).json({
     sent: sent,
@@ -569,7 +587,8 @@ module.exports = async function handler(req, res) {
     debug: {
       primary: primaryDebugLines.length ? primaryDebugLines : null,
       wildcard: wildcard.debugLines || null,
-      judge: taste.ok ? taste.details : null
+      judge: taste.ok ? taste.details : null,
+      premises: primaryPremises
     },
     t_gen: primaryTGen,
     t_judge: stages.t_judge,
