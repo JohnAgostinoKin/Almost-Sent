@@ -26,19 +26,27 @@
     /* "share this" (native share sheet) is mobile-only, full stop — no
        native sheet on desktop, ever (see saveImageBtn's own
        isDesktopLayout() guard in the script for why that has to be
-       checked in JS too, not just here). #share-icons is NOT gated by
-       this media query at all — it shows on every breakpoint, as the
-       mobile fallback under "share this" and as the only share row
-       desktop ever gets. */
+       checked in JS too, not just here). .mobile-share-icon (instagram/
+       snapchat/tiktok — each one's own way into that same native sheet,
+       see attemptNativeImageShare) is mobile-only for the same reason.
+       #share-icons itself is NOT gated by this media query at all — it
+       shows on every breakpoint, as the mobile fallback under "share
+       this" and as the only share row desktop ever gets. */
     @media (min-width:800px) {
       main, footer { max-width:560px; }
       h1 { font-size:80px; }
       .draft { font-size:38px; }
-      #share-this-row { display:none; }
+      /* .share-icons button (0,1,1) outranks a bare .mobile-share-icon
+         (0,1,0) — has to be scoped under .share-icons too to actually
+         win the specificity fight and hide these three. */
+      #share-this-row, .share-icons .mobile-share-icon { display:none; }
     }
     .share-icons { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
     .share-icons button { width:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 12px; font-size:11px; }
     .share-icons .icon { font-size:20px; line-height:1; }
+    /* Facebook has no free unicode glyph — a bold "f" reads clearly next
+       to its own "facebook" label without needing a trademarked logo. */
+    #share-facebook .icon { font-weight:700; font-size:22px; }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
     .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
@@ -178,16 +186,29 @@
            matters beyond just this button). Under it, on every
            breakpoint, the same icon row: text/email reuse the .text-share/
            .email-share classes that also drive .turn's own copy further
-           down (shared click handlers, see the script); whatsapp, x, copy,
-           and save image are new here. Every one of these carries
+           down (shared click handlers, see the script); whatsapp,
+           facebook, x, copy, and save image are new here, each carrying
            buildShareText()'s block (which already ends in the referral
-           URL) except save image, which carries the PNG instead. -->
+           URL) — facebook actually just wants that URL, not the whole
+           block, so its own click handler pulls that back out via
+           buildReferralUrl() — except save image, which carries the PNG
+           instead. Instagram/snapchat/tiktok (.mobile-share-icon, hidden
+           past 800px in the same media query) don't have a share URL to
+           link to at all — no web intent for any of the three — so each
+           just triggers the same native sheet "share this" does
+           (attemptNativeImageShare below), individually labeled and
+           logged so which app someone was headed for is still visible,
+           even though the OS sheet is the same one either way. -->
       <div class="row" id="share-this-row"><button type="button" id="share-this" disabled>share this</button></div>
       <div class="share-icons" id="share-icons">
         <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
         <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
         <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+        <button class="ghost" type="button" id="share-facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
         <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+        <button class="ghost mobile-share-icon" type="button" id="share-instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
+        <button class="ghost mobile-share-icon" type="button" id="share-snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
+        <button class="ghost mobile-share-icon" type="button" id="share-tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
         <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
         <button class="ghost" type="button" id="save-image" disabled><span class="icon" aria-hidden="true">🖼️</span><span class="label">save image</span></button>
       </div>
@@ -274,7 +295,13 @@
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
     var shareThisBtn = document.getElementById("share-this");
     var shareWhatsappBtn = document.getElementById("share-whatsapp");
+    var shareFacebookBtn = document.getElementById("share-facebook");
     var shareXBtn = document.getElementById("share-x");
+    // instagram/snapchat/tiktok — matched by class since setShareDisabled
+    // just needs to flip all three together, same as every other share
+    // control; their own click handlers still address them individually
+    // by id (see below).
+    var mobileShareIconBtns = Array.prototype.slice.call(document.querySelectorAll(".mobile-share-icon"));
     var saveImageBtn = document.getElementById("save-image");
     var hideOriginalEl = document.getElementById("hide-original");
     // save-image and copy-share both relabel on the fly (see below and
@@ -607,7 +634,9 @@
       saveImageBtn.disabled = disabled;
       shareThisBtn.disabled = disabled;
       shareWhatsappBtn.disabled = disabled;
+      shareFacebookBtn.disabled = disabled;
       shareXBtn.disabled = disabled;
+      mobileShareIconBtns.forEach(function (b) { b.disabled = disabled; });
       hideOriginalEl.disabled = disabled;
     }
     // Only the idle label resets here — the "copied." confirmation (see
@@ -1220,41 +1249,74 @@
       }
     });
 
-    // The mobile primary action — one button, native share sheet, instead
-    // of picking between text/email/copy up front. Shares the 9:16 PNG
-    // (see buildShareImageBlob) alongside the text block when
-    // navigator.canShare says this browser can actually hand off a file;
-    // falls back to sharing just the text block otherwise (still via
-    // navigator.share, not the text/email/copy row — that row only exists
-    // for desktop, see the 800px breakpoint). A canvas failure here just
-    // means no file, not a dead button — the text share still goes out.
-    shareThisBtn.addEventListener("click", async function () {
-      if (shareThisBtn.disabled) return;
+    // ?r=<device_id> makes this a referral link — see getDeviceId() above,
+    // which logs an "arrival" event for whoever's first visit lands on it.
+    // Its own function since facebook's sharer wants just the URL, not
+    // buildShareText()'s whole block.
+    function buildReferralUrl() {
+      return "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
+    }
+
+    // "i almost sent" only shows up when #write actually has something in
+    // it — the share buttons work the moment a draft is on screen (see the
+    // submit handler above), before anyone's typed their own line.
+    function buildShareText() {
+      var mine = writeEl.value.trim();
+      var text = "they sent: " + current + "\n" +
+        "they almost sent: " + draftEl.textContent + "\n";
+      if (mine) text += "i almost sent: " + current + mine + "\n";
+      return text + "\n" + buildReferralUrl();
+    }
+
+    // Core native-share attempt, shared by "share this" and the
+    // mobile-only instagram/snapchat/tiktok icons below — all four want
+    // the exact same files -> text -> clipboard fallback chain. Resolves
+    // to whichever path actually fired ("files" | "text" | "copy") so
+    // each caller can log its own meta.via; a cancelled share sheet's
+    // AbortError (not a real failure) propagates same as any other
+    // rejection, left for the caller to swallow.
+    async function attemptNativeImageShare(hideOriginal) {
       var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
       var text = buildShareText();
+      var file = null;
+      try {
+        var blob = await buildShareImageBlob(current, draftText, hideOriginal);
+        file = new File([blob], "almost-sent.png", { type: "image/png" });
+      } catch (err) {
+        file = null; // canvas failed — still share the text block below
+      }
+      if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: text });
+        return "files";
+      } else if (navigator.share) {
+        await navigator.share({ text: text });
+        return "text";
+      } else {
+        // No Web Share API at all — shouldn't happen on the mobile
+        // viewport every caller here is scoped to, but copy is the
+        // closest equivalent to "share the text block" if it ever does.
+        await navigator.clipboard.writeText(text);
+        return "copy";
+      }
+    }
+
+    // The mobile primary action — one button, native share sheet, instead
+    // of picking between text/email/copy up front. See
+    // attemptNativeImageShare for the actual files/text/clipboard chain;
+    // this button keeps its own via convention (native_image/native_text)
+    // rather than the flat per-icon tag instagram/snapchat/tiktok use
+    // below, since it isn't tied to any one destination app.
+    shareThisBtn.addEventListener("click", async function () {
+      if (shareThisBtn.disabled) return;
       shareThisBtn.disabled = true;
       try {
         var hidden = hideOriginalEl.checked;
-        var file = null;
-        try {
-          var blob = await buildShareImageBlob(current, draftText, hidden);
-          file = new File([blob], "almost-sent.png", { type: "image/png" });
-        } catch (err) {
-          file = null; // canvas failed — still share the text block below
-        }
-        if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text: text });
-          logEvent("share", { via: "native_image", hidden: hidden });
-        } else if (navigator.share) {
-          await navigator.share({ text: text });
-          logEvent("share", { via: "native_text" });
-        } else {
-          // No Web Share API at all — shouldn't happen on the mobile
-          // viewport this button is scoped to, but copy is the closest
-          // equivalent to "share the text block" if it ever does.
-          await navigator.clipboard.writeText(text);
-          logEvent("share", { via: "copy" });
-        }
+        var result = await attemptNativeImageShare(hidden);
+        // hidden only means anything for the branch that actually carried
+        // the card (files) — same rule as saveImageBtn's own log.
+        var meta = { via: result === "files" ? "native_image" : result === "text" ? "native_text" : "copy" };
+        if (result === "files") meta.hidden = hidden;
+        logEvent("share", meta);
         whewEl.classList.remove("hidden");
       } catch (err) {
         // A cancelled native share sheet throws too (AbortError) — not a
@@ -1264,19 +1326,38 @@
       }
     });
 
-    // ?r=<device_id> makes this a referral link — see getDeviceId() above,
-    // which logs an "arrival" event for whoever's first visit lands on it.
-    // "i almost sent" only shows up when #write actually has something in
-    // it — the share buttons work the moment a draft is on screen (see the
-    // submit handler above), before anyone's typed their own line.
-    function buildShareText() {
-      var mine = writeEl.value.trim();
-      var shareUrl = "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
-      var text = "they sent: " + current + "\n" +
-        "they almost sent: " + draftEl.textContent + "\n";
-      if (mine) text += "i almost sent: " + current + mine + "\n";
-      return text + "\n" + shareUrl;
-    }
+    // instagram/snapchat/tiktok: none of the three have a real web share
+    // intent (no wa.me/twitter.com equivalent for any of them), so each
+    // just opens the same native sheet "share this" does — individually
+    // labeled and logged (meta.via: the icon actually tapped) so which
+    // app someone was headed for stays visible even though it's the same
+    // OS sheet underneath every time. Mobile-only (.mobile-share-icon,
+    // see the stylesheet) — there's no sheet to open on desktop at all.
+    [
+      { id: "share-instagram", via: "instagram" },
+      { id: "share-snapchat", via: "snapchat" },
+      { id: "share-tiktok", via: "tiktok" }
+    ].forEach(function (spec) {
+      var btn = document.getElementById(spec.id);
+      btn.addEventListener("click", async function () {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try {
+          var hidden = hideOriginalEl.checked;
+          var result = await attemptNativeImageShare(hidden);
+          // Same "hidden only means anything for the files branch" rule
+          // as shareThisBtn and saveImageBtn's own logs.
+          var meta = { via: spec.via };
+          if (result === "files") meta.hidden = hidden;
+          logEvent("share", meta);
+          whewEl.classList.remove("hidden");
+        } catch (err) {
+          // cancelled share sheet — not a real failure
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
 
     // Both copies of each button (top row and the one under "write your
     // own") get the same listener — whichever one someone actually taps
@@ -1327,6 +1408,17 @@
       logEvent("share", { via: "x" });
       whewEl.classList.remove("hidden");
       window.open("https://twitter.com/intent/tweet?text=" + encodeURIComponent(buildShareText()), "_blank", "noopener");
+    });
+
+    // Facebook's sharer only ever takes a URL (its own "u" param) — no
+    // text/quote field worth relying on (Facebook has long since stopped
+    // reliably prefilling one) — so this is the one icon that carries
+    // buildReferralUrl() alone, not buildShareText()'s whole block.
+    shareFacebookBtn.addEventListener("click", function () {
+      if (shareFacebookBtn.disabled) return;
+      logEvent("share", { via: "facebook" });
+      whewEl.classList.remove("hidden");
+      window.open("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(buildReferralUrl()), "_blank", "noopener");
     });
 
     document.getElementById("again").addEventListener("click", reset);
