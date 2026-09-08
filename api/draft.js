@@ -2,32 +2,35 @@
 //
 // v2 (see lib/legacy/) was two client requests per result: an n=1 lead
 // (one shape, pickBest-of-N) then an n=4 alternates call for the same
-// shape's siblings. v3 replaces both with ONE request that fires two
-// generator calls in parallel — the primary call (lib/prompt.js's
-// buildPrimaryRequest, GENERATOR_MODEL) writes one candidate per lane for
-// all eight primary lanes, the wildcard call (buildWildcardRequest,
-// WILDCARD_MODEL) writes the raunchy and gross candidates — then judges
-// all ten together and returns the top three, best first. Position 1 is
-// the lead; "make it worse" reveals 2 and 3 instantly (already fetched, no
-// second request); a third tap fires a fresh escalated request (see
-// `escalate`/`shown` below) instead of the old client-side alternates
-// refetch.
+// shape's siblings. v3 replaces both with ONE request that fires THREE
+// generator calls in parallel — two primary calls (lib/prompt.js's
+// buildPrimaryRequest, GENERATOR_MODEL), each writing one candidate per
+// lane for four of the eight primary lanes (PRIMARY_LANES_A/B — same
+// prompt shape, half the output each, merged before judging), plus the
+// wildcard call (buildWildcardRequest, WILDCARD_MODEL) writing the
+// raunchy and gross candidates — then judges all ten together and returns
+// the top three, best first. Position 1 is the lead; "make it worse"
+// reveals 2 and 3 instantly (already fetched, no second request); a third
+// tap fires a fresh escalated request (see `escalate`/`shown` below)
+// instead of the old client-side alternates refetch.
 //
-// Selection past generation is two separate jobs now, not one: SAFETY
+// Selection past generation is two separate jobs, run CONCURRENTLY on the
+// full candidate set rather than one gating the other: SAFETY
 // (lib/judge.js's judgeOneLine, cheap model, one call per candidate,
-// unchanged from v2) drops anything that shouldn't ship at all; TASTE
-// (lib/judge.js's judgeCandidates, one call reviewing every safety
-// survivor together, expensive model) gates each on five hard checks —
-// does it actually continue their message, is the claimed anchor real and
-// load-bearing, is there a turn, is it clear — then scores and ranks only
-// what's left. The top three of that ranking are the result. A failed
+// unchanged from v2) checks every candidate for anything that shouldn't
+// ship at all; TASTE (lib/judge.js's judgeCandidates, expensive model,
+// split into two parallel batches) gates every candidate on five hard
+// checks — does it actually continue their message, is the claimed anchor
+// real and load-bearing, is there a turn, is it clear — then scores and
+// ranks what's left. Once BOTH resolve, any candidate safety flagged is
+// removed from the ranking regardless of what taste made of it. A failed
 // taste call (timeout, unparsable reply — no retry; see lib/judge.js's
 // header comment for why) falls back to fixed lane order rather than
 // blocking the response on a second expensive call.
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { GENERATOR_MODEL, WILDCARD_MODEL, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANES_A, PRIMARY_LANES_B, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
   extractArray, normalizeItem, isRefusal, filterLines, describeDrops
 } = require("../lib/postprocess");
@@ -53,16 +56,17 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_primary: 0,  // wall-clock of the primary (eight-lane) generator call, including any retry/fallback
-    t_wildcard: 0, // same, for the wildcard (raunchy/gross) call
-    t_judge: 0,
+    t_primary_a: 0, // wall-clock of the primary A (lanes 1-4) generator call, including any retry/fallback
+    t_primary_b: 0, // same, for primary B (lanes 5-8) — A and B run in parallel with each other and with wildcard
+    t_wildcard: 0,  // same, for the wildcard (raunchy/gross) call
+    t_judge: 0,     // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
     t_response: 0
   };
 }
 
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
-    " t_primary=" + s.t_primary + "ms t_wildcard=" + s.t_wildcard + "ms" +
+    " t_primary_a=" + s.t_primary_a + "ms t_primary_b=" + s.t_primary_b + "ms t_wildcard=" + s.t_wildcard + "ms" +
     " t_judge=" + s.t_judge + "ms t_response=" + s.t_response + "ms";
 }
 
@@ -350,10 +354,18 @@ module.exports = async function handler(req, res) {
   }
 
   const genOpts = { escalate: escalate, shown: shown };
-  const primaryStarted = Date.now();
+  // Two primary calls, not one — same prompt shape as before (lanes
+  // taught, escalation block, rules), each teaching and asking for only
+  // four of the eight primary lanes (see lib/prompt.js's PRIMARY_LANES_A/
+  // B). Fired alongside the wildcard call, three-way parallel.
+  const genOptsA = Object.assign({ lanes: PRIMARY_LANES_A }, genOpts);
+  const genOptsB = Object.assign({ lanes: PRIMARY_LANES_B }, genOpts);
+  const primaryAStarted = Date.now();
+  const primaryBStarted = Date.now();
   const wildcardStarted = Date.now();
-  const [primary, wildcard] = await Promise.all([
-    runGenerator(key, GENERATOR_MODEL, sent, "primary", genOpts).then(function (r) { stages.t_primary = Date.now() - primaryStarted; return r; }),
+  const [primaryA, primaryB, wildcard] = await Promise.all([
+    runGenerator(key, GENERATOR_MODEL, sent, "primary", genOptsA).then(function (r) { stages.t_primary_a = Date.now() - primaryAStarted; return r; }),
+    runGenerator(key, GENERATOR_MODEL, sent, "primary", genOptsB).then(function (r) { stages.t_primary_b = Date.now() - primaryBStarted; return r; }),
     runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { stages.t_wildcard = Date.now() - wildcardStarted; return r; })
   ]);
 
@@ -364,36 +376,54 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // The primary call declining outright is a full refusal — same
-  // convention as v2's lead skip. The wildcard call declining alone isn't:
-  // two lanes' worth of "no" doesn't carry the same signal as the eight-
-  // lane call refusing, it just means no raunchy/gross candidates this
-  // round (rare in practice — the wildcard prompt's own wall already
-  // covers the same abusive/minor/threat ground).
-  if (primary.skip) {
+  // Either primary half declining outright is a full refusal — same
+  // convention as v2's lead skip, now just checked across two calls
+  // instead of one. The wildcard call declining alone isn't: two lanes'
+  // worth of "no" doesn't carry the same signal as a whole primary half
+  // refusing, it just means no raunchy/gross candidates this round (rare
+  // in practice — the wildcard prompt's own wall already covers the same
+  // abusive/minor/threat ground).
+  if (primaryA.skip || primaryB.skip) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
     res.status(200).json({ refuse: true, drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
     return;
   }
 
-  const allCandidates = (primary.lines || []).concat(wildcard.skip ? [] : (wildcard.lines || []));
+  const allCandidates = (primaryA.lines || []).concat(primaryB.lines || []).concat(wildcard.skip ? [] : (wildcard.lines || []));
 
-  // Stage 1: SAFETY. lib/judge.js's judgeOneLine, one call per candidate,
-  // cheap model — unchanged from v2 apart from its renamed constants (see
-  // lib/judge.js's header comment for why SAFETY_MODEL and JUDGE_MODEL are
-  // no longer the same env var).
-  const safetyStarted = Date.now();
-  const safetyVerdicts = allCandidates.length
-    ? await Promise.all(allCandidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }))
-    : [];
-  const t_safety = Date.now() - safetyStarted;
+  // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
+  // safety-then-taste gating what taste even sees — taste judges every
+  // candidate in parallel with safety judging every candidate, and only
+  // once both are back does a safety flag remove a candidate from the
+  // ranking (see below). This costs a little redundant taste-judging on
+  // whatever safety ends up flagging (rare), for real wall-clock savings:
+  // total judge time is now roughly max(safety, taste), not their sum.
+  //
+  // lib/judge.js's judgeOneLine (safety, cheap model, one call per
+  // candidate, unchanged from v2 apart from its renamed constants) and
+  // judgeCandidates (taste, expensive model, split into two parallel
+  // batches — see lib/judge.js's own comments for both).
+  const judgeStarted = Date.now();
+  const [safetyVerdicts, taste] = await Promise.all([
+    allCandidates.length
+      ? Promise.all(allCandidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }))
+      : Promise.resolve([]),
+    allCandidates.length
+      ? judgeCandidates(key, sent, allCandidates)
+      : Promise.resolve({ ok: false, reason: "no candidates" })
+  ]);
+  stages.t_judge = Date.now() - judgeStarted;
 
   const safetyModelsSeen = [];
   let safetyLatencyTotal = 0;
   let droppedSafetyCount = 0;
   let safetyFailedCount = 0;
   const safetyReasons = [];
-  const safe = [];
+  // Candidates safety flagged — checked by identity (the exact objects in
+  // allCandidates, which is also what taste.ranked/taste.details.candidate
+  // reference) against both the ranking and the fallback ordering below,
+  // regardless of what taste made of the same candidate.
+  const flagged = new Set();
   allCandidates.forEach(function (item, i) {
     const result = safetyVerdicts[i];
     safetyLatencyTotal += result.latencyMs || 0;
@@ -408,39 +438,34 @@ module.exports = async function handler(req, res) {
       console.error("safety judge fallback/failure [" + (item.lane || "?") + "]: " + result.reason);
       safetyReasons.push("[" + item.lane + "] " + result.reason);
     }
-    if (result.verdict === true) { droppedSafetyCount++; return; }
-    safe.push(item);
+    if (result.verdict === true) { droppedSafetyCount++; flagged.add(item); }
   });
   const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
     (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
     (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "") +
     (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
-  // Stage 2: TASTE. lib/judge.js's judgeCandidates — one call reviewing
-  // every safety survivor together, gating each on five hard checks before
-  // scoring and ranking what's left. A failure (timeout, unparsable reply)
-  // falls back to fixed lane order rather than retrying on the expensive
-  // model — see lib/judge.js's header comment.
-  const tasteStarted = Date.now();
-  const taste = safe.length ? await judgeCandidates(key, sent, safe) : { ok: false, reason: "nothing to judge" };
-  const t_taste = Date.now() - tasteStarted;
-  stages.t_judge = t_safety + t_taste;
-
   let ranked, tasteNote;
   if (taste.ok) {
-    ranked = taste.ranked;
+    ranked = taste.ranked.filter(function (item) { return !flagged.has(item); });
     // Every candidate's computed total, and the gate that killed each
     // eliminated one — exactly what ?debug=1 needs to see the judge's
-    // actual reasoning, not just its final picks.
+    // actual reasoning, not just its final picks. A safety-flagged
+    // candidate is tagged here too, whatever taste made of it, since
+    // that's exactly why it's missing from `ranked` above.
     const totalsNote = taste.details.map(function (d) {
-      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "total:" + d.total);
+      const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
+      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "total:" + d.total) + flag;
     }).join(", ");
     tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
   } else {
     // Fallback: fixed lane order, same as v3's original bridge selection —
     // still a reasonable "something is better than nothing" ordering, just
-    // not the ranked-by-taste one.
-    ranked = safe.slice().sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); });
+    // not the ranked-by-taste one. Safety-flagged candidates are excluded
+    // here too, same as the ranked branch above.
+    ranked = allCandidates
+      .filter(function (item) { return !flagged.has(item); })
+      .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); });
     tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
   }
   const top3 = ranked.slice(0, 3);
@@ -451,22 +476,28 @@ module.exports = async function handler(req, res) {
   if (!drafts.length) drafts.push({ lane: "stall", text: stallLine() });
 
   stages.t_response = Date.now() - responseStarted;
-  const why = "primary: " + (primary.why || "?") + " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
+  const why = "primary A: " + (primaryA.why || "?") + " · primary B: " + (primaryB.why || "?") +
+    " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote + " · stages: " + formatStages(stages);
+
+  const primaryDebugLines = (primaryA.debugLines || []).concat(primaryB.debugLines || []);
+  const primaryTGen = (primaryA.t_gen != null || primaryB.t_gen != null)
+    ? Math.max(primaryA.t_gen || 0, primaryB.t_gen || 0)
+    : null;
 
   res.status(200).json({
     sent: sent,
     drafts: drafts,
     source: source,
     why: why || null,
-    provider: primary.provider || null,
+    provider: primaryA.provider || primaryB.provider || null,
     logged: logged,
     debug: {
-      primary: primary.debugLines || null,
+      primary: primaryDebugLines.length ? primaryDebugLines : null,
       wildcard: wildcard.debugLines || null,
       judge: taste.ok ? taste.details : null
     },
-    t_gen: primary.t_gen != null ? primary.t_gen : null,
+    t_gen: primaryTGen,
     t_judge: stages.t_judge,
     t_total: Date.now() - requestStarted,
     safety: { state: crisisResult.state, source: "classifier" }
