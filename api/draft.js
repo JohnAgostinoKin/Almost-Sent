@@ -371,26 +371,195 @@ module.exports = async function handler(req, res) {
   }
 
   const genOpts = { escalate: escalate, shown: shown };
-  // One primary call per group in PRIMARY_LANE_GROUPS, not one call for
-  // all eight lanes — same prompt shape every time (lanes taught,
-  // escalation block, rules), each teaching and asking for only its own
-  // slice of the eight primary lanes (currently four calls of two).
-  // Fired alongside the wildcard call, all in one parallel batch. Every
-  // group's own wall-clock lands in stages.t_primary, index-aligned with
-  // PRIMARY_LANE_GROUPS, so a slow one is visible without guessing which.
-  stages.t_primary = PRIMARY_LANE_GROUPS.map(function () { return 0; });
-  const wildcardStarted = Date.now();
-  const [primaryResults, wildcard] = await Promise.all([
-    Promise.all(PRIMARY_LANE_GROUPS.map(function (lanes, i) {
-      const groupOpts = Object.assign({ lanes: lanes }, genOpts);
-      const groupStarted = Date.now();
-      return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
-        stages.t_primary[i] = Date.now() - groupStarted;
-        return r;
-      });
-    })),
-    runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { stages.t_wildcard = Date.now() - wildcardStarted; return r; })
-  ]);
+
+  // One full generate-then-judge pass — primary lane-group calls plus the
+  // wildcard call, safety+taste running concurrently on the combined
+  // candidate set, then the pairwise final call between the top two by q
+  // (see lib/judge.js's judgePairwise). Factored into its own function
+  // because regenerate-if-weak (below) can run this exact sequence a
+  // second time — never more than once, whatever the second round's own
+  // result turns out to be. Every timing lands in a LOCAL object, not the
+  // outer `stages` directly, so running this twice doesn't leave `stages`
+  // reporting a discarded round's numbers — the caller copies whichever
+  // round it actually keeps into `stages` once that's decided.
+  async function runGenerationRound() {
+    const t = { t_primary: PRIMARY_LANE_GROUPS.map(function () { return 0; }), t_wildcard: 0, t_judge: 0, t_pairwise: 0 };
+    const wildcardStarted = Date.now();
+    const [primaryResults, wildcard] = await Promise.all([
+      Promise.all(PRIMARY_LANE_GROUPS.map(function (lanes, i) {
+        const groupOpts = Object.assign({ lanes: lanes }, genOpts);
+        const groupStarted = Date.now();
+        return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
+          t.t_primary[i] = Date.now() - groupStarted;
+          return r;
+        });
+      })),
+      runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; return r; })
+    ]);
+
+    // Any primary group declining outright is a full refusal — same
+    // convention as v2's lead skip, now just checked across however many
+    // groups there are instead of one. The wildcard call declining alone
+    // isn't: two lanes' worth of "no" doesn't carry the same signal as a
+    // whole primary group refusing, it just means no raunchy/gross
+    // candidates this round (rare in practice — the wildcard prompt's own
+    // wall already covers the same abusive/minor/threat ground).
+    if (primaryResults.some(function (r) { return r.skip; })) {
+      return { refuse: true, primaryResults: primaryResults, wildcard: wildcard, t: t };
+    }
+
+    const allCandidates = primaryResults
+      .reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
+      .concat(wildcard.skip ? [] : (wildcard.lines || []));
+
+    // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
+    // safety-then-taste gating what taste even sees — taste judges every
+    // candidate in parallel with safety judging every candidate, and only
+    // once both are back does a safety flag remove a candidate from the
+    // ranking (see below). This costs a little redundant taste-judging on
+    // whatever safety ends up flagging (rare), for real wall-clock savings:
+    // total judge time is now roughly max(safety, taste), not their sum.
+    //
+    // lib/judge.js's judgeOneLine (safety, cheap model, one call per
+    // candidate, unchanged from v2 apart from its renamed constants) and
+    // judgeCandidates (taste, expensive model, split into two parallel
+    // batches — see lib/judge.js's own comments for both).
+    const judgeStarted = Date.now();
+    const [safetyVerdicts, taste] = await Promise.all([
+      allCandidates.length
+        ? Promise.all(allCandidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }))
+        : Promise.resolve([]),
+      allCandidates.length
+        ? judgeCandidates(key, sent, allCandidates)
+        : Promise.resolve({ ok: false, reason: "no candidates" })
+    ]);
+    t.t_judge = Date.now() - judgeStarted;
+
+    const safetyModelsSeen = [];
+    // Safety calls all fire together (one Promise.all, see above), so the
+    // group's real wall-clock cost is the SLOWEST one, not their sum —
+    // safetyLatencyTotal used to be reported as if it were the group's
+    // cost, which overstated it by roughly 10x at ten candidates. Both are
+    // tracked now: safetyMaxLatency is what actually gates the response,
+    // safetyLatencyTotal rides along too since the sum is still useful for
+    // seeing total model-side cost even though it's not wall time.
+    let safetyLatencyTotal = 0;
+    let safetyMaxLatency = 0;
+    let droppedSafetyCount = 0;
+    let safetyFailedCount = 0;
+    let safetyRateLimitedCount = 0;
+    const safetyReasons = [];
+    // Candidates safety flagged — checked by identity (the exact objects in
+    // allCandidates, which is also what taste.ranked/taste.details.candidate
+    // reference) against both the ranking and the fallback ordering below,
+    // regardless of what taste made of the same candidate.
+    const flagged = new Set();
+    allCandidates.forEach(function (item, i) {
+      const result = safetyVerdicts[i];
+      safetyLatencyTotal += result.latencyMs || 0;
+      if (result.latencyMs != null && result.latencyMs > safetyMaxLatency) safetyMaxLatency = result.latencyMs;
+      if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
+      if (result.verdict === null) safetyFailedCount++;
+      // Every call's own latency, always — not just failures — so a slow
+      // stretch (queueing, an upstream having a bad day) is visible in the
+      // logs without a failure to trigger it. This is what actually caught
+      // the connection-pool contention behind "safety nano at 3.6s for ten
+      // calls" (see lib/judge.js's safetyDispatcher comment) — no 429s ever
+      // showed up in it, which is exactly how that turned out not to be
+      // rate limiting.
+      console.log("safety [" + (item.lane || "?") + "] latencyMs=" + (result.latencyMs != null ? result.latencyMs : "?"));
+      // result.reason is set the moment SAFETY_MODEL's own first attempt
+      // failed, even if a fallback then rescued the verdict (see
+      // judgeOneLine's own comment) — logged in full here (Vercel function
+      // logs), and a capped sample rides in `why` below so ?debug=1 shows it
+      // too, without one bad run making `why` enormous. A 429 specifically
+      // (real rate limiting, distinct from a timeout) is counted separately
+      // so it's visible at a glance whether that's ever actually happening.
+      if (result.reason) {
+        console.error("safety judge fallback/failure [" + (item.lane || "?") + "]: " + result.reason);
+        safetyReasons.push("[" + item.lane + "] " + result.reason);
+        if (/\bhttp 429\b/.test(result.reason)) safetyRateLimitedCount++;
+      }
+      if (result.verdict === true) { droppedSafetyCount++; flagged.add(item); }
+    });
+    const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
+      (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
+      (safetyRateLimitedCount ? " (" + safetyRateLimitedCount + " rate-limited)" : "") +
+      (safetyModelsSeen.length
+        ? " · safety model: " + safetyModelsSeen.join("+") + " (wall " + safetyMaxLatency + "ms, sum " + safetyLatencyTotal + "ms across " + allCandidates.length + " calls)"
+        : "") +
+      (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
+
+    // Escalation is intensity, not rank. Position 1 is still the highest-q
+    // candidate — unchanged. Position 2 has to be a real escalation from
+    // it: more shock (intensity) than position 1, AND still good enough to
+    // ship (q within 70% of position 1's) — highest-q-next isn't enough on
+    // its own, or "make it worse" would just mean "next best," which is
+    // what a plain rank-order reveal already was. Position 3 is the same
+    // rule applied against position 2, not position 1.
+    let survivors, tasteNote;
+    if (taste.ok) {
+      survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
+      // Every candidate's q/shock, and the gate that killed each eliminated
+      // one — exactly what ?debug=1 needs to see the judge's actual
+      // reasoning, not just its final picks. A safety-flagged candidate is
+      // tagged here too, whatever taste made of it, since that's exactly
+      // why it's missing from `survivors` above.
+      const totalsNote = taste.details.map(function (d) {
+        const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
+        return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " shock:" + d.shock) + flag;
+      }).join(", ");
+      tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
+    } else {
+      // Fallback: fixed lane order, same as v3's original bridge selection —
+      // still a reasonable "something is better than nothing" ordering, just
+      // not the ranked-by-taste/intensity one. There's no real q/shock to
+      // gate escalation on here, so every position below just takes the
+      // next lane-ordered survivor — the same behavior this fallback
+      // always had, since q:null short-circuits the intensity check below.
+      survivors = allCandidates
+        .filter(function (item) { return !flagged.has(item); })
+        .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); })
+        .map(function (item) { return { candidate: item, q: null, shock: null }; });
+      tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
+    }
+
+    // Pairwise final: after gates and scoring, the top two by q get one
+    // head-to-head call — "which of these would produce the stronger
+    // involuntary reaction in a stranger reading it as the first result" —
+    // and the winner becomes position 1. Only meaningful when taste
+    // actually produced real q scores to pick a "top two" from; the fixed-
+    // lane-order fallback above has nothing worth comparing on. Swaps
+    // `survivors[0]`/`survivors[1]` in place when 2 wins — the
+    // position-selection loop below stays exactly as it was, just starting
+    // from whichever candidate the pairwise call preferred. A failed or
+    // unparsable pairwise call just keeps taste's own order, same
+    // "degrade, don't block" pattern the taste judge itself follows.
+    let pairwiseNote = "";
+    if (taste.ok && survivors.length >= 2) {
+      const pairwiseStarted = Date.now();
+      const pw = await judgePairwise(key, sent, survivors[0].candidate, survivors[1].candidate);
+      t.t_pairwise = Date.now() - pairwiseStarted;
+      if (pw.winner === 2) {
+        const tmp = survivors[0];
+        survivors[0] = survivors[1];
+        survivors[1] = tmp;
+        pairwiseNote = "pairwise: swapped, 2 won (" + pw.latencyMs + "ms)";
+      } else if (pw.winner === 1) {
+        pairwiseNote = "pairwise: kept, 1 won (" + pw.latencyMs + "ms)";
+      } else {
+        pairwiseNote = "pairwise: no verdict (" + pw.reason + "), kept taste's order";
+      }
+    }
+
+    return {
+      refuse: false, primaryResults: primaryResults, wildcard: wildcard, taste: taste,
+      safetyNote: safetyNote, tasteNote: tasteNote, pairwiseNote: pairwiseNote,
+      survivors: survivors, t: t
+    };
+  }
+
+  let round = await runGenerationRound();
 
   const crisisResult = await crisisPromise;
   if (crisisResult.crisis) {
@@ -399,169 +568,43 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Any primary group declining outright is a full refusal — same
-  // convention as v2's lead skip, now just checked across however many
-  // groups there are instead of one. The wildcard call declining alone
-  // isn't: two lanes' worth of "no" doesn't carry the same signal as a
-  // whole primary group refusing, it just means no raunchy/gross
-  // candidates this round (rare in practice — the wildcard prompt's own
-  // wall already covers the same abusive/minor/threat ground).
-  if (primaryResults.some(function (r) { return r.skip; })) {
+  if (round.refuse) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
     res.status(200).json({ refuse: true, drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
     return;
   }
 
-  const allCandidates = primaryResults
-    .reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
-    .concat(wildcard.skip ? [] : (wildcard.lines || []));
-
-  // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
-  // safety-then-taste gating what taste even sees — taste judges every
-  // candidate in parallel with safety judging every candidate, and only
-  // once both are back does a safety flag remove a candidate from the
-  // ranking (see below). This costs a little redundant taste-judging on
-  // whatever safety ends up flagging (rare), for real wall-clock savings:
-  // total judge time is now roughly max(safety, taste), not their sum.
-  //
-  // lib/judge.js's judgeOneLine (safety, cheap model, one call per
-  // candidate, unchanged from v2 apart from its renamed constants) and
-  // judgeCandidates (taste, expensive model, split into two parallel
-  // batches — see lib/judge.js's own comments for both).
-  const judgeStarted = Date.now();
-  const [safetyVerdicts, taste] = await Promise.all([
-    allCandidates.length
-      ? Promise.all(allCandidates.map(function (item) { return judgeOneLine(key, composeDraft(sent, item.text)); }))
-      : Promise.resolve([]),
-    allCandidates.length
-      ? judgeCandidates(key, sent, allCandidates)
-      : Promise.resolve({ ok: false, reason: "no candidates" })
-  ]);
-  stages.t_judge = Date.now() - judgeStarted;
-
-  const safetyModelsSeen = [];
-  // Safety calls all fire together (one Promise.all, see above), so the
-  // group's real wall-clock cost is the SLOWEST one, not their sum —
-  // safetyLatencyTotal used to be reported as if it were the group's
-  // cost, which overstated it by roughly 10x at ten candidates. Both are
-  // tracked now: safetyMaxLatency is what actually gates the response,
-  // safetyLatencyTotal rides along too since the sum is still useful for
-  // seeing total model-side cost even though it's not wall time.
-  let safetyLatencyTotal = 0;
-  let safetyMaxLatency = 0;
-  let droppedSafetyCount = 0;
-  let safetyFailedCount = 0;
-  let safetyRateLimitedCount = 0;
-  const safetyReasons = [];
-  // Candidates safety flagged — checked by identity (the exact objects in
-  // allCandidates, which is also what taste.ranked/taste.details.candidate
-  // reference) against both the ranking and the fallback ordering below,
-  // regardless of what taste made of the same candidate.
-  const flagged = new Set();
-  allCandidates.forEach(function (item, i) {
-    const result = safetyVerdicts[i];
-    safetyLatencyTotal += result.latencyMs || 0;
-    if (result.latencyMs != null && result.latencyMs > safetyMaxLatency) safetyMaxLatency = result.latencyMs;
-    if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
-    if (result.verdict === null) safetyFailedCount++;
-    // Every call's own latency, always — not just failures — so a slow
-    // stretch (queueing, an upstream having a bad day) is visible in the
-    // logs without a failure to trigger it. This is what actually caught
-    // the connection-pool contention behind "safety nano at 3.6s for ten
-    // calls" (see lib/judge.js's safetyDispatcher comment) — no 429s ever
-    // showed up in it, which is exactly how that turned out not to be
-    // rate limiting.
-    console.log("safety [" + (item.lane || "?") + "] latencyMs=" + (result.latencyMs != null ? result.latencyMs : "?"));
-    // result.reason is set the moment SAFETY_MODEL's own first attempt
-    // failed, even if a fallback then rescued the verdict (see
-    // judgeOneLine's own comment) — logged in full here (Vercel function
-    // logs), and a capped sample rides in `why` below so ?debug=1 shows it
-    // too, without one bad run making `why` enormous. A 429 specifically
-    // (real rate limiting, distinct from a timeout) is counted separately
-    // so it's visible at a glance whether that's ever actually happening.
-    if (result.reason) {
-      console.error("safety judge fallback/failure [" + (item.lane || "?") + "]: " + result.reason);
-      safetyReasons.push("[" + item.lane + "] " + result.reason);
-      if (/\bhttp 429\b/.test(result.reason)) safetyRateLimitedCount++;
-    }
-    if (result.verdict === true) { droppedSafetyCount++; flagged.add(item); }
-  });
-  const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
-    (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
-    (safetyRateLimitedCount ? " (" + safetyRateLimitedCount + " rate-limited)" : "") +
-    (safetyModelsSeen.length
-      ? " · safety model: " + safetyModelsSeen.join("+") + " (wall " + safetyMaxLatency + "ms, sum " + safetyLatencyTotal + "ms across " + allCandidates.length + " calls)"
-      : "") +
-    (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
-
-  // Escalation is intensity, not rank. Position 1 is still the highest-q
-  // candidate — unchanged. Position 2 has to be a real escalation from
-  // it: more shock (intensity) than position 1, AND still good enough to
-  // ship (q within 70% of position 1's) — highest-q-next isn't enough on
-  // its own, or "make it worse" would just mean "next best," which is
-  // what a plain rank-order reveal already was. Position 3 is the same
-  // rule applied against position 2, not position 1.
-  //
-  // A position that finds no qualifying survivor just isn't included in
-  // `positions` — this is deliberate, not a bug to patch here: a
-  // one-or-two-draft response is what tells index.html's anotherBtn
-  // handler to fire a fresh escalated fetch on the next tap (its existing
-  // "pool exhausted" path, unchanged), which is exactly the behavior the
-  // brief asks for. Nothing here pads a short result out to three.
-  let survivors, tasteNote;
-  if (taste.ok) {
-    survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
-    // Every candidate's q/shock, and the gate that killed each eliminated
-    // one — exactly what ?debug=1 needs to see the judge's actual
-    // reasoning, not just its final picks. A safety-flagged candidate is
-    // tagged here too, whatever taste made of it, since that's exactly
-    // why it's missing from `survivors` above.
-    const totalsNote = taste.details.map(function (d) {
-      const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
-      return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " shock:" + d.shock) + flag;
-    }).join(", ");
-    tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
-  } else {
-    // Fallback: fixed lane order, same as v3's original bridge selection —
-    // still a reasonable "something is better than nothing" ordering, just
-    // not the ranked-by-taste/intensity one. There's no real q/shock to
-    // gate escalation on here, so every position below just takes the
-    // next lane-ordered survivor — the same behavior this fallback
-    // always had, since q:null short-circuits the intensity check below.
-    survivors = allCandidates
-      .filter(function (item) { return !flagged.has(item); })
-      .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); })
-      .map(function (item) { return { candidate: item, q: null, shock: null }; });
-    tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
-  }
-
-  // Pairwise final: after gates and scoring, the top two by q get one
-  // head-to-head call — "which of these would produce the stronger
-  // involuntary reaction in a stranger reading it as the first result" —
-  // and the winner becomes position 1. Only meaningful when taste
-  // actually produced real q scores to pick a "top two" from; the fixed-
-  // lane-order fallback above has nothing worth comparing on. Swaps
-  // `survivors[0]`/`survivors[1]` in place when 2 wins — the
-  // position-selection loop below stays exactly as it was, just starting
-  // from whichever candidate the pairwise call preferred. A failed or
-  // unparsable pairwise call just keeps taste's own order, same
-  // "degrade, don't block" pattern the taste judge itself follows.
-  let pairwiseNote = "";
-  if (taste.ok && survivors.length >= 2) {
-    const pairwiseStarted = Date.now();
-    const pw = await judgePairwise(key, sent, survivors[0].candidate, survivors[1].candidate);
-    stages.t_pairwise = Date.now() - pairwiseStarted;
-    if (pw.winner === 2) {
-      const tmp = survivors[0];
-      survivors[0] = survivors[1];
-      survivors[1] = tmp;
-      pairwiseNote = "pairwise: swapped, 2 won (" + pw.latencyMs + "ms)";
-    } else if (pw.winner === 1) {
-      pairwiseNote = "pairwise: kept, 1 won (" + pw.latencyMs + "ms)";
-    } else {
-      pairwiseNote = "pairwise: no verdict (" + pw.reason + "), kept taste's order";
+  // Regenerate-if-weak: if the best candidate this round scored below
+  // REGEN_THRESHOLD, the whole batch was probably a weak draw — run one
+  // full second round (fresh generation, fresh judging, fresh pairwise)
+  // and use its result instead of shipping one already known to be under
+  // the bar. Capped at exactly one extra round no matter how the second
+  // round itself scores — this is a retry, not a search for perfect. A
+  // second round that comes back an outright refusal just keeps the
+  // first round's (already-known-good) result rather than failing a
+  // request that had already succeeded once.
+  const REGEN_THRESHOLD = Number(process.env.REGEN_THRESHOLD) || 30;
+  let regenerated = false;
+  const firstRoundBestQ = round.survivors.length && round.survivors[0].q != null ? round.survivors[0].q : null;
+  if (firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) {
+    const regenRound = await runGenerationRound();
+    if (!regenRound.refuse) {
+      round = regenRound;
+      regenerated = true;
     }
   }
+
+  stages.t_primary = round.t.t_primary;
+  stages.t_wildcard = round.t.t_wildcard;
+  stages.t_judge = round.t.t_judge;
+  stages.t_pairwise = round.t.t_pairwise;
+  const primaryResults = round.primaryResults;
+  const wildcard = round.wildcard;
+  const taste = round.taste;
+  const safetyNote = round.safetyNote;
+  const tasteNote = round.tasteNote;
+  const pairwiseNote = round.pairwiseNote;
+  const survivors = round.survivors;
 
   const positions = [];
   if (survivors.length) positions.push(survivors[0]);
@@ -591,6 +634,7 @@ module.exports = async function handler(req, res) {
     " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
     (pairwiseNote ? " · " + pairwiseNote : "") +
+    (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + " < " + REGEN_THRESHOLD + ")" : "") +
     " · stages: " + formatStages(stages);
 
   const primaryDebugLines = primaryResults.reduce(function (acc, r) { return acc.concat(r.debugLines || []); }, []);
