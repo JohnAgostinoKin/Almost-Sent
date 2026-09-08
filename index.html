@@ -59,8 +59,11 @@
     .row { display:flex; gap:10px; margin-top:10px; }
     button { border:0; background:var(--red); color:#fff; padding:15px; font-size:16px; cursor:pointer; }
     button:disabled { opacity:0.5; cursor:wait; }
-    .ghost { background:transparent; color:var(--mute); border:1px solid #2a2a2a; }
-    .ghost:hover { color:var(--fg); border-color:#3d3d3d; }
+    /* Raised from #2a2a2a/#3d3d3d — too faint to read as a button edge on
+       a phone screen in daylight. Covers every icon button too (they're
+       all .ghost — see #share-icons), not just the plain text ones. */
+    .ghost { background:transparent; color:var(--mute); border:1px solid #4a4742; }
+    .ghost:hover { color:var(--fg); border-color:#6e6960; }
     .hint { margin-top:12px; font-size:10px; color:#6e6960; }
     .hide-toggle { display:flex; align-items:center; gap:6px; width:auto; margin-top:10px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; color:#6e6960; cursor:pointer; }
     .hide-toggle:hover { color:var(--mute); }
@@ -176,9 +179,29 @@
            crisis pre-check (lib/crisis.js) flags the pasted text — a
            plain, serious line, not a joke that just failed to generate. -->
       <p class="crisis-msg hidden" id="crisis-msg"></p>
-      <!-- Share is the primary next step now, right under the draft.
-           Mobile gets a full-width native-share-sheet button (#share-this)
-           on top — the 9:16 PNG plus the text block when
+      <!-- Escalation sits directly under the line it escalates, right
+           under the draft, above share — ghost styling (only "share
+           this" stays the one red/primary button below the draft). A
+           three-tap progression, not a static "make it worse" label —
+           see ESCALATE_LABELS below — that implies the first draft was
+           the best one and every tap past it is a deliberate dare, not
+           "here's another." Reveals whatever's already sitting in the
+           pool when it qualifies (see api/draft.js's intensity-gated
+           position 2/3 selection), or fetches a fresh escalated batch
+           when it doesn't — see fetchEscalation and the click handler
+           below. Disables for good after the third tap, full stop,
+           regardless of which taps needed a fetch underneath. -->
+      <div class="row worse"><button class="ghost" type="button" id="another" disabled>take it further</button></div>
+
+      <!-- Share follows escalation now, not the other way around — it
+           always acts on whatever's currently on screen (renderDraft's
+           latest call), never what was there when the page first
+           rendered. buildShareText() reads draftEl.textContent live and
+           attemptNativeImageShare/buildShareImageBlob read pool[cursor]
+           live, both at share time, not render time — reordering this
+           markup needed no script changes to keep that true. Mobile gets
+           a full-width native-share-sheet button (#share-this) on top —
+           the 9:16 PNG plus the text block when
            navigator.canShare({files}) allows it, the text block alone
            otherwise — hidden past the 800px breakpoint above, since
            there's no share sheet to hand off to on desktop, ever (see
@@ -229,19 +252,6 @@
         <input type="checkbox" id="hide-original">
         hide their text
       </label>
-
-      <!-- Reroll is next — full width, ghost styling now (only "share
-           this" stays the one red/primary button below the draft). A
-           three-tap progression, not a static "make it worse" label —
-           see ESCALATE_LABELS below — that implies the first draft was
-           the best one and every tap past it is a deliberate dare, not
-           "here's another." Reveals whatever's already sitting in the
-           pool when it qualifies (see api/draft.js's intensity-gated
-           position 2/3 selection), or fetches a fresh escalated batch
-           when it doesn't — see fetchEscalation and the click handler
-           below. Disables for good after the third tap, full stop,
-           regardless of which taps needed a fetch underneath. -->
-      <div class="row worse"><button class="ghost" type="button" id="another" disabled>take it further</button></div>
 
       <div class="react" id="react">
         <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
