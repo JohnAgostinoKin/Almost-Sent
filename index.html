@@ -50,14 +50,17 @@
     .hide-toggle:hover { color:var(--mute); }
     .hide-toggle input { width:auto; }
     /* One finished example under the primary button — proof before anyone
-       types anything. Restrained: same muted/bright two-tone convention as
-       a real result (reuses .draft/.sent-part), but sized well under
-       .draft's own 30/38px so it illustrates rather than competes with an
-       actual result once there is one (toggled alongside #out — see the
-       submit handler and reset()). The ".example .draft" override beats
-       plain ".draft" on specificity alone, no !important needed. */
+       types anything. Labeled line by line (muted "they sent", bright
+       "they almost sent") rather than composed into one continuation like
+       a real result — this one has to read as a sample, not be mistaken
+       for actual output — and sized well under .draft's 30/38px so it
+       illustrates rather than competes once an actual result is up
+       (toggled alongside #out — see the submit handler and reset()). */
     .example { margin-top:22px; }
-    .example .draft { font-size:17px; }
+    .example .chips-lead { display:block; margin-bottom:6px; }
+    .example-line { font-family:Georgia,"Times New Roman",serif; font-style:italic; font-size:17px; line-height:1.5; }
+    .example-sent { color:var(--mute); }
+    .example-draft { color:var(--fg); margin-top:2px; }
     .example .beat-toggle { margin-top:8px; }
     /* Shown instead of a download/share when neither can actually hand the
        visitor a file — see saveImageBtn's click handler. The image is the
@@ -123,7 +126,7 @@
 
     <form id="form">
       <label class="label" for="sent">tell us what they sent</label>
-      <textarea id="sent" maxlength="500" required placeholder="type what they sent"></textarea>
+      <textarea id="sent" maxlength="500" required></textarea>
       <!-- Populated on load from a rotating twelve-chip pool — see
            CHIP_GROUPS/getChipGroup in the script — not hardcoded here. -->
       <div class="chips" id="chips">
@@ -134,14 +137,19 @@
     </form>
 
     <!-- Proof-first: one finished example, unconditional for every visitor
-         (no A/B — everyone sees this). Same two-tone convention as a real
-         result (muted sent text, bright continuation, one line), just
-         smaller — see .example above. Hidden the moment a real result is
+         (no A/B — everyone sees this). A tiny "example:" label (same
+         styling as the chips' own "try:"), then the exchange spelled out
+         line by line — muted "they sent", bright "they almost sent" —
+         rather than composed into one continuation line like a real
+         result; this one has to read as a labeled sample at a glance, not
+         be mistaken for actual output. Hidden the moment a real result is
          up (see the submit handler and reset()), so it never sits next to
          one. -->
     <div class="example" id="example">
-      <p class="draft"><span class="sent-part">they sent: we should hang out sometime</span>. i'll pencil you in behind everyone i like</p>
-      <button class="beat-toggle" type="button" id="do-one-now">do one now</button>
+      <span class="chips-lead">example:</span>
+      <p class="example-line example-sent">they sent: we should hang out sometime</p>
+      <p class="example-line example-draft">they almost sent: i'll pencil you in behind everyone i like</p>
+      <button class="beat-toggle" type="button" id="do-one-now">do one now &rarr;</button>
     </div>
 
     <section id="out" class="result hidden">
