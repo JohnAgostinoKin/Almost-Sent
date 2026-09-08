@@ -55,6 +55,11 @@
     textarea[readonly] { color:var(--mute); }
     textarea::placeholder { color:var(--mute); opacity:1; font-size:14px; }
     .row { display:flex; gap:10px; margin-top:10px; }
+    /* Escalation + the top "new text" — equal width regardless of label
+       length (flex:1 overrides button's own width:100%, which would
+       otherwise have both fight for 100% of the row). */
+    .row-split { display:flex; gap:10px; margin-top:10px; }
+    .row-split button { flex:1; width:auto; }
     button { border:0; background:var(--red); color:#fff; padding:15px; font-size:16px; cursor:pointer; }
     button:disabled { opacity:0.5; cursor:wait; }
     /* Raised from #2a2a2a/#3d3d3d — too faint to read as a button edge on
@@ -205,8 +210,14 @@
            fetches a fresh escalated batch when it doesn't — see
            fetchEscalation and the click handler below. Disables for good
            after the third tap, full stop, regardless of which taps
-           needed a fetch underneath. -->
-      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
+           needed a fetch underneath. Paired here with a second "new
+           text" (.again-btn, same reset() as the one at the bottom) so
+           starting over doesn't require scrolling past the whole share
+           block just to get back to a blank textarea. -->
+      <div class="row-split worse">
+        <button type="button" id="another" disabled>take it further</button>
+        <button class="ghost again-btn" type="button" id="again-top">new text</button>
+      </div>
 
       <!-- The icon row IS the share now — no separate native-share-sheet
            button above it. It always acts on whatever's currently on
@@ -270,9 +281,12 @@
 
       <div class="debug hidden" id="debug"></div>
 
-      <!-- "new text" is the minor action now — a small ghost link, so it no
-           longer competes with sharing or reroll for attention. -->
-      <div class="minor"><button class="ghost" type="button" id="again">new text</button></div>
+      <!-- Second "new text" — full-width ghost, after the card controls.
+           Same .again-btn class (and reset()) as the top one; this is
+           the one that stays reachable in crisis-mode (.minor isn't in
+           the hidden-chrome list — see the stylesheet), so it can't be
+           the top one alone. -->
+      <div class="minor"><button class="ghost again-btn" type="button" id="again">new text</button></div>
 
       <!-- "think you can do better" used to sit open on the page, competing
            with the result itself and confusing first-timers. Collapsed now
@@ -1416,7 +1430,12 @@
       window.open("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(buildReferralUrl()), "_blank", "noopener");
     });
 
-    document.getElementById("again").addEventListener("click", reset);
+    // Two "new text" buttons now (top, next to escalation; bottom, after
+    // the card controls) — same class, same reset(), whichever one
+    // someone actually taps.
+    Array.prototype.slice.call(document.querySelectorAll(".again-btn")).forEach(function (btn) {
+      btn.addEventListener("click", reset);
+    });
 
     // The example's own ghost link — just focuses the textarea, no value
     // fill (unlike a chip tap). The example itself stays put until an
