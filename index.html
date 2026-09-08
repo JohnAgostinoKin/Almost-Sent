@@ -774,7 +774,7 @@
           crisisMsgEl.innerHTML = CRISIS_MESSAGE_HTML;
           crisisMsgEl.classList.remove("hidden");
           sentContextEl.textContent = sent;
-          logEvent("draft_shown", { source: "crisis", provider: null, revealIndex: 0 });
+          logEvent("draft_shown", { source: "crisis", provider: null, revealIndex: 0, t_total: data.t_total });
           if (DEBUG) renderDebug("result", data);
           sentEl.readOnly = true;
           writeEl.value = "";
@@ -809,7 +809,13 @@
         // already sitting in `pool` — no second call to wait on, so
         // "make it worse" is live immediately.
         refreshAnotherState();
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+        // t_total (server wall-clock for the whole request) rides along
+        // here specifically — this is the ONE draft_shown that represents
+        // a visitor's actual wait for a first result; the "another"
+        // handler's own draft_shown calls below reveal an already-fetched
+        // line (or a fresh escalation batch with its own separate timing
+        // question, not what "how long did the first result take" means).
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor, t_total: data.t_total });
         if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
         writeEl.value = "";
