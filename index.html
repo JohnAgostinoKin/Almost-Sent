@@ -46,6 +46,9 @@
     .ghost { background:transparent; color:var(--mute); border:1px solid #2a2a2a; }
     .ghost:hover { color:var(--fg); border-color:#3d3d3d; }
     .hint { margin-top:12px; font-size:10px; color:#6e6960; }
+    .hide-toggle { display:flex; align-items:center; gap:6px; width:auto; margin-top:10px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; color:#6e6960; cursor:pointer; }
+    .hide-toggle:hover { color:var(--mute); }
+    .hide-toggle input { width:auto; }
     /* One finished example under the primary button — proof before anyone
        types anything. Restrained: same muted/bright two-tone convention as
        a real result (reuses .draft/.sent-part), but sized well under
@@ -79,6 +82,7 @@
     #out.crisis-mode #lead-actions,
     #out.crisis-mode #save-image-row,
     #out.crisis-mode #save-image-fallback,
+    #out.crisis-mode #hide-toggle-row,
     #out.crisis-mode .worse,
     #out.crisis-mode #beat-toggle,
     #out.crisis-mode .turn { display:none; }
@@ -177,6 +181,15 @@
         <img id="save-image-fallback-img" alt="almost sent — image to save">
         <p class="hint">press and hold to save.</p>
       </div>
+      <!-- Card only — the live page above keeps its own styling either
+           way. Off by default. Read at share time (see saveImageBtn's and
+           shareThisBtn's click handlers, both of which pass it straight
+           into drawShareCanvas) rather than cached, so flipping it after
+           looking at one card changes the very next one. -->
+      <label class="hide-toggle" id="hide-toggle-row" for="hide-original">
+        <input type="checkbox" id="hide-original">
+        hide their text
+      </label>
 
       <!-- Reroll is next — a full-width, primary-styled button (default
            button styling: red, full width, same as #go — no .ghost here
@@ -244,6 +257,7 @@
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
     var shareThisBtn = document.getElementById("share-this");
     var saveImageBtn = document.getElementById("save-image");
+    var hideOriginalEl = document.getElementById("hide-original");
     var SAVE_IMAGE_LABEL = saveImageBtn.textContent; // "save as image" — captured once, restored after every outcome
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
     var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
@@ -309,6 +323,22 @@
       sentEl.value = chip.textContent;
       sentEl.focus();
     });
+
+    // Mirrors lib/mask.js's maskPII (duplicated — no build step here to
+    // require() it, keep the two in sync by hand). lib/mask.js only ever
+    // runs server-side, on what lands in Supabase's inbox table — this
+    // copy exists purely so the share card (drawShareCanvas below) never
+    // draws a phone number or email straight from memory, even though the
+    // masked version was never round-tripped back from the server.
+    var MASK_EMAIL_RE = /[\w.+-]+@[\w-]+\.[a-z]{2,}/gi;
+    var MASK_PHONE_RE = /\+?\(?\d[\d().\-\s]{6,12}\d/g;
+    var MASK_BARE_DIGITS_RE = /\b\d{7,}\b/g;
+    function maskPII(text) {
+      return String(text || "")
+        .replace(MASK_EMAIL_RE, "[email]")
+        .replace(MASK_PHONE_RE, "[phone]")
+        .replace(MASK_BARE_DIGITS_RE, "[phone]");
+    }
 
     // Mirrors lib/postprocess.js's OPENER_RE and lib/compose.js's
     // composeDraft (duplicated — no build step here to require() them,
@@ -544,6 +574,7 @@
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
       saveImageBtn.disabled = disabled;
       shareThisBtn.disabled = disabled;
+      hideOriginalEl.disabled = disabled;
     }
     // Only the "copy it" label resets here — the "copied." confirmation
     // (see copyShareBtns' click handler below) is per-button, scoped to
@@ -576,6 +607,7 @@
       sentEl.readOnly = false;
       writeEl.value = "";
       setShareDisabled(true);
+      hideOriginalEl.checked = false;
       resetCopyLabel();
       resetSaveImage();
       whewEl.classList.add("hidden");
@@ -962,8 +994,11 @@
 
     // Builds the actual <canvas> — sentText/draftText same as renderDraft
     // takes. Never touches the DOM (the canvas is never appended anywhere)
-    // — the caller reads it back via canvas.toBlob.
-    function drawShareCanvas(sentText, draftText) {
+    // — the caller reads it back via canvas.toBlob. hideOriginal (the
+    // "hide their text" toggle) drops the "they sent" label and the
+    // muted quote entirely, leaving just the continuation, the wordmark,
+    // and the footer — see the caller for how that's read off the page.
+    function drawShareCanvas(sentText, draftText, hideOriginal) {
       var canvas = document.createElement("canvas");
       canvas.width = SHARE_IMG_W;
       canvas.height = SHARE_IMG_H;
@@ -984,14 +1019,33 @@
       ctx.fillStyle = SHARE_IMG_RED;
       ctx.fillText(".", SHARE_IMG_MARGIN + wordmarkWidth, wordmarkY);
 
-      // "they sent" — a small caption above the quote so the muted color
-      // reads as "this part is theirs", not just a style choice, at a
-      // glance. One size up from the footer's own caption size (32px)
-      // for the same arm's-length-legibility reason the contrast above
-      // just got raised.
-      ctx.font = "40px " + SHARE_IMG_SANS;
-      ctx.fillStyle = SHARE_IMG_MUTE;
-      ctx.fillText("they sent", SHARE_IMG_MARGIN, 300);
+      // Masked here, not just in storage — this text never round-trips
+      // through the server's own masked copy, so a phone number or email
+      // pasted straight into #sent would otherwise reach the card as-is.
+      var maskedSent = maskPII(sentText);
+      var parts = composeParts(maskedSent, draftText);
+      var words;
+      if (hideOriginal) {
+        // Only the continuation. A real continuation (2 parts) carries a
+        // leading connector meant to attach it to the sent text right
+        // above — with that gone, drop the connector too rather than
+        // opening on a stray ". ". A straight-replacement line (1 part)
+        // already stands on its own, nothing to strip.
+        var continuation = parts.length === 2
+          ? parts[1].text.replace(/^[,.!?\s]+/, "")
+          : parts[0].text;
+        words = coloredWords([{ text: continuation, muted: false }]);
+      } else {
+        // "they sent" — a small caption above the quote so the muted
+        // color reads as "this part is theirs", not just a style choice,
+        // at a glance. One size up from the footer's own caption size
+        // (32px) for the same arm's-length-legibility reason the
+        // contrast above just got raised.
+        ctx.font = "40px " + SHARE_IMG_SANS;
+        ctx.fillStyle = SHARE_IMG_MUTE;
+        ctx.fillText("they sent", SHARE_IMG_MARGIN, 300);
+        words = coloredWords(parts);
+      }
 
       // Middle: the composed exchange, wrapped, left-aligned, vertically
       // centered in the band between the wordmark and the footer. Starts
@@ -1001,7 +1055,6 @@
       var middleTop = 460;
       var middleBottom = SHARE_IMG_H - 220;
       var availableHeight = middleBottom - middleTop;
-      var words = coloredWords(composeParts(sentText, draftText));
       var bodySize = 72;
       var lines, lineHeight, totalTextHeight;
       for (;;) {
@@ -1027,11 +1080,11 @@
     }
 
     // Wraps canvas.toBlob's callback shape in a promise — sentText/
-    // draftText same as drawShareCanvas.
-    function buildShareImageBlob(sentText, draftText) {
+    // draftText/hideOriginal same as drawShareCanvas.
+    function buildShareImageBlob(sentText, draftText, hideOriginal) {
       return new Promise(function (resolve, reject) {
         try {
-          var canvas = drawShareCanvas(sentText, draftText);
+          var canvas = drawShareCanvas(sentText, draftText, hideOriginal);
           canvas.toBlob(function (blob) {
             if (blob) resolve(blob); else reject(new Error("toBlob returned nothing"));
           }, "image/png");
@@ -1082,8 +1135,9 @@
       saveImageBtn.textContent = "making it…";
       saveImageFallbackEl.classList.add("hidden");
       try {
-        var blob = await buildShareImageBlob(current, draftText);
-        logEvent("share", { via: "image" });
+        var hidden = hideOriginalEl.checked;
+        var blob = await buildShareImageBlob(current, draftText, hidden);
+        logEvent("share", { via: "image", hidden: hidden });
         var file = new File([blob], "almost-sent.png", { type: "image/png" });
         // The Instagram/Snapchat path — a mobile share sheet that can take
         // a file, not just a URL/text. navigator.canShare has to be asked
@@ -1130,16 +1184,17 @@
       var text = buildShareText();
       shareThisBtn.disabled = true;
       try {
+        var hidden = hideOriginalEl.checked;
         var file = null;
         try {
-          var blob = await buildShareImageBlob(current, draftText);
+          var blob = await buildShareImageBlob(current, draftText, hidden);
           file = new File([blob], "almost-sent.png", { type: "image/png" });
         } catch (err) {
           file = null; // canvas failed — still share the text block below
         }
         if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], text: text });
-          logEvent("share", { via: "native_image" });
+          logEvent("share", { via: "native_image", hidden: hidden });
         } else if (navigator.share) {
           await navigator.share({ text: text });
           logEvent("share", { via: "native_text" });
