@@ -23,14 +23,23 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    /* Result hierarchy: "share this" is the primary mobile action right
-       under the draft, using the native share sheet (see #share-this's
-       click handler) — there's no share sheet to hand off to on desktop,
-       so the existing text it / email it / copy it row (#lead-actions)
-       takes its place there instead. Same 800px breakpoint everything
-       else on the page already uses. */
+    /* Mobile-first default: "share this" (native share sheet) shown, the
+       text it / email it / copy it row hidden. Below 800px this is the
+       whole story — nothing else here touches these two elements, so
+       there's nothing else that could leave both showing or both hidden
+       at once. */
     #lead-actions { display:none; }
-    @media (min-width:800px) { main, footer { max-width:560px; } h1 { font-size:80px; } .draft { font-size:38px; } #share-this-row { display:none; } #lead-actions { display:flex; } }
+    @media (min-width:800px) {
+      main, footer { max-width:560px; }
+      h1 { font-size:80px; }
+      .draft { font-size:38px; }
+      /* Desktop: no share sheet to hand off to, so the text it / email
+         it / copy it row (#lead-actions) replaces "share this" instead —
+         one is always the opposite of the other, both driven by this
+         single media query. */
+      #share-this-row { display:none; }
+      #lead-actions { display:flex; }
+    }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
     .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
@@ -83,7 +92,7 @@
     #out.crisis-mode .react,
     #out.crisis-mode #share-this-row,
     #out.crisis-mode #lead-actions,
-    #out.crisis-mode #save-image-row,
+    #out.crisis-mode #save-image,
     #out.crisis-mode #save-image-fallback,
     #out.crisis-mode #hide-toggle-row,
     #out.crisis-mode .worse,
@@ -178,11 +187,12 @@
         <button class="ghost copy-share" type="button" disabled>copy it</button>
       </div>
       <!-- A 9:16 PNG drawn on canvas (see drawShareCanvas in the script) —
-           not a screenshot. Secondary now, under "share this" — for mobile
-           visitors who want the file itself without going through the
-           sheet. Enabled/disabled in lockstep with the buttons above (see
-           setShareDisabled). -->
-      <div class="row" id="save-image-row"><button class="ghost" type="button" id="save-image" disabled>save as image</button></div>
+           not a screenshot. A small ghost link (reuses .beat-toggle's
+           styling), not a full-width button — secondary under the share
+           row above, for whoever wants the file itself without going
+           through the sheet or the text/email/copy row. Enabled/disabled
+           in lockstep with the buttons above (see setShareDisabled). -->
+      <button class="beat-toggle" type="button" id="save-image" disabled>save as image</button>
       <!-- In-app browsers (Instagram, TikTok, etc.) often can't hand back
            a real file — no native share sheet for files, and a silently
            no-op'd download. Shown instead, in that case, by
@@ -201,19 +211,18 @@
         hide their text
       </label>
 
-      <!-- Reroll is next — a full-width, primary-styled button (default
-           button styling: red, full width, same as #go — no .ghost here
-           on purpose). A three-tap progression, not a static "make it
-           worse" label — see ESCALATE_LABELS below — that implies the
-           first draft was the best one and every tap past it is a
-           deliberate dare, not "here's another." Reveals whatever's
-           already sitting in the pool when it qualifies (see
-           api/draft.js's intensity-gated position 2/3 selection), or
-           fetches a fresh escalated batch when it doesn't — see
-           fetchEscalation and the click handler below. Disables for good
-           after the third tap, full stop, regardless of which taps needed
-           a fetch underneath. -->
-      <div class="row worse"><button type="button" id="another" disabled>take it further</button></div>
+      <!-- Reroll is next — full width, ghost styling now (only "share
+           this" stays the one red/primary button below the draft). A
+           three-tap progression, not a static "make it worse" label —
+           see ESCALATE_LABELS below — that implies the first draft was
+           the best one and every tap past it is a deliberate dare, not
+           "here's another." Reveals whatever's already sitting in the
+           pool when it qualifies (see api/draft.js's intensity-gated
+           position 2/3 selection), or fetches a fresh escalated batch
+           when it doesn't — see fetchEscalation and the click handler
+           below. Disables for good after the third tap, full stop,
+           regardless of which taps needed a fetch underneath. -->
+      <div class="row worse"><button class="ghost" type="button" id="another" disabled>take it further</button></div>
 
       <div class="react" id="react">
         <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
