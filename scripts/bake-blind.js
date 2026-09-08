@@ -165,7 +165,7 @@ async function runLegacyInput(model, input) {
 // regardless of which primary model is under test here, so it isn't part
 // of what these three systems are actually comparing). Safety-judges
 // every survivor exactly like api/draft.js does, then the real taste
-// judge (judgeCandidates, JUDGE_MODEL — sol by default) gates and ranks
+// judge (judgeCandidates, JUDGE_MODEL — gpt-5.4 by default) gates and ranks
 // what's left. A failed taste call falls back to input order, same
 // graceful-degradation api/draft.js has, rather than failing this input
 // out of the run entirely.

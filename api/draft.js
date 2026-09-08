@@ -392,18 +392,29 @@ module.exports = async function handler(req, res) {
   let safetyLatencyTotal = 0;
   let droppedSafetyCount = 0;
   let safetyFailedCount = 0;
+  const safetyReasons = [];
   const safe = [];
   allCandidates.forEach(function (item, i) {
     const result = safetyVerdicts[i];
     safetyLatencyTotal += result.latencyMs || 0;
     if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
     if (result.verdict === null) safetyFailedCount++;
+    // result.reason is set the moment SAFETY_MODEL's own first attempt
+    // failed, even if a fallback then rescued the verdict (see
+    // judgeOneLine's own comment) — logged in full here (Vercel function
+    // logs), and a capped sample rides in `why` below so ?debug=1 shows it
+    // too, without one bad run making `why` enormous.
+    if (result.reason) {
+      console.error("safety judge fallback/failure [" + (item.lane || "?") + "]: " + result.reason);
+      safetyReasons.push("[" + item.lane + "] " + result.reason);
+    }
     if (result.verdict === true) { droppedSafetyCount++; return; }
     safe.push(item);
   });
   const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
     (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
-    (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "");
+    (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "") +
+    (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
   // Stage 2: TASTE. lib/judge.js's judgeCandidates — one call reviewing
   // every safety survivor together, gating each on five hard checks before
