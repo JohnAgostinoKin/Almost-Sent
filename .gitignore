@@ -6,3 +6,5 @@ node_modules
 bake-*.md
 bake/results/
 bake/csv/
+bible.csv
+bible/

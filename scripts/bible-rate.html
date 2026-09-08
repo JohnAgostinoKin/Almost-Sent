@@ -43,7 +43,10 @@
     Rate real lines love / forgettable / hate, with a short reason each.
     Downloads <code>bible.csv</code> — drop it at the repo root; lib/judge.js
     reads it automatically as taste-judge calibration examples (five loved,
-    five hated, rotated per call — see lib/judge.js's own comment).
+    five hated, rotated per call — see lib/judge.js's own comment). Run
+    <code>npm run bible-prep</code> first to generate a wide pool of real,
+    displayed-quality lines (<code>bible/lines.json</code>) — load that file
+    below to rate lines with their original context shown alongside them.
   </p>
 
   <section id="setup">
@@ -52,7 +55,7 @@
 
     <div class="row">
       <div style="flex:1">
-        <label for="file-input">or load a history export (.json array of {text} / {sent}, or .csv with a text column)</label>
+        <label for="file-input">or load bible/lines.json (from npm run bible-prep), a history export (.json array of {text} / {sent}), or .csv</label>
         <input type="file" id="file-input" accept=".json,.csv,.txt" />
       </div>
       <div style="flex:1">
@@ -115,10 +118,11 @@
   var doneSummaryEl = document.getElementById("done-summary");
   var resultsTableBody = document.querySelector("#results-table tbody");
 
-  var queue = [];        // lines still to rate, in order
+  var queue = [];        // {original, text} pairs still to rate, in order — original is null for a plain pasted/CSV line with no context
   var cursor = 0;        // index into queue
   var rated = [];         // {text, rating, reason} — new ratings from THIS session
   var resumed = [];       // {text, rating, reason} — loaded from an existing bible.csv, carried through unchanged
+  var loadedPairs = [];   // {original, text} pairs loaded from a file — kept separate from the paste box, which can only ever hold bare strings
 
   // Minimal RFC4180-ish CSV: handles quoted fields, escaped "" quotes,
   // commas inside quotes. Good enough for a file this tool itself writes
@@ -178,21 +182,30 @@
     });
   }
 
-  // Pulls a flat list of line strings out of whatever the loaded file
-  // turns out to be: a JSON array of strings, a JSON array of objects
-  // with a text/sent field (an events/inbox export shaped either way), or
-  // a plain-text/CSV file treated as one line per row (first cell if it
-  // looks like CSV).
-  function extractLinesFromFile(text, filename) {
+  // Pulls {original, text} pairs out of whatever the loaded file turns
+  // out to be:
+  // - scripts/bible-prep.js's own bible/lines.json shape — a JSON array
+  //   of {original, text, lane, q, shock} — original is kept, so the
+  //   review screen can show what the line was actually replying to.
+  // - any other JSON array of strings, or of objects with a text/sent/
+  //   line field (an events/inbox export shaped either way) — original
+  //   is null, there's no context to show beyond the line itself.
+  // - a plain-text/CSV file, one line per row (first cell if it looks
+  //   like CSV) — original null, same as above.
+  function extractPairsFromFile(text, filename) {
     var lower = (filename || "").toLowerCase();
     if (lower.endsWith(".json")) {
       try {
         var data = JSON.parse(text);
         var arr = Array.isArray(data) ? data : (Array.isArray(data.rows) ? data.rows : []);
         return arr.map(function (item) {
-          if (typeof item === "string") return item;
-          if (item && typeof item === "object") return item.text || item.sent || item.line || "";
-          return "";
+          if (typeof item === "string") return { original: null, text: item };
+          if (item && typeof item === "object") {
+            var t = item.text || item.sent || item.line || "";
+            var orig = typeof item.original === "string" ? item.original : null;
+            return t ? { original: orig, text: t } : null;
+          }
+          return null;
         }).filter(Boolean);
       } catch (err) {
         setupStatus.textContent = "couldn't parse that as JSON — treating it as plain text instead.";
@@ -200,9 +213,9 @@
     }
     // .csv or fallback: one line per row, first comma-separated field if present.
     return text.split(/\r?\n/).map(function (line) {
-      if (!line.trim()) return "";
+      if (!line.trim()) return null;
       var fields = parseCsvLine(line);
-      return fields[0] || "";
+      return fields[0] ? { original: null, text: fields[0] } : null;
     }).filter(Boolean);
   }
 
@@ -210,10 +223,12 @@
     var file = fileInput.files[0];
     if (!file) return;
     var text = await readFileAsText(file);
-    var lines = extractLinesFromFile(text, file.name);
-    setupStatus.textContent = "loaded " + lines.length + " line(s) from " + file.name + " — appended to the paste box below.";
-    var existing = pasteBox.value.trim();
-    pasteBox.value = (existing ? existing + "\n" : "") + lines.join("\n");
+    var pairs = extractPairsFromFile(text, file.name);
+    var withContext = pairs.filter(function (p) { return p.original; }).length;
+    loadedPairs = loadedPairs.concat(pairs);
+    setupStatus.textContent = "loaded " + pairs.length + " line(s) from " + file.name +
+      (withContext ? " (" + withContext + " with original-text context)" : "") +
+      " — added to the queue (" + loadedPairs.length + " loaded total). Paste box lines get added too when you start.";
   });
 
   resumeInput.addEventListener("change", async function () {
@@ -227,14 +242,31 @@
   function showReviewLine() {
     if (cursor >= queue.length) { finishRating(); return; }
     progressEl.textContent = (cursor + 1) + " / " + queue.length;
-    currentLineEl.textContent = queue[cursor];
+    var item = queue[cursor];
+    currentLineEl.innerHTML = "";
+    if (item.original) {
+      // Same two-tone convention the app itself uses for a real result —
+      // muted "they sent", bright "they almost sent" — so rating a line
+      // out of context never has to be guessed at.
+      var origEl = document.createElement("div");
+      origEl.style.color = "#b3ada2";
+      origEl.style.fontSize = "16px";
+      origEl.style.marginBottom = "10px";
+      origEl.textContent = "they sent: " + item.original;
+      var textEl = document.createElement("div");
+      textEl.textContent = "they almost sent: " + item.text;
+      currentLineEl.appendChild(origEl);
+      currentLineEl.appendChild(textEl);
+    } else {
+      currentLineEl.textContent = item.text;
+    }
     reasonInput.value = "";
     reasonInput.focus();
   }
 
   function rateCurrentAndAdvance(rating) {
     if (cursor >= queue.length) return;
-    rated.push({ text: queue[cursor], rating: rating, reason: reasonInput.value.trim() });
+    rated.push({ text: queue[cursor].text, rating: rating, reason: reasonInput.value.trim() });
     cursor++;
     showReviewLine();
   }
@@ -253,9 +285,13 @@
   document.getElementById("finish-btn").addEventListener("click", finishRating);
 
   startBtn.addEventListener("click", function () {
-    var lines = pasteBox.value.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
-    if (!lines.length) { setupStatus.textContent = "paste or load at least one line first."; return; }
-    queue = lines;
+    var pastedPairs = pasteBox.value.split(/\r?\n/)
+      .map(function (l) { return l.trim(); })
+      .filter(Boolean)
+      .map(function (t) { return { original: null, text: t }; });
+    var combined = loadedPairs.concat(pastedPairs);
+    if (!combined.length) { setupStatus.textContent = "paste, or load a file (or bible/lines.json), first."; return; }
+    queue = combined;
     cursor = 0;
     rated = [];
     setupSection.classList.add("hidden");
@@ -310,6 +346,7 @@
     doneSection.classList.add("hidden");
     setupSection.classList.remove("hidden");
     pasteBox.value = "";
+    loadedPairs = [];
     setupStatus.textContent = "";
   });
 </script>
