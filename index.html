@@ -23,23 +23,22 @@
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
     main { width:100%; max-width:440px; }
-    /* Mobile-first default: "share this" (native share sheet) shown, the
-       text it / email it / copy it row hidden. Below 800px this is the
-       whole story — nothing else here touches these two elements, so
-       there's nothing else that could leave both showing or both hidden
-       at once. */
-    #lead-actions { display:none; }
+    /* "share this" (native share sheet) is mobile-only, full stop — no
+       native sheet on desktop, ever (see saveImageBtn's own
+       isDesktopLayout() guard in the script for why that has to be
+       checked in JS too, not just here). #share-icons is NOT gated by
+       this media query at all — it shows on every breakpoint, as the
+       mobile fallback under "share this" and as the only share row
+       desktop ever gets. */
     @media (min-width:800px) {
       main, footer { max-width:560px; }
       h1 { font-size:80px; }
       .draft { font-size:38px; }
-      /* Desktop: no share sheet to hand off to, so the text it / email
-         it / copy it row (#lead-actions) replaces "share this" instead —
-         one is always the opposite of the other, both driven by this
-         single media query. */
       #share-this-row { display:none; }
-      #lead-actions { display:flex; }
     }
+    .share-icons { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .share-icons button { width:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 12px; font-size:11px; }
+    .share-icons .icon { font-size:20px; line-height:1; }
     h1 { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; text-wrap:balance; }
     .tag, .label, footer, button, textarea { font-family:ui-sans-serif,system-ui,sans-serif; }
     .tag { margin-top:16px; color:var(--mute); font-size:13px; line-height:1.5; }
@@ -91,8 +90,7 @@
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
     #out.crisis-mode #share-this-row,
-    #out.crisis-mode #lead-actions,
-    #out.crisis-mode #save-image,
+    #out.crisis-mode #share-icons,
     #out.crisis-mode #save-image-fallback,
     #out.crisis-mode #hide-toggle-row,
     #out.crisis-mode .worse,
@@ -170,29 +168,29 @@
            crisis pre-check (lib/crisis.js) flags the pasted text — a
            plain, serious line, not a joke that just failed to generate. -->
       <p class="crisis-msg hidden" id="crisis-msg"></p>
-      <!-- Share is the primary next step now, right under the draft. On
-           mobile this is a single full-width native-share-sheet button
-           (#share-this) — the 9:16 PNG plus the text block when
+      <!-- Share is the primary next step now, right under the draft.
+           Mobile gets a full-width native-share-sheet button (#share-this)
+           on top — the 9:16 PNG plus the text block when
            navigator.canShare({files}) allows it, the text block alone
-           otherwise. There's no share sheet to hand off to on desktop, so
-           the 800px breakpoint above swaps it for the existing text it /
-           email it / copy it row (#lead-actions) instead — the same three
-           buttons (by class, not id — see the script) that appear again in
-           .turn below for whoever scrolls down to write their own line;
-           every row here calls buildShareText() / buildShareImageBlob(). -->
+           otherwise — hidden past the 800px breakpoint above, since
+           there's no share sheet to hand off to on desktop, ever (see
+           saveImageBtn's own isDesktopLayout() guard below for why that
+           matters beyond just this button). Under it, on every
+           breakpoint, the same icon row: text/email reuse the .text-share/
+           .email-share classes that also drive .turn's own copy further
+           down (shared click handlers, see the script); whatsapp, x, copy,
+           and save image are new here. Every one of these carries
+           buildShareText()'s block (which already ends in the referral
+           URL) except save image, which carries the PNG instead. -->
       <div class="row" id="share-this-row"><button type="button" id="share-this" disabled>share this</button></div>
-      <div class="actions" id="lead-actions">
-        <button class="ghost text-share" type="button" disabled>text it</button>
-        <button class="ghost email-share" type="button" disabled>email it</button>
-        <button class="ghost copy-share" type="button" disabled>copy it</button>
+      <div class="share-icons" id="share-icons">
+        <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
+        <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
+        <button class="ghost" type="button" id="share-whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+        <button class="ghost" type="button" id="share-x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+        <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
+        <button class="ghost" type="button" id="save-image" disabled><span class="icon" aria-hidden="true">🖼️</span><span class="label">save image</span></button>
       </div>
-      <!-- A 9:16 PNG drawn on canvas (see drawShareCanvas in the script) —
-           not a screenshot. A small ghost link (reuses .beat-toggle's
-           styling), not a full-width button — secondary under the share
-           row above, for whoever wants the file itself without going
-           through the sheet or the text/email/copy row. Enabled/disabled
-           in lockstep with the buttons above (see setShareDisabled). -->
-      <button class="beat-toggle" type="button" id="save-image" disabled>save as image</button>
       <!-- In-app browsers (Instagram, TikTok, etc.) often can't hand back
            a real file — no native share sheet for files, and a silently
            no-op'd download. Shown instead, in that case, by
@@ -275,9 +273,24 @@
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
     var shareThisBtn = document.getElementById("share-this");
+    var shareWhatsappBtn = document.getElementById("share-whatsapp");
+    var shareXBtn = document.getElementById("share-x");
     var saveImageBtn = document.getElementById("save-image");
     var hideOriginalEl = document.getElementById("hide-original");
-    var SAVE_IMAGE_LABEL = saveImageBtn.textContent; // "save as image" — captured once, restored after every outcome
+    // save-image and copy-share both relabel on the fly (see below and
+    // their click handlers) — the top row's icon-row buttons carry their
+    // changeable text in a .label span so relabeling never clobbers the
+    // icon span next to it; .turn's own copy-share button has no icon at
+    // all, so this just falls back to the button itself, same as before.
+    function labelTarget(el) {
+      return el.querySelector(".label") || el;
+    }
+    var SAVE_IMAGE_LABEL = labelTarget(saveImageBtn).textContent; // "save as image" — captured once, restored after every outcome
+    // One idle label per copy-share button, not one shared string — the
+    // top row's reads "copy" (see the icon row's markup), .turn's own
+    // reads "copy it", and resetCopyLabel below has to restore each to
+    // its OWN idle text, not whichever one happens to run first.
+    var copyIdleLabels = copyShareBtns.map(function (btn) { return labelTarget(btn).textContent; });
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
     var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
     var saveImageFeedbackTimer = null;
@@ -593,13 +606,15 @@
       copyShareBtns.forEach(function (b) { b.disabled = disabled; });
       saveImageBtn.disabled = disabled;
       shareThisBtn.disabled = disabled;
+      shareWhatsappBtn.disabled = disabled;
+      shareXBtn.disabled = disabled;
       hideOriginalEl.disabled = disabled;
     }
-    // Only the "copy it" label resets here — the "copied." confirmation
-    // (see copyShareBtns' click handler below) is per-button, scoped to
+    // Only the idle label resets here — the "copied." confirmation (see
+    // copyShareBtns' click handler below) is per-button, scoped to
     // whichever one was actually clicked.
     function resetCopyLabel() {
-      copyShareBtns.forEach(function (b) { b.textContent = "copy it"; });
+      copyShareBtns.forEach(function (b, i) { labelTarget(b).textContent = copyIdleLabels[i]; });
     }
 
     // Undoes both of saveImageBtn's click-handler side effects — the
@@ -611,7 +626,7 @@
     // the page.
     function resetSaveImage() {
       if (saveImageFeedbackTimer) { clearTimeout(saveImageFeedbackTimer); saveImageFeedbackTimer = null; }
-      saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+      labelTarget(saveImageBtn).textContent = SAVE_IMAGE_LABEL;
       saveImageFallbackEl.classList.add("hidden");
       if (saveImageFallbackImgEl.src) { URL.revokeObjectURL(saveImageFallbackImgEl.src); saveImageFallbackImgEl.src = ""; }
     }
@@ -1132,14 +1147,21 @@
       return /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|TikTok|BytedanceWebview|Snapchat|WhatsApp/i.test(ua);
     }
 
+    // Same 800px breakpoint as #share-this-row's own CSS (see the
+    // stylesheet) — read here in JS wherever "no native sheet on desktop,
+    // ever" has to be enforced in code, not just by hiding a button.
+    function isDesktopLayout() {
+      return window.matchMedia("(min-width:800px)").matches;
+    }
+
     // "saved. now ruin the group chat." for 3 seconds, then back to normal
     // — shown after a share or download that actually went through (not
     // the inline-fallback path, which has its own caption instead).
     function showSavedFeedback() {
       if (saveImageFeedbackTimer) clearTimeout(saveImageFeedbackTimer);
-      saveImageBtn.textContent = "saved. now ruin the group chat.";
+      labelTarget(saveImageBtn).textContent = "saved. now ruin the group chat.";
       saveImageFeedbackTimer = setTimeout(function () {
-        saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+        labelTarget(saveImageBtn).textContent = SAVE_IMAGE_LABEL;
         saveImageFeedbackTimer = null;
       }, 3000);
     }
@@ -1157,7 +1179,7 @@
       if (saveImageBtn.disabled) return;
       var draftText = (pool[cursor] && typeof pool[cursor].text === "string") ? pool[cursor].text : "";
       saveImageBtn.disabled = true;
-      saveImageBtn.textContent = "making it…";
+      labelTarget(saveImageBtn).textContent = "making it…";
       saveImageFallbackEl.classList.add("hidden");
       try {
         var hidden = hideOriginalEl.checked;
@@ -1168,13 +1190,16 @@
         // a file, not just a URL/text. navigator.canShare has to be asked
         // about THIS file specifically; some browsers implement share()
         // for text/url but not files, and canShare({files}) is what tells
-        // the two apart.
-        if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+        // the two apart. Gated on !isDesktopLayout() too, not just feature
+        // detection — desktop Chrome has started shipping navigator.share
+        // in some versions, and "no native sheet on desktop, ever" has to
+        // hold regardless of what the browser technically supports.
+        if (!isDesktopLayout() && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file] });
           showSavedFeedback();
         } else if (looksLikeInAppBrowser()) {
           showInlineImageFallback(blob);
-          saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+          labelTarget(saveImageBtn).textContent = SAVE_IMAGE_LABEL;
         } else {
           var url = URL.createObjectURL(blob);
           var a = document.createElement("a");
@@ -1189,7 +1214,7 @@
       } catch (err) {
         // A cancelled native share sheet throws too (AbortError) — not a
         // real failure, nothing here needs to interrupt anyone over it.
-        saveImageBtn.textContent = SAVE_IMAGE_LABEL;
+        labelTarget(saveImageBtn).textContent = SAVE_IMAGE_LABEL;
       } finally {
         saveImageBtn.disabled = false;
       }
@@ -1279,10 +1304,29 @@
         try {
           await navigator.clipboard.writeText(buildShareText());
           // Only the button actually clicked relabels — the other copy
-          // stays "copy it" until someone taps it too.
-          btn.textContent = "copied. use irresponsibly.";
+          // stays at its own idle label until someone taps it too.
+          labelTarget(btn).textContent = "copied. use irresponsibly.";
         } catch (err) { /* clipboard blocked — button just doesn't relabel */ }
       });
+    });
+
+    // WhatsApp and X only ever exist in the icon row (no .turn copy of
+    // either) — real http(s) URLs, not a sms:/mailto: scheme the OS
+    // intercepts, so these open in a new tab (window.open, not
+    // location.href) rather than navigating this tab away from a live
+    // result.
+    shareWhatsappBtn.addEventListener("click", function () {
+      if (shareWhatsappBtn.disabled) return;
+      logEvent("share", { via: "whatsapp" });
+      whewEl.classList.remove("hidden");
+      window.open("https://wa.me/?text=" + encodeURIComponent(buildShareText()), "_blank", "noopener");
+    });
+
+    shareXBtn.addEventListener("click", function () {
+      if (shareXBtn.disabled) return;
+      logEvent("share", { via: "x" });
+      whewEl.classList.remove("hidden");
+      window.open("https://twitter.com/intent/tweet?text=" + encodeURIComponent(buildShareText()), "_blank", "noopener");
     });
 
     document.getElementById("again").addEventListener("click", reset);
