@@ -179,9 +179,17 @@
            crisis pre-check (lib/crisis.js) flags the pasted text — a
            plain, serious line, not a joke that just failed to generate. -->
       <p class="crisis-msg hidden" id="crisis-msg"></p>
-      <!-- Escalation sits directly under the line it escalates, right
-           under the draft, above share — ghost styling (only "share
-           this" stays the one red/primary button below the draft). A
+      <!-- Reactions sit directly under the draft now — a small inline
+           row, left-aligned (.react's own flex default), before
+           escalation rather than after it. -->
+      <div class="react" id="react">
+        <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
+        <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
+        <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
+      </div>
+      <!-- Escalation comes next — after reactions now, still ahead of
+           share — ghost styling (only "share this" stays the one red/
+           primary button below the draft). A
            three-tap progression, not a static "make it worse" label —
            see ESCALATE_LABELS below — that implies the first draft was
            the best one and every tap past it is a deliberate dare, not
@@ -252,12 +260,6 @@
         <input type="checkbox" id="hide-original">
         hide their text
       </label>
-
-      <div class="react" id="react">
-        <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
-        <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
-        <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
-      </div>
 
       <div class="debug hidden" id="debug"></div>
 
