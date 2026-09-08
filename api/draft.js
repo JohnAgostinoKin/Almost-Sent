@@ -52,6 +52,41 @@ const { waitUntil } = require("@vercel/functions");
 // request's handler actually running.
 const MODULE_LOADED_AT = Date.now();
 
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+// Soft deadline on the primary lane-group calls (see runGenerationRound's
+// PRIMARY_SOFT_DEADLINE_MS below): a group still running past the
+// deadline isn't cancelled — a fetch already in flight keeps running
+// either way — it just isn't waited on for THIS response. This module-
+// level Map is where its eventual candidates land instead, keyed by
+// normalizeBefore(sent), so a follow-up "make it worse" request for the
+// SAME text (escalate:true — see the handler) can pick them up as bonus
+// candidates rather than that generation call's cost going to waste.
+// One-shot: takeStragglers both reads and clears an entry, so the same
+// stragglers never get reused across two different escalation taps.
+// Lives only as long as this container stays warm, same best-effort
+// caveat as MODULE_LOADED_AT above — a cold start (or the entry simply
+// expiring) just means an escalation request finds nothing here and
+// generates fresh, exactly like today.
+const STRAGGLER_TTL_MS = 5 * 60 * 1000;
+const stragglerCache = new Map();
+function cacheStragglers(sent, candidates) {
+  if (!candidates.length) return;
+  const key = normalizeBefore(sent);
+  const existing = stragglerCache.get(key);
+  const merged = (existing && existing.expiresAt >= Date.now() ? existing.candidates : []).concat(candidates);
+  stragglerCache.set(key, { candidates: merged, expiresAt: Date.now() + STRAGGLER_TTL_MS });
+}
+function takeStragglers(sent) {
+  const key = normalizeBefore(sent);
+  const entry = stragglerCache.get(key);
+  stragglerCache.delete(key);
+  if (!entry || entry.expiresAt < Date.now()) return [];
+  return entry.candidates;
+}
+
 function newStages() {
   return {
     t_cold: 0,
@@ -385,17 +420,80 @@ module.exports = async function handler(req, res) {
   async function runGenerationRound() {
     const t = { t_primary: PRIMARY_LANE_GROUPS.map(function () { return 0; }), t_wildcard: 0, t_judge: 0, t_pairwise: 0 };
     const wildcardStarted = Date.now();
-    const [primaryResults, wildcard] = await Promise.all([
-      Promise.all(PRIMARY_LANE_GROUPS.map(function (lanes, i) {
-        const groupOpts = Object.assign({ lanes: lanes }, genOpts);
-        const groupStarted = Date.now();
-        return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
-          t.t_primary[i] = Date.now() - groupStarted;
-          return r;
+
+    // Each group's own promise, plus a slot recording whether it's
+    // settled yet and what it settled to — the soft deadline below needs
+    // to inspect exactly which groups are already done at the 4500ms
+    // mark, not just "some subset finished." The promise itself is
+    // untouched either way: a group past the deadline isn't cancelled,
+    // it just isn't awaited for this response — see the soft-deadline
+    // branch below for what happens to it instead.
+    const primarySlots = PRIMARY_LANE_GROUPS.map(function () { return { settled: false, result: null }; });
+    const primaryPromises = PRIMARY_LANE_GROUPS.map(function (lanes, i) {
+      const groupOpts = Object.assign({ lanes: lanes }, genOpts);
+      const groupStarted = Date.now();
+      return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
+        t.t_primary[i] = Date.now() - groupStarted;
+        primarySlots[i].settled = true;
+        primarySlots[i].result = r;
+        return r;
+      });
+    });
+    const wildcardPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; return r; });
+
+    // Soft deadline: wait up to PRIMARY_SOFT_DEADLINE_MS for every primary
+    // group. If they're all done by then (the common case — this is a
+    // race against a timer, not a fixed delay), this behaves exactly like
+    // the plain Promise.all it replaces. If the deadline wins instead,
+    // check what's actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or
+    // more real candidates already resolved is enough to start judging
+    // now rather than wait on a slow straggler — fewer than that, and the
+    // soft deadline can't help (proceeding with too little just means a
+    // thinner result), so it falls back to waiting for everyone, same as
+    // before this feature existed.
+    const PRIMARY_SOFT_DEADLINE_MS = 4500;
+    const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 6;
+    let lateGroupCount = 0;
+    await Promise.race([Promise.all(primaryPromises), sleep(PRIMARY_SOFT_DEADLINE_MS)]);
+
+    const pendingIndexes = [];
+    primarySlots.forEach(function (s, i) { if (!s.settled) pendingIndexes.push(i); });
+
+    let primaryResults;
+    if (!pendingIndexes.length) {
+      primaryResults = primarySlots.map(function (s) { return s.result; });
+    } else {
+      const inHandCount = primarySlots.reduce(function (sum, s) { return sum + (s.settled ? (s.result.lines || []).length : 0); }, 0);
+      if (inHandCount >= MIN_CANDIDATES_FOR_SOFT_DEADLINE) {
+        lateGroupCount = pendingIndexes.length;
+        primaryResults = primarySlots.map(function (s) {
+          return s.settled ? s.result : { lines: [], why: "pending past " + PRIMARY_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
         });
-      })),
-      runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; return r; })
-    ]);
+        // The pending group(s) are already running — nothing to cancel,
+        // nothing more to await here. waitUntil just keeps the function
+        // alive long enough for them to actually finish (rather than the
+        // runtime tearing down the instant this response goes out)
+        // purely so cacheStragglers below has something to write; a
+        // failure here is swallowed on purpose — a lost straggler just
+        // means the next escalation request generates fresh, same as
+        // it always has.
+        waitUntil(
+          Promise.all(pendingIndexes.map(function (i) { return primaryPromises[i]; }))
+            .then(function (results) {
+              const stragglerCandidates = results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, []);
+              if (stragglerCandidates.length) {
+                console.log("stragglers landed: " + stragglerCandidates.length + " candidate(s) past soft deadline, cached for escalation");
+                cacheStragglers(sent, stragglerCandidates);
+              }
+            })
+            .catch(function () {})
+        );
+      } else {
+        primaryResults = await Promise.all(primaryPromises);
+      }
+    }
+
+    const wildcard = await wildcardPromise;
 
     // Any primary group declining outright is a full refusal — same
     // convention as v2's lead skip, now just checked across however many
@@ -408,9 +506,17 @@ module.exports = async function handler(req, res) {
       return { refuse: true, primaryResults: primaryResults, wildcard: wildcard, t: t };
     }
 
+    // On an escalation request specifically, pick up any stragglers an
+    // earlier (non-escalation) request for this same text left running
+    // past its own soft deadline — see cacheStragglers/takeStragglers
+    // above. A no-op (empty array) whenever there's nothing cached, which
+    // is the ordinary case — most escalation requests won't have a
+    // straggler waiting for them.
+    const stragglers = escalate ? takeStragglers(sent) : [];
     const allCandidates = primaryResults
       .reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
-      .concat(wildcard.skip ? [] : (wildcard.lines || []));
+      .concat(wildcard.skip ? [] : (wildcard.lines || []))
+      .concat(stragglers);
 
     // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
     // safety-then-taste gating what taste even sees — taste judges every
@@ -555,7 +661,7 @@ module.exports = async function handler(req, res) {
     return {
       refuse: false, primaryResults: primaryResults, wildcard: wildcard, taste: taste,
       safetyNote: safetyNote, tasteNote: tasteNote, pairwiseNote: pairwiseNote,
-      survivors: survivors, t: t
+      survivors: survivors, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglers.length
     };
   }
 
@@ -605,6 +711,8 @@ module.exports = async function handler(req, res) {
   const tasteNote = round.tasteNote;
   const pairwiseNote = round.pairwiseNote;
   const survivors = round.survivors;
+  const lateGroupCount = round.lateGroupCount;
+  const stragglerPickupCount = round.stragglerPickupCount;
 
   const positions = [];
   if (survivors.length) positions.push(survivors[0]);
@@ -635,6 +743,8 @@ module.exports = async function handler(req, res) {
     " · " + safetyNote + " · " + tasteNote +
     (pairwiseNote ? " · " + pairwiseNote : "") +
     (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + " < " + REGEN_THRESHOLD + ")" : "") +
+    (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, group(s) finishing in background)" : "") +
+    (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
     " · stages: " + formatStages(stages);
 
   const primaryDebugLines = primaryResults.reduce(function (acc, r) { return acc.concat(r.debugLines || []); }, []);
