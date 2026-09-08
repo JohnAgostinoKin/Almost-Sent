@@ -49,16 +49,16 @@
     .hide-toggle { display:flex; align-items:center; gap:6px; width:auto; margin-top:10px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; color:#6e6960; cursor:pointer; }
     .hide-toggle:hover { color:var(--mute); }
     .hide-toggle input { width:auto; }
-    /* One finished example under the primary button — proof before anyone
+    /* One finished example, right under the tagline — proof before anyone
        types anything. Labeled line by line (muted "they sent", bright
-       "they almost sent") rather than composed into one continuation like
-       a real result — this one has to read as a sample, not be mistaken
-       for actual output — and sized well under .draft's 30/38px so it
-       illustrates rather than competes once an actual result is up
-       (toggled alongside #out — see the submit handler and reset()). */
+       "they almost sent"), only the <em> labels themselves italic, not
+       the quoted lines — this one has to read as a sample, not be
+       mistaken for actual output — and sized well under .draft's 30/38px
+       so it doesn't compete once an actual result is up (toggled
+       alongside #out — see the submit handler and reset()). */
     .example { margin-top:22px; }
     .example .chips-lead { display:block; margin-bottom:6px; }
-    .example-line { font-family:Georgia,"Times New Roman",serif; font-style:italic; font-size:17px; line-height:1.5; }
+    .example-line { font-family:Georgia,"Times New Roman",serif; font-style:normal; font-size:17px; line-height:1.5; }
     .example-sent { color:var(--mute); }
     .example-draft { color:var(--fg); margin-top:2px; }
     .example .beat-toggle { margin-top:8px; }
@@ -124,6 +124,24 @@
     <h1>almost sent<span class="dot">.</span></h1>
     <p class="tag">you think you know them.</p>
 
+    <!-- Proof-first: one finished example, unconditional for every visitor
+         (no A/B — everyone sees this), right under the tagline before
+         anyone's typed anything. A tiny "example:" label (same styling as
+         the chips' own "try:"), then the exchange spelled out line by
+         line — muted "they sent", bright "they almost sent", only the
+         "they ...:" labels themselves italicized, not the quoted lines —
+         rather than composed into one continuation like a real result;
+         this one has to read as a labeled sample at a glance, not be
+         mistaken for actual output. Hidden the moment a real result is up
+         (see the submit handler and reset()), so it never sits next to
+         one. -->
+    <div class="example" id="example">
+      <span class="chips-lead">example:</span>
+      <p class="example-line example-sent"><em>they sent:</em> we should hang out sometime</p>
+      <p class="example-line example-draft"><em>they almost sent:</em> i'll pencil you in behind everyone i like</p>
+      <button class="beat-toggle" type="button" id="do-one-now">do one now &rarr;</button>
+    </div>
+
     <form id="form">
       <label class="label" for="sent">tell us what they sent</label>
       <textarea id="sent" maxlength="500" required></textarea>
@@ -135,22 +153,6 @@
       <div class="row"><button id="go" type="submit">here's what they almost sent</button></div>
       <p class="hint">made up. nothing gets sent to them.</p>
     </form>
-
-    <!-- Proof-first: one finished example, unconditional for every visitor
-         (no A/B — everyone sees this). A tiny "example:" label (same
-         styling as the chips' own "try:"), then the exchange spelled out
-         line by line — muted "they sent", bright "they almost sent" —
-         rather than composed into one continuation line like a real
-         result; this one has to read as a labeled sample at a glance, not
-         be mistaken for actual output. Hidden the moment a real result is
-         up (see the submit handler and reset()), so it never sits next to
-         one. -->
-    <div class="example" id="example">
-      <span class="chips-lead">example:</span>
-      <p class="example-line example-sent">they sent: we should hang out sometime</p>
-      <p class="example-line example-draft">they almost sent: i'll pencil you in behind everyone i like</p>
-      <button class="beat-toggle" type="button" id="do-one-now">do one now &rarr;</button>
-    </div>
 
     <section id="out" class="result hidden">
       <p class="draft" id="out-draft"></p>
