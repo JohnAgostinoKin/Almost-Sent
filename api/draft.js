@@ -2,17 +2,18 @@
 //
 // v2 (see lib/legacy/) was two client requests per result: an n=1 lead
 // (one shape, pickBest-of-N) then an n=4 alternates call for the same
-// shape's siblings. v3 replaces both with ONE request that fires THREE
-// generator calls in parallel — two primary calls (lib/prompt.js's
-// buildPrimaryRequest, GENERATOR_MODEL), each writing one candidate per
-// lane for four of the eight primary lanes (PRIMARY_LANES_A/B — same
-// prompt shape, half the output each, merged before judging), plus the
-// wildcard call (buildWildcardRequest, WILDCARD_MODEL) writing the
-// raunchy and gross candidates — then judges all ten together and returns
-// the top three, best first. Position 1 is the lead; "make it worse"
-// reveals 2 and 3 instantly (already fetched, no second request); a third
-// tap fires a fresh escalated request (see `escalate`/`shown` below)
-// instead of the old client-side alternates refetch.
+// shape's siblings. v3 replaces both with ONE request that fires several
+// generator calls in parallel — one primary call per group in
+// lib/prompt.js's PRIMARY_LANE_GROUPS (buildPrimaryRequest,
+// GENERATOR_MODEL), each writing one candidate per lane for its slice of
+// the eight primary lanes (currently four calls of two — same prompt
+// shape every time, a fraction of the output each, merged before
+// judging), plus the wildcard call (buildWildcardRequest, WILDCARD_MODEL)
+// writing the raunchy and gross candidates — then judges all ten together
+// and returns the top three, best first. Position 1 is the lead; "make it
+// worse" reveals 2 and 3 instantly (already fetched, no second request);
+// a third tap fires a fresh escalated request (see `escalate`/`shown`
+// below) instead of the old client-side alternates refetch.
 //
 // Selection past generation is two separate jobs, run CONCURRENTLY on the
 // full candidate set rather than one gating the other: SAFETY
@@ -30,7 +31,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANES_A, PRIMARY_LANES_B, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANE_GROUPS, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
   extractArray, normalizeItem, isRefusal, filterLines, describeDrops
 } = require("../lib/postprocess");
@@ -56,8 +57,7 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_primary_a: 0, // wall-clock of the primary A (lanes 1-4) generator call, including any retry/fallback
-    t_primary_b: 0, // same, for primary B (lanes 5-8) — A and B run in parallel with each other and with wildcard
+    t_primary: [],  // wall-clock of each primary generator call, one entry per PRIMARY_LANE_GROUPS group, index-aligned — all run in parallel with each other and with wildcard, including any retry/fallback
     t_wildcard: 0,  // same, for the wildcard (raunchy/gross) call
     t_judge: 0,     // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
     t_response: 0
@@ -66,7 +66,7 @@ function newStages() {
 
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
-    " t_primary_a=" + s.t_primary_a + "ms t_primary_b=" + s.t_primary_b + "ms t_wildcard=" + s.t_wildcard + "ms" +
+    " t_primary=" + JSON.stringify(s.t_primary) + "ms t_wildcard=" + s.t_wildcard + "ms" +
     " t_judge=" + s.t_judge + "ms t_response=" + s.t_response + "ms";
 }
 
@@ -358,18 +358,24 @@ module.exports = async function handler(req, res) {
   }
 
   const genOpts = { escalate: escalate, shown: shown };
-  // Two primary calls, not one — same prompt shape as before (lanes
-  // taught, escalation block, rules), each teaching and asking for only
-  // four of the eight primary lanes (see lib/prompt.js's PRIMARY_LANES_A/
-  // B). Fired alongside the wildcard call, three-way parallel.
-  const genOptsA = Object.assign({ lanes: PRIMARY_LANES_A }, genOpts);
-  const genOptsB = Object.assign({ lanes: PRIMARY_LANES_B }, genOpts);
-  const primaryAStarted = Date.now();
-  const primaryBStarted = Date.now();
+  // One primary call per group in PRIMARY_LANE_GROUPS, not one call for
+  // all eight lanes — same prompt shape every time (lanes taught,
+  // escalation block, rules), each teaching and asking for only its own
+  // slice of the eight primary lanes (currently four calls of two).
+  // Fired alongside the wildcard call, all in one parallel batch. Every
+  // group's own wall-clock lands in stages.t_primary, index-aligned with
+  // PRIMARY_LANE_GROUPS, so a slow one is visible without guessing which.
+  stages.t_primary = PRIMARY_LANE_GROUPS.map(function () { return 0; });
   const wildcardStarted = Date.now();
-  const [primaryA, primaryB, wildcard] = await Promise.all([
-    runGenerator(key, GENERATOR_MODEL, sent, "primary", genOptsA).then(function (r) { stages.t_primary_a = Date.now() - primaryAStarted; return r; }),
-    runGenerator(key, GENERATOR_MODEL, sent, "primary", genOptsB).then(function (r) { stages.t_primary_b = Date.now() - primaryBStarted; return r; }),
+  const [primaryResults, wildcard] = await Promise.all([
+    Promise.all(PRIMARY_LANE_GROUPS.map(function (lanes, i) {
+      const groupOpts = Object.assign({ lanes: lanes }, genOpts);
+      const groupStarted = Date.now();
+      return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
+        stages.t_primary[i] = Date.now() - groupStarted;
+        return r;
+      });
+    })),
     runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { stages.t_wildcard = Date.now() - wildcardStarted; return r; })
   ]);
 
@@ -380,20 +386,22 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Either primary half declining outright is a full refusal — same
-  // convention as v2's lead skip, now just checked across two calls
-  // instead of one. The wildcard call declining alone isn't: two lanes'
-  // worth of "no" doesn't carry the same signal as a whole primary half
-  // refusing, it just means no raunchy/gross candidates this round (rare
-  // in practice — the wildcard prompt's own wall already covers the same
-  // abusive/minor/threat ground).
-  if (primaryA.skip || primaryB.skip) {
+  // Any primary group declining outright is a full refusal — same
+  // convention as v2's lead skip, now just checked across however many
+  // groups there are instead of one. The wildcard call declining alone
+  // isn't: two lanes' worth of "no" doesn't carry the same signal as a
+  // whole primary group refusing, it just means no raunchy/gross
+  // candidates this round (rare in practice — the wildcard prompt's own
+  // wall already covers the same abusive/minor/threat ground).
+  if (primaryResults.some(function (r) { return r.skip; })) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
     res.status(200).json({ refuse: true, drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
     return;
   }
 
-  const allCandidates = (primaryA.lines || []).concat(primaryB.lines || []).concat(wildcard.skip ? [] : (wildcard.lines || []));
+  const allCandidates = primaryResults
+    .reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
+    .concat(wildcard.skip ? [] : (wildcard.lines || []));
 
   // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
   // safety-then-taste gating what taste even sees — taste judges every
@@ -419,7 +427,15 @@ module.exports = async function handler(req, res) {
   stages.t_judge = Date.now() - judgeStarted;
 
   const safetyModelsSeen = [];
+  // Safety calls all fire together (one Promise.all, see above), so the
+  // group's real wall-clock cost is the SLOWEST one, not their sum —
+  // safetyLatencyTotal used to be reported as if it were the group's
+  // cost, which overstated it by roughly 10x at ten candidates. Both are
+  // tracked now: safetyMaxLatency is what actually gates the response,
+  // safetyLatencyTotal rides along too since the sum is still useful for
+  // seeing total model-side cost even though it's not wall time.
   let safetyLatencyTotal = 0;
+  let safetyMaxLatency = 0;
   let droppedSafetyCount = 0;
   let safetyFailedCount = 0;
   let safetyRateLimitedCount = 0;
@@ -432,6 +448,7 @@ module.exports = async function handler(req, res) {
   allCandidates.forEach(function (item, i) {
     const result = safetyVerdicts[i];
     safetyLatencyTotal += result.latencyMs || 0;
+    if (result.latencyMs != null && result.latencyMs > safetyMaxLatency) safetyMaxLatency = result.latencyMs;
     if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
     if (result.verdict === null) safetyFailedCount++;
     // Every call's own latency, always — not just failures — so a slow
@@ -459,7 +476,9 @@ module.exports = async function handler(req, res) {
   const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
     (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
     (safetyRateLimitedCount ? " (" + safetyRateLimitedCount + " rate-limited)" : "") +
-    (safetyModelsSeen.length ? " · safety model: " + safetyModelsSeen.join("+") + " (" + safetyLatencyTotal + "ms)" : "") +
+    (safetyModelsSeen.length
+      ? " · safety model: " + safetyModelsSeen.join("+") + " (wall " + safetyMaxLatency + "ms, sum " + safetyLatencyTotal + "ms across " + allCandidates.length + " calls)"
+      : "") +
     (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
   let ranked, tasteNote;
@@ -493,21 +512,22 @@ module.exports = async function handler(req, res) {
   if (!drafts.length) drafts.push({ lane: "stall", text: stallLine() });
 
   stages.t_response = Date.now() - responseStarted;
-  const why = "primary A: " + (primaryA.why || "?") + " · primary B: " + (primaryB.why || "?") +
+  const primaryWhy = primaryResults.map(function (r, i) { return "primary #" + (i + 1) + ": " + (r.why || "?"); }).join(" · ");
+  const why = primaryWhy +
     " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote + " · stages: " + formatStages(stages);
 
-  const primaryDebugLines = (primaryA.debugLines || []).concat(primaryB.debugLines || []);
-  const primaryTGen = (primaryA.t_gen != null || primaryB.t_gen != null)
-    ? Math.max(primaryA.t_gen || 0, primaryB.t_gen || 0)
-    : null;
+  const primaryDebugLines = primaryResults.reduce(function (acc, r) { return acc.concat(r.debugLines || []); }, []);
+  const primaryTGens = primaryResults.map(function (r) { return r.t_gen; }).filter(function (t) { return t != null; });
+  const primaryTGen = primaryTGens.length ? Math.max.apply(null, primaryTGens) : null;
+  const primaryProvider = primaryResults.map(function (r) { return r.provider; }).filter(Boolean)[0] || null;
 
   res.status(200).json({
     sent: sent,
     drafts: drafts,
     source: source,
     why: why || null,
-    provider: primaryA.provider || primaryB.provider || null,
+    provider: primaryProvider,
     logged: logged,
     debug: {
       primary: primaryDebugLines.length ? primaryDebugLines : null,
