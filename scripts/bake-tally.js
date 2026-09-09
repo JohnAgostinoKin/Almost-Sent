@@ -5,8 +5,13 @@
 // its own header comment for why the file isn't a shared one), unblinds
 // them (the `system` column was always there, just never shown to the
 // rater — see bake-rate.html's renderRound), and prints one table per
-// system: how many times each tag landed on one of its lines, across
-// every rater and every input.
+// system: how each system's lines actually landed — LOL/smirk/nothing/bad
+// counts, would-screenshot rate, and a breakdown of whatever failure
+// reasons got picked. Same LOL/smirk/nothing/bad + screenshot + failure-
+// reason vocabulary as scripts/bible-rate.html now (see the v4 addendum,
+// section I) — this replaced the old six-tag multi-select scheme
+// (funniest/most surprising/most tailored/most shareable/too random/too
+// far) the CSV used to carry.
 //
 // Usage:
 //   node scripts/bake-tally.js                    # reads every *.csv in bake/csv/
@@ -20,9 +25,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const POSITIVE_TAGS = ["funniest", "most surprising", "most tailored", "most shareable"];
-const NEGATIVE_TAGS = ["too random", "too far"];
-const ALL_TAGS = POSITIVE_TAGS.concat(NEGATIVE_TAGS);
+const RATINGS = ["lol", "smirk", "nothing", "bad"];
+const FAILURE_REASONS = ["too tame", "generic", "random", "answers the text", "too long", "too far"];
 
 // A small real CSV-line parser, not a bare split(",") — bake-rate.html
 // quotes any field containing a comma, quote, or newline (RFC4180-ish,
@@ -76,12 +80,14 @@ function main() {
     process.exit(1);
   }
 
-  // system -> tag -> count
-  const tally = {};
-  // system -> input -> Set(raters who tagged something on it) — not used
-  // for scoring, just so the summary can show how many distinct rater×
-  // input judgments actually landed per system.
-  const seenJudgments = {};
+  // system -> rating -> count
+  const ratingTally = {};
+  // system -> failure reason -> count (only rows that picked one)
+  const failureTally = {};
+  // system -> count of rows with screenshot=yes
+  const screenshotTally = {};
+  // system -> total rated rows (denominator for every rate below)
+  const totalTally = {};
   const raters = new Set();
   let totalRows = 0;
 
@@ -92,24 +98,32 @@ function main() {
     const header = rows[0].map(function (h) { return h.trim(); });
     const idx = {};
     header.forEach(function (h, i) { idx[h] = i; });
-    const required = ["rater", "system", "tag"];
+    const required = ["rater", "system", "rating"];
     const missing = required.filter(function (r) { return !(r in idx); });
     if (missing.length) {
-      console.error("Skipping " + file + " — missing column(s): " + missing.join(", "));
+      console.error("Skipping " + file + " — missing column(s): " + missing.join(", ") +
+        " (an older bake-ratings.csv from before the v4 addendum's rating-vocabulary reset has `tag` instead of `rating` — re-rate with the current scripts/bake-rate.html rather than trying to tally it here)");
       return;
     }
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       const rater = r[idx.rater];
       const system = r[idx.system];
-      const tag = r[idx.tag];
-      if (!system || !tag) continue;
+      const rating = r[idx.rating];
+      if (!system || !rating) continue;
       raters.add(rater || "anonymous");
       totalRows++;
-      if (!tally[system]) tally[system] = {};
-      tally[system][tag] = (tally[system][tag] || 0) + 1;
-      if (!seenJudgments[system]) seenJudgments[system] = new Set();
-      seenJudgments[system].add((rater || "anonymous") + "|" + (r[idx.input_index] != null ? r[idx.input_index] : ""));
+      if (!ratingTally[system]) ratingTally[system] = {};
+      ratingTally[system][rating] = (ratingTally[system][rating] || 0) + 1;
+      totalTally[system] = (totalTally[system] || 0) + 1;
+      if (idx.screenshot !== undefined && /^(yes|true|1)$/i.test((r[idx.screenshot] || "").trim())) {
+        screenshotTally[system] = (screenshotTally[system] || 0) + 1;
+      }
+      const failure = idx.failure !== undefined ? (r[idx.failure] || "").trim() : "";
+      if (failure) {
+        if (!failureTally[system]) failureTally[system] = {};
+        failureTally[system][failure] = (failureTally[system][failure] || 0) + 1;
+      }
     }
   });
 
@@ -121,30 +135,53 @@ function main() {
   console.log("bake-tally: " + files.length + " file(s), " + totalRows + " ratings, " + raters.size + " rater(s): " + Array.from(raters).join(", "));
   console.log("");
 
-  const systems = Object.keys(tally).sort();
-  const colWidth = 14;
+  const systems = Object.keys(totalTally).sort();
+  const colWidth = 10;
   function pad(s, w) { s = String(s); return s + " ".repeat(Math.max(0, w - s.length)); }
+  function pct(n, total) { return total ? Math.round((100 * n) / total) + "%" : "—"; }
 
-  const header = "system".padEnd(8) + ALL_TAGS.map(function (t) { return pad(t, colWidth); }).join("") + pad("net", 8) + "judgments";
+  const header = "system".padEnd(8) + RATINGS.map(function (t) { return pad(t, colWidth); }).join("") +
+    pad("lol%", 8) + pad("lol+smirk%", 12) + pad("shot%", 8) + "n";
   console.log(header);
   console.log("-".repeat(header.length));
 
   const scored = systems.map(function (s) {
-    const counts = tally[s] || {};
-    const positive = POSITIVE_TAGS.reduce(function (sum, t) { return sum + (counts[t] || 0); }, 0);
-    const negative = NEGATIVE_TAGS.reduce(function (sum, t) { return sum + (counts[t] || 0); }, 0);
-    return { system: s, counts: counts, net: positive - negative, judgments: (seenJudgments[s] || new Set()).size };
+    const counts = ratingTally[s] || {};
+    const total = totalTally[s] || 0;
+    const lolRate = counts.lol || 0;
+    const lolSmirkRate = (counts.lol || 0) + (counts.smirk || 0);
+    return {
+      system: s, counts: counts, total: total,
+      lolPct: pct(lolRate, total), lolSmirkPct: pct(lolSmirkRate, total),
+      screenshotPct: pct(screenshotTally[s] || 0, total)
+    };
   });
-  scored.sort(function (a, b) { return b.net - a.net; });
+  // Highest LOL rate first — the v4 addendum's own primary acceptance
+  // target (section J: "LOL >= 15%") is a rate, not a raw count, so
+  // that's what orders this table too.
+  scored.sort(function (a, b) { return (b.counts.lol || 0) / (b.total || 1) - (a.counts.lol || 0) / (a.total || 1); });
 
   scored.forEach(function (row) {
     const line = row.system.padEnd(8) +
-      ALL_TAGS.map(function (t) { return pad(row.counts[t] || 0, colWidth); }).join("") +
-      pad(row.net, 8) + row.judgments;
+      RATINGS.map(function (t) { return pad(row.counts[t] || 0, colWidth); }).join("") +
+      pad(row.lolPct, 8) + pad(row.lolSmirkPct, 12) + pad(row.screenshotPct, 8) + row.total;
     console.log(line);
   });
 
-  console.log("\n\"net\" = (funniest + most surprising + most tailored + most shareable) − (too random + too far). Read the full table, not just this column — a system winning on net while losing on \"too far\" tells a different story than one winning cleanly.");
+  console.log("\nlol% / lol+smirk% / shot% are rates of that system's own total rated rows (n), not of the whole run — compare rates " +
+    "across systems, not raw counts. v4 addendum targets (section J): lol% >= 15, lol+smirk% >= 60, shot% >= 10.");
+
+  const anyFailures = Object.keys(failureTally).length > 0;
+  if (anyFailures) {
+    console.log("\n--- failure reasons (only rows where one was picked) ---\n");
+    const fHeader = "system".padEnd(8) + FAILURE_REASONS.map(function (f) { return pad(f, 19); }).join("");
+    console.log(fHeader);
+    console.log("-".repeat(fHeader.length));
+    systems.forEach(function (s) {
+      const counts = failureTally[s] || {};
+      console.log(s.padEnd(8) + FAILURE_REASONS.map(function (f) { return pad(counts[f] || 0, 19); }).join(""));
+    });
+  }
 }
 
 main();

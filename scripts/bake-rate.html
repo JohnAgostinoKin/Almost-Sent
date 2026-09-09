@@ -19,11 +19,16 @@
   .sent { font-size:14px; color:var(--mute); border-left:2px solid var(--line); padding-left:10px; margin-bottom:18px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:12px; }
   .card p { font-size:16px; line-height:1.4; margin:0 0 10px; }
-  .tags { display:flex; flex-wrap:wrap; gap:6px; }
-  .tag { background:transparent; border:1px solid var(--line); color:var(--mute); font-size:12px; padding:6px 10px; border-radius:999px; cursor:pointer; }
-  .tag:hover { border-color:#3d3d3d; color:var(--fg); }
-  .tag.on { background:var(--red); border-color:var(--red); color:#fff; }
-  .tag.neg { }
+  .rate-row { display:flex; gap:6px; margin-bottom:8px; }
+  .rate-row button { flex:1; background:transparent; border:1px solid var(--line); color:var(--mute); font-size:13px; padding:8px 6px; border-radius:6px; cursor:pointer; }
+  .rate-row button:hover { border-color:#3d3d3d; color:var(--fg); }
+  .rate-row button.selected.lol { background:#2f7a3d; border-color:#2f7a3d; color:#fff; }
+  .rate-row button.selected.smirk { background:#4a7a6f; border-color:#4a7a6f; color:#fff; }
+  .rate-row button.selected.nothing { background:#4a4742; border-color:#4a4742; color:#fff; }
+  .rate-row button.selected.bad { background:var(--red); border-color:var(--red); color:#fff; }
+  .toggle-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:var(--fg); }
+  .toggle-row input { width:16px; height:16px; }
+  .card select { width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--line); padding:6px 8px; font-size:12px; border-radius:4px; }
   .actions { display:flex; gap:10px; margin-top:24px; }
   button.next { flex:1; background:var(--red); color:#fff; border:0; padding:14px; font-size:15px; border-radius:6px; cursor:pointer; }
   button.next:disabled { opacity:.4; cursor:default; }
@@ -38,7 +43,7 @@
 <body>
 <main>
   <h1>bake-off rating<span style="color:var(--red)">.</span></h1>
-  <p class="hint">One input at a time. The lines below are in random order and unlabeled — you're not told which system wrote which. Tap whichever tags fit each line; a line can get none, one, or several. Tap "next" when you're done with this one. Nothing is uploaded — your ratings live in a CSV you download from the bottom of this page.</p>
+  <p class="hint">One input at a time. The lines below are in random order and unlabeled — you're not told which system wrote which. React to each line, toggle "would you screenshot this?" if it applies, and optionally pick a failure reason. Tap "next" when you're done with this one. Nothing is uploaded — your ratings live in a CSV you download from the bottom of this page.</p>
 
   <div class="rater-row">
     <input type="text" id="rater" placeholder="your name or initials, so we can tell raters apart" />
@@ -58,7 +63,17 @@
 </main>
 
 <script>
-  var TAGS = ["funniest", "most surprising", "most tailored", "most shareable", "too random", "too far"];
+  // Reaction vocabulary, v4 addendum section I ("replace the four" —
+  // brief sections 5 and 7 both specced laughed/nothing/hated/winced for
+  // this exact page and for bible-rate.html; the addendum overrides both
+  // with this same set instead, for one consistent vocabulary across
+  // every rating tool in the repo). RATINGS is exclusive per card (one
+  // reaction, not the old TAGS multi-select); screenshot and failure ride
+  // alongside it. "too far" and "bad" are independent per the addendum's
+  // own instruction — a line can be shocking and excellent, or offensive
+  // and unfunny.
+  var RATINGS = ["lol", "smirk", "nothing", "bad"];
+  var FAILURE_REASONS = ["", "too tame", "generic", "random", "answers the text", "too long", "too far"];
 
   var raterEl = document.getElementById("rater");
   var roundEl = document.getElementById("round");
@@ -92,9 +107,9 @@
   }
   function refreshDownload() {
     rowCountEl.textContent = rows.length + " rating" + (rows.length === 1 ? "" : "s") + " recorded";
-    var header = "rater,timestamp,input_index,input,system,position_shown,tag\n";
+    var header = "rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure\n";
     var body = rows.map(function (r) {
-      return [r.rater, r.timestamp, r.input_index, r.input, r.system, r.position_shown, r.tag].map(csvEscape).join(",");
+      return [r.rater, r.timestamp, r.input_index, r.input, r.system, r.position_shown, r.rating, r.screenshot ? "yes" : "no", r.failure || ""].map(csvEscape).join(",");
     }).join("\n");
     var blob = new Blob([header + body + "\n"], { type: "text/csv" });
     var url = URL.createObjectURL(blob);
@@ -125,15 +140,37 @@
     return copy;
   }
 
-  // Tapped tags for the CURRENT round only, keyed by "position_shown:tag"
-  // — cleared every time a new round renders. Lets a second tap on the
-  // same tag/card remove the row instead of only ever adding one.
-  var currentTaps = {};
+  // Per-card state for the CURRENT round only, keyed by position_shown —
+  // cleared every time a new round renders. A card's row in `rows` only
+  // exists once a rating has actually been picked (screenshot/failure
+  // alone, with no rating yet, just update local state); any later
+  // interaction on the same card replaces its one row rather than adding
+  // a second, since a reaction is exclusive per card now (unlike the old
+  // TAGS multi-select, where a card could carry several rows at once).
+  var cardStates = {};
 
-  function tagKey(position, tag) { return position + ":" + tag; }
+  function upsertRow(position, item) {
+    var state = cardStates[position];
+    var existingIdx = rows.findIndex(function (r) { return r.input_index === roundIndex && r.position_shown === position; });
+    if (existingIdx !== -1) rows.splice(existingIdx, 1);
+    if (state.rating) {
+      rows.push({
+        rater: raterEl.value.trim() || "anonymous",
+        timestamp: new Date().toISOString(),
+        input_index: roundIndex,
+        input: INPUTS[roundIndex],
+        system: item.system,
+        position_shown: position,
+        rating: state.rating,
+        screenshot: state.screenshot,
+        failure: state.failure
+      });
+    }
+    persistRows();
+  }
 
   function renderRound(inputRows) {
-    currentTaps = {};
+    cardStates = {};
     roundEl.innerHTML = "";
 
     var shown = shuffled(inputRows.map(function (r, i) { return { system: r.system, text: r.text, origIndex: i }; }));
@@ -157,43 +194,57 @@
     roundEl.appendChild(sent);
 
     shown.forEach(function (item, position) {
+      cardStates[position] = { rating: null, screenshot: false, failure: "" };
+
       var card = document.createElement("div");
       card.className = "card";
       var p = document.createElement("p");
       p.textContent = item.text;
       card.appendChild(p);
-      var tagsRow = document.createElement("div");
-      tagsRow.className = "tags";
-      TAGS.forEach(function (tag) {
+
+      var rateRow = document.createElement("div");
+      rateRow.className = "rate-row";
+      var ratingBtns = {};
+      RATINGS.forEach(function (rating) {
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "tag";
-        btn.textContent = tag;
+        btn.className = rating;
+        btn.textContent = rating.toUpperCase();
         btn.addEventListener("click", function () {
-          var key = tagKey(position, tag);
-          var isOn = btn.classList.toggle("on");
-          if (isOn) {
-            currentTaps[key] = {
-              rater: raterEl.value.trim() || "anonymous",
-              timestamp: new Date().toISOString(),
-              input_index: roundIndex,
-              input: INPUTS[roundIndex],
-              system: item.system,
-              position_shown: position,
-              tag: tag
-            };
-            rows.push(currentTaps[key]);
-          } else {
-            var recorded = currentTaps[key];
-            delete currentTaps[key];
-            var idx = rows.indexOf(recorded);
-            if (idx !== -1) rows.splice(idx, 1);
-          }
-          persistRows();
+          cardStates[position].rating = rating;
+          RATINGS.forEach(function (r) { ratingBtns[r].classList.toggle("selected", r === rating); });
+          upsertRow(position, item);
         });
-        tagsRow.appendChild(btn);
+        ratingBtns[rating] = btn;
+        rateRow.appendChild(btn);
       });
-      card.appendChild(tagsRow);
+      card.appendChild(rateRow);
+
+      var toggleRow = document.createElement("label");
+      toggleRow.className = "toggle-row";
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.addEventListener("change", function () {
+        cardStates[position].screenshot = checkbox.checked;
+        upsertRow(position, item);
+      });
+      toggleRow.appendChild(checkbox);
+      toggleRow.appendChild(document.createTextNode("would you screenshot this?"));
+      card.appendChild(toggleRow);
+
+      var select = document.createElement("select");
+      FAILURE_REASONS.forEach(function (reason) {
+        var opt = document.createElement("option");
+        opt.value = reason;
+        opt.textContent = reason || "— failure reason (optional) —";
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", function () {
+        cardStates[position].failure = select.value;
+        upsertRow(position, item);
+      });
+      card.appendChild(select);
+
       roundEl.appendChild(card);
     });
 
@@ -249,8 +300,14 @@
     renderRound(inputRows);
   }
 
+  // A-D: v2/frozen-v3. E/F: astra variants, only present when
+  // scripts/bake-blind.js was run with BAKE_ASTRA=1. G: v4, live — the
+  // v4 brief's own section-7 ask (compare v3, frozen, against v4). A
+  // system with no result file just gets skipped (see loadResults'
+  // `missing` handling below), so listing G here is harmless even for an
+  // older bake/results/ directory that predates it.
   var SYSTEMS = [
-    { key: "A" }, { key: "B" }, { key: "C" }, { key: "D" }, { key: "E" }
+    { key: "A" }, { key: "B" }, { key: "C" }, { key: "D" }, { key: "E" }, { key: "F" }, { key: "G" }
   ];
   var RESULTS = {};
   var INPUTS = [];
