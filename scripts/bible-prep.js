@@ -31,6 +31,25 @@
 // incrementally (flushed after every input), so an interrupted run
 // doesn't lose what it already paid for — re-running overwrites
 // bible/lines.json from scratch, it doesn't resume.
+//
+// Acceptance targets for the next real 100-line run (v4 addendum, section
+// J) — measured from scripts/bible-rate.html's ratings, not from this
+// script's own q/reaction numbers, since the whole point is whether a
+// person actually reacted, not whether the judge thinks they would have:
+//   - LOL >= 15%
+//   - LOL or smirk >= 60%
+//   - would-screenshot >= 10%
+//   - reply/POV failures (gate 1 violations that shipped anyway) < 2%
+//   - generic or random failures < 10%
+//   - at least 25% of first (position 1) lines recognizably shock,
+//     raunchy, or deranged
+//   - strong profanity appears somewhere in the run — not everywhere,
+//     but not zero
+// If a run misses on LOL, the addendum's own instruction is to look at
+// scripts/audit-prep.js's output (section H), not add more prompt
+// adjectives: a judge problem, a generator problem, and a prompt
+// suppressing crude candidates each look different in that pool, and
+// only one of them is fixed by touching lib/prompt.js again.
 
 const fs = require("fs");
 const path = require("path");
