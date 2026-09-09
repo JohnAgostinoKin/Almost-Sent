@@ -1,39 +1,47 @@
-// api/draft.js — v3: one request, ten candidates, three drafts back.
+// api/draft.js — v4: two generator calls (Hermes writes crude, GPT-5.4
+// writes clever), judged on reaction.
 //
-// v2 (see lib/legacy/) was two client requests per result: an n=1 lead
-// (one shape, pickBest-of-N) then an n=4 alternates call for the same
-// shape's siblings. v3 replaces both with ONE request that fires several
-// generator calls in parallel — one primary call per group in
-// lib/prompt.js's PRIMARY_LANE_GROUPS (buildPrimaryRequest,
-// GENERATOR_MODEL), each writing one candidate per lane for its slice of
-// the eight primary lanes (currently four calls of two — same prompt
-// shape every time, a fraction of the output each, merged before
-// judging), plus the wildcard call (buildWildcardRequest, WILDCARD_MODEL)
-// writing the raunchy and gross candidates — then judges all ten together
-// and returns the top three, best first. Position 1 is the lead; "make it
-// worse" reveals 2 and 3 instantly (already fetched, no second request);
-// a third tap fires a fresh escalated request (see `escalate`/`shown`
-// below) instead of the old client-side alternates refetch.
+// v3 (see lib/legacy/) fired one primary-model call per PRIMARY_LANE_GROUP
+// (four calls of two lanes each, all GENERATOR_MODEL) plus one wildcard
+// call (WILDCARD_MODEL, two lanes) — five calls total, asymmetric in size
+// and in how each was awaited (wildcard was always awaited in full;
+// primary alone got the soft deadline race). v4 collapses this to exactly
+// two calls, symmetric in every way that matters here: WILDCARD_MODEL
+// (Hermes) writes a fixed seven-candidate plan across shock/raunchy/
+// deranged/gross/wildcard, GENERATOR_MODEL (GPT-5.4) writes confession/
+// dark (plus absurd on an escalation refetch) — see lib/prompt.js's own
+// header for why the split is by strength, not by call count. Both calls
+// race the same soft deadline now (see runGenerationRound below);
+// whichever generator writes the bulk of a round's candidates changed
+// (Hermes now, not GPT-5.4), so the old "wildcard is small, always wait
+// for it" asymmetry doesn't hold anymore either.
 //
-// Selection past generation is two separate jobs, run CONCURRENTLY on the
-// full candidate set rather than one gating the other: SAFETY
-// (lib/judge.js's judgeOneLine, cheap model, one call per candidate,
-// unchanged from v2) checks every candidate for anything that shouldn't
-// ship at all; TASTE (lib/judge.js's judgeCandidates, expensive model,
-// split into two parallel batches) gates every candidate on five hard
-// checks — does it actually continue their message, is the claimed anchor
-// real and load-bearing, is there a turn, is it clear — then scores and
-// ranks what's left. Once BOTH resolve, any candidate safety flagged is
-// removed from the ranking regardless of what taste made of it. A failed
-// taste call (timeout, unparsable reply — no retry; see lib/judge.js's
-// header comment for why) falls back to fixed lane order rather than
-// blocking the response on a second expensive call.
+// Selection past generation is still two separate jobs, run CONCURRENTLY
+// on the full candidate set rather than one gating the other: SAFETY
+// (lib/judge.js's judgeOneLine, cheap model, one call per candidate)
+// checks every candidate for anything that shouldn't ship at all; TASTE
+// (lib/judge.js's judgeCandidates, expensive model, split into two
+// parallel batches) gates every candidate on five hard checks then scores
+// what's left on REACTION now, not craft — see lib/judge.js's own header
+// for why. Once BOTH resolve, any candidate safety flagged is removed
+// from the ranking regardless of what taste made of it. A failed taste
+// call falls back to fixed lane order rather than blocking the response
+// on a second expensive call.
+//
+// v4 adds one more hard gate past taste's own five (see the v4 addendum,
+// section F): position 1 must score reaction >= REACTION_LEAD_GATE. A
+// weak first round (either this gate or the pre-existing q-based
+// REGEN_THRESHOLD) triggers the same one-extra-round regenerate-if-weak
+// v3 already had; if the second round STILL doesn't clear the reaction
+// gate, this ships the best available anyway rather than failing a
+// request that already succeeded once — but logs weak_lead:true rather
+// than shipping silently, per the addendum's own instruction.
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANE_GROUPS, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
-  extractArray, extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops
+  extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates, judgePairwise } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
@@ -56,8 +64,8 @@ function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
-// Soft deadline on the primary lane-group calls (see runGenerationRound's
-// PRIMARY_SOFT_DEADLINE_MS below): a group still running past the
+// Soft deadline on the two generator calls (see runGenerationRound's
+// GENERATION_SOFT_DEADLINE_MS below): a call still running past the
 // deadline isn't cancelled — a fetch already in flight keeps running
 // either way — it just isn't waited on for THIS response. This module-
 // level Map is where its eventual candidates land instead, keyed by
@@ -92,17 +100,17 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_primary: [],  // wall-clock of each primary generator call, one entry per PRIMARY_LANE_GROUPS group, index-aligned — all run in parallel with each other and with wildcard, including any retry/fallback
-    t_wildcard: 0,  // same, for the wildcard (raunchy/gross) call
-    t_judge: 0,     // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
-    t_pairwise: 0,  // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
+    t_wildcard: 0, // wall-clock of the Hermes (crude) generator call, including any retry/fallback
+    t_primary: 0,  // wall-clock of the GPT-5.4 (clever) generator call, including any retry/fallback — both run in parallel with each other
+    t_judge: 0,    // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
+    t_pairwise: 0, // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
     t_response: 0
   };
 }
 
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
-    " t_primary=" + JSON.stringify(s.t_primary) + "ms t_wildcard=" + s.t_wildcard + "ms" +
+    " t_wildcard=" + s.t_wildcard + "ms t_primary=" + s.t_primary + "ms" +
     " t_judge=" + s.t_judge + "ms t_pairwise=" + s.t_pairwise + "ms t_response=" + s.t_response + "ms";
 }
 
@@ -113,33 +121,32 @@ function readBody(req) {
   return body;
 }
 
-// One call to one generator (primary or wildcard). `kind` picks which
-// lib/prompt.js builder callLLM reaches for (see lib/llm.js) and is
-// carried into `why`/logs for ?debug=1. Primary calls parse the
-// premise-first {premises, candidates} shape (extractPremiseCandidates —
-// see lib/prompt.js's buildPrimaryPrompt and lib/postprocess.js's own
-// comment on the new extractor); the wildcard call still asks for and
-// parses a bare array (extractArray, unchanged) — premises are a primary-
-// only mechanic. `premises` rides on the returned result (null for
-// wildcard, or a primary call that never got that far) purely for
-// api/draft.js's handler to fold into `debug` — never shown to a visitor,
-// see the handler's own comment on that.
+// One call to one generator (wildcard/Hermes or primary/GPT-5.4). `kind`
+// picks which lib/prompt.js builder callLLM reaches for (see lib/llm.js)
+// and is carried into `why`/logs for ?debug=1. Both generators now parse
+// the same premise-first {premises, candidates} shape
+// (extractPremiseCandidates — see lib/prompt.js's buildWildcardPrompt/
+// buildPrimaryPrompt) — v3 only gave this treatment to the primary call;
+// v4 applies premise-first to both, since it's a mechanic worth keeping
+// regardless of which model or how many lanes a given call is writing
+// (see the v4 brief's own "keep from v3" list). `premises` rides on the
+// returned result purely for api/draft.js's handler to fold into `debug`
+// — never shown to a visitor.
 async function callOneGenerator(key, model, sent, kind, genOpts) {
-  const isPrimary = kind !== "wildcard";
   try {
     const result = await callLLM(key, model, sent, Object.assign({ kind: kind }, genOpts));
     const t_gen = result.latencyMs;
     const provider = result.provider || null;
     console.log("provider (" + kind + "): " + (provider || "unknown") + " (" + model + ")");
     const providerTag = provider ? " [" + provider + "]" : "";
-    const parsedObj = isPrimary ? extractPremiseCandidates(result.text) : extractArray(result.text);
-    const parsed = isPrimary ? (parsedObj && parsedObj.candidates) : parsedObj;
+    const parsedObj = extractPremiseCandidates(result.text);
+    const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) {
       const why = result.finishReason === "length" ? "hit token limit" : (result.text ? "no json in output" : "empty output");
       console.error("parse failure (" + kind + ", " + why + ") model=" + model + " raw=" + JSON.stringify(String(result.text || "").slice(0, 800)));
       return { lines: [], why: why + providerTag, provider: provider, reason: "unparsable", t_gen: t_gen, premises: null };
     }
-    const premises = isPrimary && parsedObj.premises.length ? parsedObj.premises : null;
+    const premises = parsedObj.premises.length ? parsedObj.premises : null;
     const items = parsed.map(normalizeItem);
     if (isRefusal(items)) return { lines: [], skip: true, t_gen: t_gen, premises: premises };
     const filtered = filterLines(items, sent);
@@ -159,15 +166,13 @@ function tagModel(result, model, note) {
   return result;
 }
 
-// Same retry-then-fallback shape as v2's fromAi, applied per generator
-// call: every line filtered gets one retry on the SAME model (temperature
-// is 1.0, so a second draw is often clean even when the first wasn't); an
-// outright refusal, parse failure, or thrown error gets one attempt on
-// FALLBACK_MODEL instead. Was openai/gpt-5.4 — the same value
-// GENERATOR_MODEL defaults to, which meant a "fallback" attempt after a
-// gpt-5.4 failure just retried gpt-5.4 again, diversifying nothing. A
-// different provider entirely now, so a bad day for OpenAI's models
-// doesn't take out both attempts.
+// Same retry-then-fallback shape as v3's own: every line filtered gets one
+// retry on the SAME model (temperature is 1.0, so a second draw is often
+// clean even when the first wasn't); an outright refusal, parse failure,
+// or thrown error gets one attempt on FALLBACK_MODEL instead — a
+// different provider entirely from either GENERATOR_MODEL or
+// WILDCARD_MODEL, so a bad day for one upstream doesn't take out both
+// attempts.
 const FALLBACK_MODEL = "mistralai/mistral-large-2512";
 async function runGenerator(key, model, sent, kind, genOpts) {
   const first = await callOneGenerator(key, model, sent, kind, genOpts);
@@ -194,7 +199,7 @@ function dedupeKey(sent) {
 
 // Fires via waitUntil (see the handler below), not awaited before
 // responding. See lib/legacy/ commit history for the fuller "why waitUntil"
-// story — unchanged from v2.
+// story — unchanged from v2/v3.
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -347,11 +352,12 @@ module.exports = async function handler(req, res) {
     if (curated) {
       res.status(200).json({
         sent: sent,
-        // Curated lines never touch the judge, so there's no real q/shock
-        // to report — null, same convention the fixed-lane-order fallback
-        // above uses. `position` is still real (1-based, bank order) so
-        // index.html's escalation logging has something to key on.
-        drafts: curated.map(function (d, i) { return { lane: d.lane, text: d.text, q: null, shock: null, position: i + 1 }; }),
+        // Curated lines never touch the judge, so there's no real q/
+        // reaction to report — null, same convention the fixed-lane-order
+        // fallback below uses. `position` is still real (1-based, bank
+        // order) so index.html's escalation logging has something to key
+        // on.
+        drafts: curated.map(function (d, i) { return { lane: d.lane, text: d.text, q: null, reaction: null, position: i + 1 }; }),
         source: "curated",
         why: "curated",
         provider: null,
@@ -391,7 +397,7 @@ module.exports = async function handler(req, res) {
     const crisisResult = await crisisPromise; // still resolve it so nothing is left dangling, even though there's no model call to gate on it
     res.status(200).json({
       sent: sent,
-      drafts: [{ lane: "stall", text: stallLine(), q: null, shock: null, position: 1 }],
+      drafts: [{ lane: "stall", text: stallLine(), q: null, reaction: null, position: 1 }],
       source: "stall",
       why: "no api key",
       provider: null,
@@ -407,78 +413,75 @@ module.exports = async function handler(req, res) {
 
   const genOpts = { escalate: escalate, shown: shown };
 
-  // One full generate-then-judge pass — primary lane-group calls plus the
-  // wildcard call, safety+taste running concurrently on the combined
-  // candidate set, then the pairwise final call between the top two by q
-  // (see lib/judge.js's judgePairwise). Factored into its own function
-  // because regenerate-if-weak (below) can run this exact sequence a
-  // second time — never more than once, whatever the second round's own
-  // result turns out to be. Every timing lands in a LOCAL object, not the
-  // outer `stages` directly, so running this twice doesn't leave `stages`
-  // reporting a discarded round's numbers — the caller copies whichever
-  // round it actually keeps into `stages` once that's decided.
+  // One full generate-then-judge pass — the Hermes and GPT-5.4 calls,
+  // safety+taste running concurrently on the combined candidate set, then
+  // the pairwise final call between the top two by q (see lib/judge.js's
+  // judgePairwise). Factored into its own function because regenerate-if-
+  // weak (below) can run this exact sequence a second time — never more
+  // than once, whatever the second round's own result turns out to be.
+  // Every timing lands in a LOCAL object, not the outer `stages` directly,
+  // so running this twice doesn't leave `stages` reporting a discarded
+  // round's numbers — the caller copies whichever round it actually keeps
+  // into `stages` once that's decided.
   async function runGenerationRound() {
-    const t = { t_primary: PRIMARY_LANE_GROUPS.map(function () { return 0; }), t_wildcard: 0, t_judge: 0, t_pairwise: 0 };
+    const t = { t_wildcard: 0, t_primary: 0, t_judge: 0, t_pairwise: 0 };
+
+    // Each call's own slot, plus whether it's settled yet — the soft
+    // deadline below needs to inspect exactly which calls are already
+    // done at the 4500ms mark, not just "some subset finished." The
+    // promise itself is untouched either way: a call past the deadline
+    // isn't cancelled, it just isn't awaited for this response — see the
+    // soft-deadline branch below for what happens to it instead.
+    const slots = {
+      wildcard: { settled: false, result: null },
+      primary: { settled: false, result: null }
+    };
     const wildcardStarted = Date.now();
+    const wildcardPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN }, genOpts))
+      .then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; slots.wildcard.settled = true; slots.wildcard.result = r; return r; });
+    const primaryStarted = Date.now();
+    const primaryPromise = runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
+      .then(function (r) { t.t_primary = Date.now() - primaryStarted; slots.primary.settled = true; slots.primary.result = r; return r; });
 
-    // Each group's own promise, plus a slot recording whether it's
-    // settled yet and what it settled to — the soft deadline below needs
-    // to inspect exactly which groups are already done at the 4500ms
-    // mark, not just "some subset finished." The promise itself is
-    // untouched either way: a group past the deadline isn't cancelled,
-    // it just isn't awaited for this response — see the soft-deadline
-    // branch below for what happens to it instead.
-    const primarySlots = PRIMARY_LANE_GROUPS.map(function () { return { settled: false, result: null }; });
-    const primaryPromises = PRIMARY_LANE_GROUPS.map(function (lanes, i) {
-      const groupOpts = Object.assign({ lanes: lanes }, genOpts);
-      const groupStarted = Date.now();
-      return runGenerator(key, GENERATOR_MODEL, sent, "primary", groupOpts).then(function (r) {
-        t.t_primary[i] = Date.now() - groupStarted;
-        primarySlots[i].settled = true;
-        primarySlots[i].result = r;
-        return r;
-      });
-    });
-    const wildcardPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", genOpts).then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; return r; });
-
-    // Soft deadline: wait up to PRIMARY_SOFT_DEADLINE_MS for every primary
-    // group. If they're all done by then (the common case — this is a
-    // race against a timer, not a fixed delay), this behaves exactly like
-    // the plain Promise.all it replaces. If the deadline wins instead,
-    // check what's actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or
-    // more real candidates already resolved is enough to start judging
-    // now rather than wait on a slow straggler — fewer than that, and the
-    // soft deadline can't help (proceeding with too little just means a
-    // thinner result), so it falls back to waiting for everyone, same as
+    // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for BOTH
+    // calls — symmetric now, unlike v3 (see this file's own header
+    // comment for why the old asymmetry doesn't hold anymore). If both
+    // are done by then (the common case — this is a race against a
+    // timer, not a fixed delay), this behaves exactly like the plain
+    // Promise.all it replaces. If the deadline wins instead, check what's
+    // actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or more real
+    // candidates already resolved is enough to start judging now rather
+    // than wait on a slow straggler — fewer than that, and the soft
+    // deadline can't help (proceeding with too little just means a
+    // thinner result), so it falls back to waiting for both, same as
     // before this feature existed.
-    const PRIMARY_SOFT_DEADLINE_MS = 4500;
-    const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 6;
+    const GENERATION_SOFT_DEADLINE_MS = 4500;
+    const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 5;
     let lateGroupCount = 0;
-    await Promise.race([Promise.all(primaryPromises), sleep(PRIMARY_SOFT_DEADLINE_MS)]);
+    await Promise.race([Promise.all([wildcardPromise, primaryPromise]), sleep(GENERATION_SOFT_DEADLINE_MS)]);
 
-    const pendingIndexes = [];
-    primarySlots.forEach(function (s, i) { if (!s.settled) pendingIndexes.push(i); });
-
-    let primaryResults;
-    if (!pendingIndexes.length) {
-      primaryResults = primarySlots.map(function (s) { return s.result; });
+    const pendingKeys = Object.keys(slots).filter(function (k) { return !slots[k].settled; });
+    let wildcard, primaryResult;
+    if (!pendingKeys.length) {
+      wildcard = slots.wildcard.result;
+      primaryResult = slots.primary.result;
     } else {
-      const inHandCount = primarySlots.reduce(function (sum, s) { return sum + (s.settled ? (s.result.lines || []).length : 0); }, 0);
+      const inHandCount = Object.keys(slots).reduce(function (sum, k) { return sum + (slots[k].settled ? (slots[k].result.lines || []).length : 0); }, 0);
       if (inHandCount >= MIN_CANDIDATES_FOR_SOFT_DEADLINE) {
-        lateGroupCount = pendingIndexes.length;
-        primaryResults = primarySlots.map(function (s) {
-          return s.settled ? s.result : { lines: [], why: "pending past " + PRIMARY_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
-        });
-        // The pending group(s) are already running — nothing to cancel,
+        lateGroupCount = pendingKeys.length;
+        wildcard = slots.wildcard.settled ? slots.wildcard.result : { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
+        primaryResult = slots.primary.settled ? slots.primary.result : { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
+        // The pending call(s) are already running — nothing to cancel,
         // nothing more to await here. waitUntil just keeps the function
         // alive long enough for them to actually finish (rather than the
         // runtime tearing down the instant this response goes out)
         // purely so cacheStragglers below has something to write; a
         // failure here is swallowed on purpose — a lost straggler just
-        // means the next escalation request generates fresh, same as
-        // it always has.
+        // means the next escalation request generates fresh, same as it
+        // always has.
+        const pendingPromises = pendingKeys.map(function (k) { return k === "wildcard" ? wildcardPromise : primaryPromise; });
         waitUntil(
-          Promise.all(pendingIndexes.map(function (i) { return primaryPromises[i]; }))
+          Promise.all(pendingPromises)
             .then(function (results) {
               const stragglerCandidates = results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, []);
               if (stragglerCandidates.length) {
@@ -489,21 +492,22 @@ module.exports = async function handler(req, res) {
             .catch(function () {})
         );
       } else {
-        primaryResults = await Promise.all(primaryPromises);
+        const both = await Promise.all([wildcardPromise, primaryPromise]);
+        wildcard = both[0];
+        primaryResult = both[1];
       }
     }
 
-    const wildcard = await wildcardPromise;
-
-    // Any primary group declining outright is a full refusal — same
-    // convention as v2's lead skip, now just checked across however many
-    // groups there are instead of one. The wildcard call declining alone
-    // isn't: two lanes' worth of "no" doesn't carry the same signal as a
-    // whole primary group refusing, it just means no raunchy/gross
-    // candidates this round (rare in practice — the wildcard prompt's own
-    // wall already covers the same abusive/minor/threat ground).
-    if (primaryResults.some(function (r) { return r.skip; })) {
-      return { refuse: true, primaryResults: primaryResults, wildcard: wildcard, t: t };
+    // Either generator declining outright is a full refusal. v3 only gave
+    // this treatment to the (several) primary calls, since a lone
+    // wildcard refusal was two lanes' worth of "no" next to eight lanes
+    // of real output — that asymmetry doesn't hold in v4: wildcard/Hermes
+    // is now the bulk call (seven of nine-or-ten candidates), and both
+    // prompts share the exact same "abusive, sexual toward a minor, or a
+    // threat" skip instruction, so a refusal from either side carries the
+    // same signal.
+    if (wildcard.skip || primaryResult.skip) {
+      return { refuse: true, wildcard: wildcard, primaryResult: primaryResult, t: t };
     }
 
     // On an escalation request specifically, pick up any stragglers an
@@ -513,12 +517,9 @@ module.exports = async function handler(req, res) {
     // is the ordinary case — most escalation requests won't have a
     // straggler waiting for them.
     const stragglers = escalate ? takeStragglers(sent) : [];
-    const allCandidates = primaryResults
-      .reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
-      .concat(wildcard.skip ? [] : (wildcard.lines || []))
-      .concat(stragglers);
+    const allCandidates = (wildcard.lines || []).concat(primaryResult.lines || []).concat(stragglers);
 
-    // SAFETY and TASTE run CONCURRENTLY on the full candidate set now, not
+    // SAFETY and TASTE run CONCURRENTLY on the full candidate set, not
     // safety-then-taste gating what taste even sees — taste judges every
     // candidate in parallel with safety judging every candidate, and only
     // once both are back does a safety flag remove a candidate from the
@@ -527,9 +528,8 @@ module.exports = async function handler(req, res) {
     // total judge time is now roughly max(safety, taste), not their sum.
     //
     // lib/judge.js's judgeOneLine (safety, cheap model, one call per
-    // candidate, unchanged from v2 apart from its renamed constants) and
-    // judgeCandidates (taste, expensive model, split into two parallel
-    // batches — see lib/judge.js's own comments for both).
+    // candidate) and judgeCandidates (taste, expensive model, split into
+    // two parallel batches — see lib/judge.js's own comments for both).
     const judgeStarted = Date.now();
     const [safetyVerdicts, taste] = await Promise.all([
       allCandidates.length
@@ -568,11 +568,7 @@ module.exports = async function handler(req, res) {
       if (result.verdict === null) safetyFailedCount++;
       // Every call's own latency, always — not just failures — so a slow
       // stretch (queueing, an upstream having a bad day) is visible in the
-      // logs without a failure to trigger it. This is what actually caught
-      // the connection-pool contention behind "safety nano at 3.6s for ten
-      // calls" (see lib/judge.js's safetyDispatcher comment) — no 429s ever
-      // showed up in it, which is exactly how that turned out not to be
-      // rate limiting.
+      // logs without a failure to trigger it.
       console.log("safety [" + (item.lane || "?") + "] latencyMs=" + (result.latencyMs != null ? result.latencyMs : "?"));
       // result.reason is set the moment SAFETY_MODEL's own first attempt
       // failed, even if a fallback then rescued the verdict (see
@@ -598,49 +594,52 @@ module.exports = async function handler(req, res) {
 
     // Escalation is intensity, not rank. Position 1 is still the highest-q
     // candidate — unchanged. Position 2 has to be a real escalation from
-    // it: more shock (intensity) than position 1, AND still good enough to
-    // ship (q within 70% of position 1's) — highest-q-next isn't enough on
-    // its own, or "make it worse" would just mean "next best," which is
+    // it: more reaction (intensity) than position 1, AND still good enough
+    // to ship (q within 70% of position 1's) — highest-q-next isn't enough
+    // on its own, or "make it worse" would just mean "next best," which is
     // what a plain rank-order reveal already was. Position 3 is the same
-    // rule applied against position 2, not position 1.
+    // rule applied against position 2, not position 1. `reaction` replaces
+    // v3's `shock` here — see lib/judge.js's header comment for why: it's
+    // the same intensity axis, renamed to match what the score actually
+    // measures now that it's a real judged criterion instead of a value
+    // deliberately held out of q.
     let survivors, tasteNote;
     if (taste.ok) {
       survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
-      // Every candidate's q/shock, and the gate that killed each eliminated
-      // one — exactly what ?debug=1 needs to see the judge's actual
-      // reasoning, not just its final picks. A safety-flagged candidate is
-      // tagged here too, whatever taste made of it, since that's exactly
-      // why it's missing from `survivors` above.
+      // Every candidate's q/reaction, and the gate that killed each
+      // eliminated one — exactly what ?debug=1 needs to see the judge's
+      // actual reasoning, not just its final picks. A safety-flagged
+      // candidate is tagged here too, whatever taste made of it, since
+      // that's exactly why it's missing from `survivors` above.
       const totalsNote = taste.details.map(function (d) {
         const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
-        return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " shock:" + d.shock) + flag;
+        return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " reaction:" + d.reaction) + flag;
       }).join(", ");
       tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
     } else {
-      // Fallback: fixed lane order, same as v3's original bridge selection —
-      // still a reasonable "something is better than nothing" ordering, just
-      // not the ranked-by-taste/intensity one. There's no real q/shock to
-      // gate escalation on here, so every position below just takes the
-      // next lane-ordered survivor — the same behavior this fallback
-      // always had, since q:null short-circuits the intensity check below.
+      // Fallback: fixed lane order — still a reasonable "something is
+      // better than nothing" ordering, just not the ranked-by-taste/
+      // intensity one. There's no real q/reaction to gate escalation on
+      // here, so every position below just takes the next lane-ordered
+      // survivor.
       survivors = allCandidates
         .filter(function (item) { return !flagged.has(item); })
         .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); })
-        .map(function (item) { return { candidate: item, q: null, shock: null }; });
+        .map(function (item) { return { candidate: item, q: null, reaction: null }; });
       tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
     }
 
     // Pairwise final: after gates and scoring, the top two by q get one
-    // head-to-head call — "which of these would produce the stronger
-    // involuntary reaction in a stranger reading it as the first result" —
-    // and the winner becomes position 1. Only meaningful when taste
-    // actually produced real q scores to pick a "top two" from; the fixed-
-    // lane-order fallback above has nothing worth comparing on. Swaps
-    // `survivors[0]`/`survivors[1]` in place when 2 wins — the
-    // position-selection loop below stays exactly as it was, just starting
-    // from whichever candidate the pairwise call preferred. A failed or
-    // unparsable pairwise call just keeps taste's own order, same
-    // "degrade, don't block" pattern the taste judge itself follows.
+    // head-to-head call — "which would make a stranger put the phone down
+    // and go show someone" — and the winner becomes position 1. Only
+    // meaningful when taste actually produced real q scores to pick a
+    // "top two" from; the fixed-lane-order fallback above has nothing
+    // worth comparing on. Swaps `survivors[0]`/`survivors[1]` in place
+    // when 2 wins — the position-selection loop below stays exactly as it
+    // was, just starting from whichever candidate the pairwise call
+    // preferred. A failed or unparsable pairwise call just keeps taste's
+    // own order, same "degrade, don't block" pattern the taste judge
+    // itself follows.
     let pairwiseNote = "";
     if (taste.ok && survivors.length >= 2) {
       const pairwiseStarted = Date.now();
@@ -659,7 +658,7 @@ module.exports = async function handler(req, res) {
     }
 
     return {
-      refuse: false, primaryResults: primaryResults, wildcard: wildcard, taste: taste,
+      refuse: false, wildcard: wildcard, primaryResult: primaryResult, taste: taste,
       safetyNote: safetyNote, tasteNote: tasteNote, pairwiseNote: pairwiseNote,
       survivors: survivors, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglers.length
     };
@@ -680,19 +679,40 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Regenerate-if-weak: if the best candidate this round scored below
-  // REGEN_THRESHOLD, the whole batch was probably a weak draw — run one
-  // full second round (fresh generation, fresh judging, fresh pairwise)
-  // and use its result instead of shipping one already known to be under
-  // the bar. Capped at exactly one extra round no matter how the second
-  // round itself scores — this is a retry, not a search for perfect. A
-  // second round that comes back an outright refusal just keeps the
-  // first round's (already-known-good) result rather than failing a
-  // request that had already succeeded once.
-  const REGEN_THRESHOLD = Number(process.env.REGEN_THRESHOLD) || 30;
+  // Regenerate-if-weak, v4: two separate triggers, either one is enough to
+  // spend one extra round. v3 only had the q-based one (REGEN_THRESHOLD,
+  // re-tuned here for v4's new q range — see this file's own comment on
+  // the constant); the addendum (section F) adds a hard floor on top:
+  // position 1 must score reaction >= REACTION_LEAD_GATE, since a
+  // technically-decent q with no actual reaction is exactly the BORED
+  // failure mode lib/judge.js's calibration block is built to name. Capped
+  // at exactly one extra round no matter how the second round itself
+  // scores — this is a retry, not a search for perfect. A second round
+  // that comes back an outright refusal just keeps the first round's
+  // (already-known-good) result rather than failing a request that had
+  // already succeeded once.
+  //
+  // REGEN_THRESHOLD's default changed from v3's 30 — that was calibrated
+  // against a formula whose max was roughly 80; v4's formula
+  // (2*reaction + specificity - interchangeable) maxes out at 30, so a
+  // literal 30 threshold would now mean "regenerate unless it's perfect,"
+  // never actually clearing. 11 is a provisional rescale (roughly the same
+  // fraction of the new max v3's 30 was of the old one) — the v4 brief
+  // (section 6) calls for running the full corpus once real traffic exists
+  // and setting this at the 30th percentile of real top scores instead;
+  // that's an operational step this commit can't responsibly fake a number
+  // for without actually running it.
+  const REGEN_THRESHOLD = Number(process.env.REGEN_THRESHOLD) || 11;
+  const REACTION_LEAD_GATE = 6;
+  function bestQOf(r) { return r.survivors.length && r.survivors[0].q != null ? r.survivors[0].q : null; }
+  function bestReactionOf(r) { return r.survivors.length && r.survivors[0].reaction != null ? r.survivors[0].reaction : null; }
+
   let regenerated = false;
-  const firstRoundBestQ = round.survivors.length && round.survivors[0].q != null ? round.survivors[0].q : null;
-  if (firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) {
+  const firstRoundBestQ = bestQOf(round);
+  const firstRoundBestReaction = bestReactionOf(round);
+  const needsRegen = (firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) ||
+    (firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE);
+  if (needsRegen) {
     const regenRound = await runGenerationRound();
     if (!regenRound.refuse) {
       round = regenRound;
@@ -700,12 +720,19 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  stages.t_primary = round.t.t_primary;
+  // weak_lead: even after a regen attempt, position 1 may still be under
+  // REACTION_LEAD_GATE — ships anyway (failing this request a second time
+  // isn't better for anyone), but logged explicitly rather than silently,
+  // per the addendum's own instruction ("never ship silently").
+  const finalBestReaction = bestReactionOf(round);
+  const weakLead = finalBestReaction != null && finalBestReaction < REACTION_LEAD_GATE;
+
   stages.t_wildcard = round.t.t_wildcard;
+  stages.t_primary = round.t.t_primary;
   stages.t_judge = round.t.t_judge;
   stages.t_pairwise = round.t.t_pairwise;
-  const primaryResults = round.primaryResults;
   const wildcard = round.wildcard;
+  const primaryResult = round.primaryResult;
   const taste = round.taste;
   const safetyNote = round.safetyNote;
   const tasteNote = round.tasteNote;
@@ -714,68 +741,80 @@ module.exports = async function handler(req, res) {
   const lateGroupCount = round.lateGroupCount;
   const stragglerPickupCount = round.stragglerPickupCount;
 
+  // Position selection also enforces per-response diversity now (see
+  // lib/postprocess.js's createDiversityTracker) — a repeated opening
+  // move, background prop, or simile across positions 1-3 reads as one
+  // joke shown three times, not three different ones. v3 exported this
+  // tracker with a comment saying it was "driven from callOnce" but never
+  // actually wired it into this loop — every response before this line
+  // skipped diversity dedup entirely (the v4 addendum's section G asked
+  // specifically whether every generation path runs the full postprocess
+  // pipeline; this was the one real gap found, not bible-prep.js or the
+  // word cap/crutch filters, which were already applied everywhere).
+  const diversityTracker = createDiversityTracker();
   const positions = [];
-  if (survivors.length) positions.push(survivors[0]);
+  if (survivors.length) {
+    positions.push(survivors[0]);
+    diversityTracker.record(survivors[0].candidate.text);
+  }
   for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
     const prev = positions[need - 2];
     const remaining = survivors.slice(1).filter(function (s) { return positions.indexOf(s) === -1; });
     // remaining is still q-descending (inherited from `survivors`'
-    // own order), so the first one clearing both bars is the highest-q
+    // own order), so the first one clearing every bar is the highest-q
     // qualifier — no separate re-sort needed.
-    const next = prev.shock == null
-      ? remaining[0]
-      : remaining.filter(function (s) { return s.shock > prev.shock && s.q >= 0.7 * prev.q; })[0];
+    const next = prev.reaction == null
+      ? remaining.filter(function (s) { return !diversityTracker.isDuplicate(s.candidate.text); })[0]
+      : remaining.filter(function (s) { return s.reaction > prev.reaction && s.q >= 0.7 * prev.q && !diversityTracker.isDuplicate(s.candidate.text); })[0];
     if (!next) break;
     positions.push(next);
+    diversityTracker.record(next.candidate.text);
   }
 
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
-    return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, shock: p.shock, position: i + 1 };
+    return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, reaction: p.reaction, position: i + 1 };
   });
   const source = drafts.length ? "model" : "stall";
-  if (!drafts.length) drafts.push({ lane: "stall", text: stallLine(), q: null, shock: null, position: 1 });
+  if (!drafts.length) drafts.push({ lane: "stall", text: stallLine(), q: null, reaction: null, position: 1 });
 
   stages.t_response = Date.now() - responseStarted;
-  const primaryWhy = primaryResults.map(function (r, i) { return "primary #" + (i + 1) + ": " + (r.why || "?"); }).join(" · ");
-  const why = primaryWhy +
-    " · wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
+  const why = "wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
+    " · primary: " + (primaryResult.skip ? "skipped" : (primaryResult.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
     (pairwiseNote ? " · " + pairwiseNote : "") +
-    (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + " < " + REGEN_THRESHOLD + ")" : "") +
-    (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, group(s) finishing in background)" : "") +
+    (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + ", best reaction " + firstRoundBestReaction + ")" : "") +
+    (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
+    (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
     " · stages: " + formatStages(stages);
 
-  const primaryDebugLines = primaryResults.reduce(function (acc, r) { return acc.concat(r.debugLines || []); }, []);
-  const primaryTGens = primaryResults.map(function (r) { return r.t_gen; }).filter(function (t) { return t != null; });
-  const primaryTGen = primaryTGens.length ? Math.max.apply(null, primaryTGens) : null;
-  const primaryProvider = primaryResults.map(function (r) { return r.provider; }).filter(Boolean)[0] || null;
-  // One entry per primary lane-group call, each carrying whichever three
+  const genTGen = Math.max(wildcard.t_gen || 0, primaryResult.t_gen || 0) || null;
+  const genProvider = primaryResult.provider || wildcard.provider || null;
+  // Two entries — one per generator call — each carrying whichever three
   // premises that call worked out about the sent text before writing its
-  // own lanes (see lib/prompt.js's buildPrimaryPrompt) — never returned to
-  // the client's own display, only into `debug` for ?debug=1 to read. A
-  // group whose call never got that far (parse failure, refusal, timeout)
-  // just carries null premises here, same as debugLines does for its own
-  // "nothing to show" case.
-  const primaryPremises = primaryResults.map(function (r, i) {
-    return { lanes: PRIMARY_LANE_GROUPS[i], premises: r.premises || null };
-  });
+  // own lanes (see lib/prompt.js's buildWildcardPrompt/buildPrimaryPrompt).
+  // Never returned to the client's own display, only into `debug` for
+  // ?debug=1 to read. A call that never got that far (parse failure,
+  // refusal, timeout) just carries null premises here, same as
+  // debugLines does for its own "nothing to show" case.
+  const premises = { wildcard: wildcard.premises || null, primary: primaryResult.premises || null };
 
   res.status(200).json({
     sent: sent,
     drafts: drafts,
     source: source,
     why: why || null,
-    provider: primaryProvider,
+    provider: genProvider,
     logged: logged,
+    weak_lead: weakLead,
     debug: {
-      primary: primaryDebugLines.length ? primaryDebugLines : null,
+      primary: primaryResult.debugLines || null,
       wildcard: wildcard.debugLines || null,
       judge: taste.ok ? taste.details : null,
-      premises: primaryPremises
+      premises: premises
     },
-    t_gen: primaryTGen,
+    t_gen: genTGen,
     t_judge: stages.t_judge,
     t_total: Date.now() - requestStarted,
     safety: { state: crisisResult.state, source: "classifier" }
