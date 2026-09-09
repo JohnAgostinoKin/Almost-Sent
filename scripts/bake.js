@@ -23,12 +23,15 @@ const { composeDraft } = require("../lib/compose");
 // table for voice/format quality, not as a preview of what a real visitor
 // would see filtered.
 //
-// Bakes lib/prompt.js's CURRENT primary generator prompt (v3's eight lanes,
-// see buildPrimaryRequest, which lib/llm.js's callLLM reaches for by
-// default) across whatever models BAKE_MODELS names — useful for picking
-// GENERATOR_MODEL. It does not exercise the wildcard call, the judge, or
-// the retired v2 four-shape prompt — see lib/legacy/ and
-// scripts/bake-blind.js for comparing against that.
+// Bakes lib/prompt.js's CURRENT "primary" generator prompt (v4: GPT-5.4's
+// confession/dark base plan — see buildPrimaryRequest, which
+// lib/llm.js's callLLM reaches for by default when no genOpts.kind is
+// given) across whatever models BAKE_MODELS names — useful for picking
+// GENERATOR_MODEL. It does not exercise the wildcard/Hermes call (shock/
+// raunchy/deranged/gross/wildcard — a fixed plan, not something worth
+// bake-testing across arbitrary models the way GENERATOR_MODEL's seat
+// is), the judge, or the retired v2 four-shape prompt — see lib/legacy/
+// and scripts/bake-blind.js for comparing against that.
 
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {

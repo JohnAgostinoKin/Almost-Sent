@@ -3,38 +3,43 @@
 //
 // Runs the first 100 inputs from bake/inputs.txt (the same locked 200-
 // input corpus scripts/bake-blind.js draws from) through the current
-// production engine — real primary + wildcard generation, safety, and
-// the taste judge's gates and scoring, the same shape api/draft.js's own
-// runGenerationRound uses — MINUS the pairwise final call, which only
-// ever decides ranking between two already-good candidates and has
-// nothing to contribute to a wide rating pool. Every candidate that
-// actually cleared taste's gates (a real, displayed-quality line — not
-// raw model output, not something safety would have flagged) gets
-// written to bible/lines.json, paired with the original text it replied
-// to.
+// production engine — real Hermes (wildcard) + GPT-5.4 (primary)
+// generation, safety, and the taste judge's gates and scoring, the same
+// shape api/draft.js's own runGenerationRound uses — MINUS the pairwise
+// final call, which only ever decides ranking between two already-good
+// candidates and has nothing to contribute to a wide rating pool. Every
+// candidate that actually cleared taste's gates (a real, displayed-
+// quality line — not raw model output, not something safety would have
+// flagged) gets written to bible/lines.json, paired with the original
+// text it replied to.
 //
 // scripts/bible-rate.html reads that file to show John real lines, in
-// context, to rate for lib/judge.js's calibration bank (bible.csv).
+// context, to rate. As of the v4 reset, those ratings are archival —
+// lib/judge.js's own calibration examples are now a hardcoded LOVED/
+// BORED/HATED block (see its header comment), not read from a CSV this
+// script's output feeds — but bible-rate.html is still how new candidate
+// lines get surfaced for a person to actually react to, which is exactly
+// what the next hand-picked calibration reset would draw from.
 //
 //   LLM_API_KEY=...      npm run bible-prep
 //   BIBLE_PREP_LIMIT=20  npm run bible-prep   # fewer inputs, for a cheaper test run
 //
-// Cost/time note: 100 inputs, each costing four parallel primary calls
-// plus a wildcard call plus up to ten safety calls plus a taste judge
-// call, is a real bill and a real wait — use BIBLE_PREP_LIMIT for a
-// smaller pass first. Results are written incrementally (flushed after
-// every input), so an interrupted run doesn't lose what it already paid
-// for — re-running overwrites bible/lines.json from scratch, it doesn't
-// resume.
+// Cost/time note: 100 inputs, each costing one Hermes call (seven
+// candidates) plus one GPT-5.4 call (two or three) plus up to ten safety
+// calls plus a taste judge call, is a real bill and a real wait — use
+// BIBLE_PREP_LIMIT for a smaller pass first. Results are written
+// incrementally (flushed after every input), so an interrupted run
+// doesn't lose what it already paid for — re-running overwrites
+// bible/lines.json from scratch, it doesn't resume.
 
 const fs = require("fs");
 const path = require("path");
 
 const { callLLM } = require("../lib/llm");
-const { extractArray, extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
+const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
-const { GENERATOR_MODEL, WILDCARD_MODEL, PRIMARY_LANE_GROUPS } = require("../lib/prompt");
+const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan } = require("../lib/prompt");
 
 // --- tiny .env loader (no dotenv dependency) — same as scripts/bake.js ---
 function loadDotEnv() {
@@ -73,17 +78,16 @@ function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
-// One primary lane-group call — same builder, same parsing
-// (extractPremiseCandidates, premise-first generation's own output
-// shape) api/draft.js's callOneGenerator uses for a primary call. No
-// retry/fallback-model chain the way api/draft.js's runGenerator has —
-// a group that fails here just contributes zero candidates for this
-// input rather than costing a second call; this script is prepping a
-// wide pool from 100 inputs, not trying to guarantee every single one
-// produces something.
-async function callOnePrimaryGroup(lanes, input) {
+// The two v4 generator calls — same builders, same premise-first output
+// shape (extractPremiseCandidates) api/draft.js's callOneGenerator uses
+// for both. No retry/fallback-model chain the way api/draft.js's
+// runGenerator has — a call that fails here just contributes zero
+// candidates for this input rather than costing a second call; this
+// script is prepping a wide pool from 100 inputs, not trying to guarantee
+// every single one produces something.
+async function callOneGenerator(model, lanes, kind, input) {
   try {
-    const result = await callLLM(apiKey, GENERATOR_MODEL, input, { lanes: lanes });
+    const result = await callLLM(apiKey, model, input, { lanes: lanes, kind: kind });
     const parsedObj = extractPremiseCandidates(result.text);
     const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) return [];
@@ -95,33 +99,18 @@ async function callOnePrimaryGroup(lanes, input) {
   }
 }
 
-// The wildcard (raunchy/gross) call — bare array output, unchanged from
-// premise-first generation (that's a primary-only mechanic).
-async function callWildcardGroup(input) {
-  try {
-    const result = await callLLM(apiKey, WILDCARD_MODEL, input, { kind: "wildcard" });
-    const parsed = extractArray(result.text);
-    if (!parsed) return [];
-    const items = parsed.map(normalizeItem);
-    if (isRefusal(items)) return [];
-    return filterLines(items, input).kept;
-  } catch (err) {
-    return [];
-  }
-}
-
 // Full generate-then-judge pass for one input, no pairwise. Returns the
-// {original, text, lane, q, shock} rows this input contributes to
+// {original, text, lane, q, reaction} rows this input contributes to
 // bible/lines.json — every candidate that cleared taste's five gates
 // AND wasn't safety-flagged. An input whose taste call fails outright
 // contributes nothing rather than guessing at "displayed quality"
 // without real scores to judge it by.
 async function processInput(input) {
-  const [primaryGroups, wildcardLines] = await Promise.all([
-    Promise.all(PRIMARY_LANE_GROUPS.map(function (lanes) { return callOnePrimaryGroup(lanes, input); })),
-    callWildcardGroup(input)
+  const [wildcardLines, primaryLines] = await Promise.all([
+    callOneGenerator(WILDCARD_MODEL, WILDCARD_LANE_PLAN, "wildcard", input),
+    callOneGenerator(GENERATOR_MODEL, primaryLanePlan({}), "primary", input)
   ]);
-  const allCandidates = primaryGroups.reduce(function (acc, lines) { return acc.concat(lines); }, []).concat(wildcardLines);
+  const allCandidates = wildcardLines.concat(primaryLines);
   if (!allCandidates.length) return [];
 
   const [safetyVerdicts, taste] = await Promise.all([
@@ -136,7 +125,7 @@ async function processInput(input) {
   return taste.details
     .filter(function (d) { return !d.eliminated && !flagged.has(d.candidate); })
     .map(function (d) {
-      return { original: input, text: d.candidate.text, lane: d.lane, q: d.q, shock: d.shock };
+      return { original: input, text: d.candidate.text, lane: d.lane, q: d.q, reaction: d.reaction };
     });
 }
 

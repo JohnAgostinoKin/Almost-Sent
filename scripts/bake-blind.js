@@ -11,24 +11,31 @@
 // afterward.
 //
 // This is NOT scripts/bake.js — that harness (still there, still useful)
-// runs the CURRENT prompt raw across models with no judge pass at all,
-// for a quick voice/format read. This one runs each system's FULL
-// pipeline (generation, safety, and — for the v3 systems — the taste
-// judge too) because the whole point here is comparing what a visitor
-// would actually be shown, not raw model output.
+// runs the CURRENT "primary" (GPT-5.4/clever) prompt raw across models
+// with no judge pass at all, for a quick voice/format read. This one runs
+// each system's FULL pipeline (generation, safety, and — every system
+// but legacy v2 — the taste judge too) because the whole point here is
+// comparing what a visitor would actually be shown, not raw model output.
+//
+// Five systems now (see SYSTEMS below): A is v2, frozen; B/C/D are v3,
+// frozen (lib/legacy/prompt-v3.js and friends — NOT the live lib/prompt.js,
+// which is v4 now); G is v4, live. B/C/D vs G is the v4 brief's own
+// section-7 ask — "run v3 (frozen in lib/legacy) against v4 on the locked
+// corpus."
 //
 //   LLM_API_KEY=...  node scripts/bake-blind.js
-//   BAKE_BLIND_SYSTEMS=B,C  node scripts/bake-blind.js   # subset, for a cheaper test run
+//   BAKE_BLIND_SYSTEMS=B,G  node scripts/bake-blind.js   # subset, for a cheaper test run
 //   BAKE_BLIND_LIMIT=20     node scripts/bake-blind.js   # first N inputs only
-//   BAKE_ASTRA=1            node scripts/bake-blind.js   # adds systems E and F if gpt-6-astra is on OpenRouter
+//   BAKE_ASTRA=1            node scripts/bake-blind.js   # adds systems E and F (frozen v3) if gpt-6-astra is on OpenRouter
 //
-// Cost/time note: this is not cheap. Four systems × 200 inputs (six with
-// BAKE_ASTRA=1), each input costing a generation call plus (every v3
-// system) an expensive taste-judge call, is a real bill and a real wait —
-// use BAKE_BLIND_SYSTEMS/BAKE_BLIND_LIMIT for a smaller pass first. Results are written
-// incrementally to bake/results/<system>.json (flushed after every
-// input), so an interrupted run doesn't lose what it already paid for —
-// re-running overwrites that file from scratch, it doesn't resume.
+// Cost/time note: this is not cheap. Five systems × 200 inputs (seven with
+// BAKE_ASTRA=1), each input costing a generation call plus (every system
+// but legacy v2) an expensive taste-judge call, is a real bill and a real
+// wait — use BAKE_BLIND_SYSTEMS/BAKE_BLIND_LIMIT for a smaller pass
+// first. Results are written incrementally to bake/results/<system>.json
+// (flushed after every input), so an interrupted run doesn't lose what it
+// already paid for — re-running overwrites that file from scratch, it
+// doesn't resume.
 
 const fs = require("fs");
 const path = require("path");
@@ -38,12 +45,25 @@ const { callLLM, BASE_URL, CHAT_URL } = require("../lib/llm");
 const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
+const { WILDCARD_MODEL, GENERATOR_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan } = require("../lib/prompt");
 
 // System A's full v2 pipeline — frozen, never the live lib/ versions (see
 // lib/legacy/prompt-v2.js's own header comment).
 const legacyPrompt = require("../lib/legacy/prompt-v2");
 const legacyPost = require("../lib/legacy/postprocess-v2");
 const legacyJudge = require("../lib/legacy/judge-v2");
+
+// The v3 systems' own full pipeline — frozen, same treatment as v2's
+// (see lib/legacy/prompt-v3.js's own header comment). These used to call
+// the LIVE lib/prompt.js and lib/judge.js — correct back when this file
+// was written (those WERE v3), silently wrong the moment lib/prompt.js
+// and lib/judge.js became v4's rewrite. A system labeled "v3 lanes" has
+// to mean the same thing after that rewrite as it did before it, or the
+// whole point of comparing v3 against v4 (see the v4 brief, section 7)
+// is comparing v4 against itself under two different labels.
+const legacyV3Prompt = require("../lib/legacy/prompt-v3");
+const legacyV3Post = require("../lib/legacy/postprocess-v3");
+const legacyV3Judge = require("../lib/legacy/judge-v3");
 
 // --- tiny .env loader (no dotenv dependency) — same as scripts/bake.js ---
 function loadDotEnv() {
@@ -77,12 +97,12 @@ const ALL_INPUTS = fs.readFileSync(INPUTS_PATH, "utf8").split("\n").map((s) => s
 const LIMIT = process.env.BAKE_BLIND_LIMIT ? parseInt(process.env.BAKE_BLIND_LIMIT, 10) : ALL_INPUTS.length;
 const INPUTS = ALL_INPUTS.slice(0, LIMIT);
 
-// The four systems from the brief, plus C's own judgeModel (see below).
-// `kind` picks which pipeline below (runLegacyInput vs runV3Input)
-// actually handles it; `model` is the generator, `judgeModel` is who
-// taste-judges its output — omitted (undefined) means judgeCandidates'
-// own default, TASTE_MODEL (see lib/judge.js), same as api/draft.js
-// always gets.
+// `kind` picks which pipeline below (runLegacyInput/runV3Input/
+// runV4Input) actually handles a system; `model` is the generator (v4's
+// own kind ignores this — its two models are fixed, see runV4Input), and
+// `judgeModel` is who taste-judges the output — omitted (undefined) means
+// judgeCandidates' own default (TASTE_MODEL for v4, the frozen v3
+// TASTE_MODEL for v3), same as api/draft.js always gets.
 //
 // B and D's own labels still say "sol taste judge" from before
 // judgeCandidates could take a model override at all — at the time that
@@ -91,14 +111,22 @@ const INPUTS = ALL_INPUTS.slice(0, LIMIT);
 // commit was asked to fix, and re-pointing an existing system's judge
 // model changes what its own accumulated bake/results/*.json history
 // means.
+//
+// System G is new — the v4 brief's own section 7 ask: "run v3 (frozen in
+// lib/legacy) against v4 on the locked corpus." B/C/D above are now that
+// "frozen v3" side (see this file's own comment on legacyV3Prompt); G is
+// the live v4 pipeline, both its calls, real judging, no pairwise (same
+// "compare what a visitor would be shown at the taste-ranking stage,
+// not the final head-to-head nuance" scope every other system here has).
 const SYSTEMS = [
   { key: "A", label: "legacy hermes (v2 four-shape) + mistral-small safety judge", kind: "legacy", model: "nousresearch/hermes-4-405b" },
-  { key: "B", label: "hermes (v3 lanes) + sol taste judge", kind: "v3", model: "nousresearch/hermes-4-405b" },
+  { key: "B", label: "hermes (v3 lanes, frozen) + sol taste judge", kind: "v3", model: "nousresearch/hermes-4-405b" },
   // Now actually judged by sol, not just labeled that way — judgeCandidates
   // couldn't take a per-call model override before this file's own
   // lib/judge.js changed to support one.
-  { key: "C", label: "gpt-5.4 (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-5.4", judgeModel: "openai/gpt-5.6-sol" },
-  { key: "D", label: "sol (v3 lanes) + sol taste judge", kind: "v3", model: "openai/gpt-5.6-sol" }
+  { key: "C", label: "gpt-5.4 (v3 lanes, frozen) + sol taste judge", kind: "v3", model: "openai/gpt-5.4", judgeModel: "openai/gpt-5.6-sol" },
+  { key: "D", label: "sol (v3 lanes, frozen) + sol taste judge", kind: "v3", model: "openai/gpt-5.6-sol" },
+  { key: "G", label: "v4 (hermes crude + gpt-5.4 clever, live)", kind: "v4" }
 ];
 
 const LLM_TIMEOUT_MS = 12000;
@@ -173,49 +201,79 @@ async function runLegacyInput(model, input) {
   }
 }
 
-// Systems B/C/D/F: v3's real pipeline — the primary (eight-lane) generator
-// call only, no wildcard (raunchy/gross is always hermes in production
-// regardless of which primary model is under test here, so it isn't part
-// of what these three systems are actually comparing). Safety-judges
-// every survivor exactly like api/draft.js does, then the real taste
-// judge (judgeCandidates) gates and ranks what's left — `judgeModel`
-// (optional, from the system's own config) picks who does that judging;
-// omitted means judgeCandidates' own default, JUDGE_MODEL/gpt-5.4, same
-// as every system before this parameter existed. A failed taste call
-// falls back to input order, same graceful-degradation api/draft.js has,
-// rather than failing this input out of the run entirely.
+// Systems B/C/D/F: v3's real pipeline, frozen (lib/legacy/prompt-v3.js/
+// postprocess-v3.js/judge-v3.js) — the primary (eight-lane) generator
+// call only, no wildcard (raunchy/gross is always hermes in v3's own
+// production regardless of which primary model is under test here, so it
+// isn't part of what these three systems are actually comparing). Safety-
+// judges every survivor with the frozen v3 safety judge, then the frozen
+// v3 taste judge (judgeCandidates) gates and ranks what's left —
+// `judgeModel` (optional, from the system's own config) picks who does
+// that judging; omitted means judgeCandidates' own default, the frozen
+// v3 TASTE_MODEL. A failed taste call falls back to input order, same
+// graceful-degradation api/draft.js has, rather than failing this input
+// out of the run entirely.
 //
 // Parses the primary call's own premise-first {premises, candidates}
-// output (see lib/prompt.js's buildPrimaryPrompt) via
-// extractPremiseCandidates — same extractor api/draft.js uses; premises
+// output (see lib/legacy/prompt-v3.js's buildPrimaryPrompt) via the
+// frozen postprocess-v3's own extractPremiseCandidates; premises
 // themselves aren't recorded here, this harness only cares about what a
 // visitor would actually see.
 async function runV3Input(model, input, judgeModel) {
   try {
-    const { text, finishReason } = await callLLM(apiKey, model, input);
-    const parsedObj = extractPremiseCandidates(text);
+    const { text, finishReason } = await callWithBuilder(model, input, legacyV3Prompt.buildPrimaryRequest);
+    const parsedObj = legacyV3Post.extractPremiseCandidates(text);
     const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) return { input: input, top3: [], note: finishReason === "length" ? "hit token limit" : "unparsable response" };
-    const items = parsed.map(normalizeItem);
-    if (isRefusal(items)) return { input: input, top3: [], note: "refused" };
-    const filtered = filterLines(items, input);
+    const items = parsed.map(legacyV3Post.normalizeItem);
+    if (legacyV3Post.isRefusal(items)) return { input: input, top3: [], note: "refused" };
+    const filtered = legacyV3Post.filterLines(items, input);
     if (!filtered.kept.length) return { input: input, top3: [], note: "all lines filtered" };
     const safetyVerdicts = await Promise.all(filtered.kept.map(function (item) {
-      return judgeOneLine(apiKey, composeDraft(input, item.text));
+      return legacyV3Judge.judgeOneLine(apiKey, composeDraft(input, item.text));
     }));
     const safe = filtered.kept.filter(function (item, i) { return safetyVerdicts[i].verdict !== true; });
     if (!safe.length) return { input: input, top3: [], note: "all lines flagged" };
-    const taste = await judgeCandidates(apiKey, input, safe, judgeModel);
+    const taste = await legacyV3Judge.judgeCandidates(apiKey, input, safe, judgeModel);
     // taste.ranked (on success) is [{candidate, q, shock}, ...] — a
-    // wrapper, not the bare {lane, text} candidate itself (see
-    // lib/judge.js's judgeCandidates) — has to be unwrapped before
-    // mapping below the same way `safe` (the fallback, already bare
-    // candidates) doesn't need to be. This was silently producing empty
-    // {text: ""} rows for every successful (non-timeout) taste judge call
-    // in this harness before this fix — nothing about item 4's changes
-    // caused it, ranked has looked like this since api/draft.js's own
-    // position-selection algorithm needed q/shock alongside the
-    // candidate, it just went unnoticed here until now.
+    // wrapper, not the bare {lane, text} candidate itself, has to be
+    // unwrapped before mapping below the same way `safe` (the fallback,
+    // already bare candidates) doesn't need to be.
+    const rankedCandidates = taste.ok ? taste.ranked.map(function (r) { return r.candidate; }) : safe;
+    return { input: input, top3: rankedCandidates.slice(0, 3).map(function (item) { return { tag: item.lane, text: composeDraft(input, item.text) }; }), note: taste.ok ? "" : "taste judge failed (" + taste.reason + "), input order used" };
+  } catch (err) {
+    return { input: input, top3: [], note: "error: " + (err && err.message) };
+  }
+}
+
+// System G: v4's real pipeline, live — both generator calls (WILDCARD_
+// MODEL/Hermes' fixed seven-candidate plan, GENERATOR_MODEL/GPT-5.4's
+// base two-candidate plan), merged, safety-judged, then the live taste
+// judge (reaction/specificity/interchangeable — see lib/judge.js). No
+// pairwise, same "taste-ranking stage, not the final head-to-head
+// nuance" scope every other system in this file has.
+async function runV4Input(input) {
+  function parseOne(text) {
+    const parsedObj = extractPremiseCandidates(text);
+    const parsed = parsedObj && parsedObj.candidates;
+    if (!parsed) return [];
+    const items = parsed.map(normalizeItem);
+    if (isRefusal(items)) return [];
+    return filterLines(items, input).kept;
+  }
+  try {
+    const [wildcardResult, primaryResult] = await Promise.all([
+      callLLM(apiKey, WILDCARD_MODEL, input, { lanes: WILDCARD_LANE_PLAN, kind: "wildcard" }),
+      callLLM(apiKey, GENERATOR_MODEL, input, { lanes: primaryLanePlan({}), kind: "primary" })
+    ]);
+    const allCandidates = parseOne(wildcardResult.text).concat(parseOne(primaryResult.text));
+    if (!allCandidates.length) return { input: input, top3: [], note: "no candidates from either call" };
+    const safetyVerdicts = await Promise.all(allCandidates.map(function (item) {
+      return judgeOneLine(apiKey, composeDraft(input, item.text));
+    }));
+    const safe = allCandidates.filter(function (item, i) { return safetyVerdicts[i].verdict !== true; });
+    if (!safe.length) return { input: input, top3: [], note: "all lines flagged" };
+    const taste = await judgeCandidates(apiKey, input, safe);
     const rankedCandidates = taste.ok ? taste.ranked.map(function (r) { return r.candidate; }) : safe;
     return { input: input, top3: rankedCandidates.slice(0, 3).map(function (item) { return { tag: item.lane, text: composeDraft(input, item.text) }; }), note: taste.ok ? "" : "taste judge failed (" + taste.reason + "), input order used" };
   } catch (err) {
@@ -238,7 +296,9 @@ async function runSystem(system) {
   for (let i = 0; i < INPUTS.length; i++) {
     const input = INPUTS[i];
     process.stdout.write("  [" + system.key + "] [" + (i + 1) + "/" + INPUTS.length + "] " + input + "\n");
-    const row = system.kind === "legacy" ? await runLegacyInput(system.model, input) : await runV3Input(system.model, input, system.judgeModel);
+    const row = system.kind === "legacy" ? await runLegacyInput(system.model, input)
+      : system.kind === "v4" ? await runV4Input(input)
+      : await runV3Input(system.model, input, system.judgeModel);
     results.push(row);
     // Flushed after every input, not just at the end — a run that gets
     // interrupted partway (Ctrl-C, a rate limit, a laptop going to sleep)

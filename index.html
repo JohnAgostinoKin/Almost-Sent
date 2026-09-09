@@ -991,7 +991,7 @@
         // "stored" — this draft (position 2 or 3, per api/draft.js's own
         // intensity-gated selection) was already sitting in the pool from
         // the request that produced it, no fetch needed for this tap.
-        logEvent("escalation", { position: pool[cursor].position, source: "stored", q: pool[cursor].q, shock: pool[cursor].shock });
+        logEvent("escalation", { position: pool[cursor].position, source: "stored", q: pool[cursor].q, reaction: pool[cursor].reaction });
         return;
       }
 
@@ -1015,7 +1015,7 @@
         // fetchEscalation() above had to ask the model for a fresh,
         // more-intense batch; this is that batch's own position 1 (or
         // whichever position its own selection landed on).
-        logEvent("escalation", { position: pool[cursor].position, source: "fetched", q: pool[cursor].q, shock: pool[cursor].shock });
+        logEvent("escalation", { position: pool[cursor].position, source: "fetched", q: pool[cursor].q, reaction: pool[cursor].reaction });
       }
       refreshAnotherState();
     });

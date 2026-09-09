@@ -33,13 +33,15 @@ const { waitUntil } = require("@vercel/functions");
 //
 // "escalation" is a "make it worse" tap revealing position 2 or 3 (see
 // index.html's anotherBtn handler and api/draft.js's handler, which is
-// what computes q/shock per draft — escalation is intensity now, not
+// what computes q/reaction per draft — escalation is intensity now, not
 // just rank, see its own comment). meta carries { position: 2 | 3,
-// source: "stored" | "fetched", q, shock }: position is which slot got
+// source: "stored" | "fetched", q, reaction }: position is which slot got
 // revealed; source is whether it was already sitting in the pool from
-// the original request or needed a fresh escalated fetch; q/shock are
+// the original request or needed a fresh escalated fetch; q/reaction are
 // that draft's own scores (both null for a curated or stall draft, which
-// never ran the taste judge at all).
+// never ran the taste judge at all). `reaction` was named `shock` before
+// the v4 judge rewrite (lib/judge.js) — same intensity axis, renamed to
+// match what the score actually measures now.
 const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate", "safety", "escalation"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
