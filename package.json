@@ -9,7 +9,8 @@
     "bake": "node scripts/bake.js",
     "bake-blind": "node scripts/bake-blind.js",
     "bake-tally": "node scripts/bake-tally.js",
-    "bible-prep": "node scripts/bible-prep.js"
+    "bible-prep": "node scripts/bible-prep.js",
+    "audit-prep": "node scripts/audit-prep.js"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.5",

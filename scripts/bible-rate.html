@@ -9,121 +9,191 @@
      Loose dark-theme match with the main app for eyestrain reasons only,
      not a design requirement. */
   * { box-sizing: border-box; }
-  body { background: #070707; color: #f4f1ea; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  body { background: #070707; color: #f4f1ea; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
   h1 { font-size: 22px; font-weight: 600; }
   p.sub { color: #b3ada2; font-size: 13px; margin-top: 4px; line-height: 1.5; }
   section { margin-top: 28px; padding-top: 24px; border-top: 1px solid #242424; }
   label { display: block; font-size: 12px; letter-spacing: 0.06em; color: #b3ada2; margin-bottom: 6px; text-transform: uppercase; }
-  textarea, input[type=text], input[type=file] { width: 100%; background: #101010; color: #f4f1ea; border: 1px solid #2a2a2a; padding: 10px; font: inherit; font-size: 14px; }
+  textarea, input[type=text], input[type=file], select { width: 100%; background: #101010; color: #f4f1ea; border: 1px solid #2a2a2a; padding: 10px; font: inherit; font-size: 14px; }
   textarea { min-height: 140px; resize: vertical; }
   button { font: inherit; border: 0; background: #e23b2f; color: #fff; padding: 10px 16px; cursor: pointer; font-size: 14px; }
   button.ghost { background: transparent; color: #b3ada2; border: 1px solid #4a4742; }
   button.ghost:hover { color: #f4f1ea; border-color: #6e6960; }
+  button.tab { background: transparent; color: #b3ada2; border: 1px solid #2a2a2a; }
+  button.tab.active { background: #1a1a1a; color: #f4f1ea; border-color: #4a4742; }
   button:disabled { opacity: 0.4; cursor: default; }
   .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
   .hidden { display: none !important; }
-  #progress { font-size: 12px; color: #6e6960; margin-bottom: 10px; }
-  #current-line { font-size: 22px; line-height: 1.4; margin: 18px 0; padding: 20px; background: #101010; border: 1px solid #2a2a2a; min-height: 60px; }
+  #progress, #audit-progress { font-size: 12px; color: #6e6960; margin-bottom: 10px; }
+  #current-line, #audit-original { font-size: 22px; line-height: 1.4; margin: 18px 0; padding: 20px; background: #101010; border: 1px solid #2a2a2a; min-height: 60px; }
   .rate-row button { flex: 1; padding: 16px 10px; font-size: 15px; }
-  #btn-love { background: #2f7a3d; }
-  #btn-forgettable { background: #4a4742; }
-  #btn-hate { background: #e23b2f; }
+  #btn-lol { background: #2f7a3d; }
+  #btn-smirk { background: #4a7a6f; }
+  #btn-nothing { background: #4a4742; }
+  #btn-bad { background: #e23b2f; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .toggle-row input[type=checkbox] { width: 18px; height: 18px; }
+  .toggle-row label { margin: 0; text-transform: none; font-size: 14px; color: #f4f1ea; letter-spacing: normal; cursor: pointer; }
   #reason { margin-top: 12px; }
   table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1c1c1c; vertical-align: top; }
   th { color: #b3ada2; font-weight: 600; }
-  td.rating-love { color: #6fbf7a; }
-  td.rating-hate { color: #e88b83; }
-  td.rating-forgettable { color: #6e6960; }
+  td.rating-lol { color: #6fbf7a; }
+  td.rating-bad { color: #e88b83; }
+  td.rating-smirk { color: #7fb3a6; }
+  td.rating-nothing { color: #6e6960; }
+
+  /* --- candidate audit mode ---------------------------------------- */
+  .candidate-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .candidate {
+    background: #101010; border: 1px solid #2a2a2a; padding: 14px 16px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .candidate:hover { border-color: #6e6960; }
+  .candidate.selected { border-color: #e23b2f; background: #1a1010; }
+  .candidate .text { font-size: 16px; line-height: 1.4; }
+  .candidate .meta { font-size: 11px; color: #6e6960; text-transform: uppercase; letter-spacing: 0.04em; display: flex; gap: 10px; flex-wrap: wrap; }
+  .candidate .meta .picked { color: #e2b13b; }
+  .candidate.eliminated { opacity: 0.55; }
+  .candidate.flagged { border-style: dashed; }
+  #none-funny-btn { margin-top: 4px; }
 </style>
 </head>
 <body>
   <h1>bible-rate</h1>
-  <p class="sub">
-    Rate real lines love / forgettable / hate, with a short reason each.
-    Downloads <code>bible.csv</code> — drop it at the repo root; lib/judge.js
-    reads it automatically as taste-judge calibration examples (five loved,
-    five hated, rotated per call — see lib/judge.js's own comment). Run
-    <code>npm run bible-prep</code> first to generate a wide pool of real,
-    displayed-quality lines (<code>bible/lines.json</code>) — load that file
-    below to rate lines with their original context shown alongside them.
+  <p class="sub" id="intro-sub">
+    Two modes. <strong>Rate lines</strong> reacts to real lines one at a time and downloads a
+    ratings CSV — archival now, not read by lib/judge.js (its calibration is a hardcoded
+    LOVED/BORED/HATED block since the v4 reset — see lib/judge.js's own comment). If you have an
+    older <code>bible.csv</code> from before the reset, rename it <code>bible/pre-reset-audit.csv</code>
+    and never feed it back in as calibration. <strong>Candidate audit</strong> (run
+    <code>npm run audit-prep</code> first) shows every raw candidate for 25 inputs — lane, model,
+    judge score, which one the judge actually picked — so you can tell a judge problem
+    ("my favorite was in the pool, the judge picked another") from a generator problem
+    ("none of them were funny") from a prompt problem ("crude candidates barely exist in the pool").
   </p>
 
-  <section id="setup">
-    <label for="paste-box">paste lines (one per line)</label>
-    <textarea id="paste-box" placeholder="one line per row — e.g. exported drafts, inbox text, anything you want to rate"></textarea>
+  <div class="row">
+    <button class="tab active" id="tab-rate">rate lines</button>
+    <button class="tab" id="tab-audit">candidate audit</button>
+  </div>
 
-    <div class="row">
-      <div style="flex:1">
-        <label for="file-input">or load bible/lines.json (from npm run bible-prep), a history export (.json array of {text} / {sent}), or .csv</label>
-        <input type="file" id="file-input" accept=".json,.csv,.txt" />
+  <!-- ================= RATE LINES MODE ================= -->
+  <div id="mode-rate">
+    <section id="setup">
+      <label for="paste-box">paste lines (one per line)</label>
+      <textarea id="paste-box" placeholder="one line per row — e.g. exported drafts, inbox text, anything you want to rate"></textarea>
+
+      <div class="row">
+        <div style="flex:1">
+          <label for="file-input">or load bible/lines.json (from npm run bible-prep), a history export (.json array of {text} / {sent}), or .csv</label>
+          <input type="file" id="file-input" accept=".json,.csv,.txt" />
+        </div>
+        <div style="flex:1">
+          <label for="resume-input">or resume an existing ratings CSV (adds to it instead of starting over)</label>
+          <input type="file" id="resume-input" accept=".csv" />
+        </div>
       </div>
-      <div style="flex:1">
-        <label for="resume-input">or resume an existing bible.csv (adds to it instead of starting over)</label>
-        <input type="file" id="resume-input" accept=".csv" />
+
+      <div class="row">
+        <button id="start-btn">start rating</button>
       </div>
-    </div>
+      <p class="sub" id="setup-status"></p>
+    </section>
 
-    <div class="row">
-      <button id="start-btn">start rating</button>
-    </div>
-    <p class="sub" id="setup-status"></p>
-  </section>
+    <section id="review" class="hidden">
+      <div id="progress"></div>
+      <div id="current-line"></div>
+      <div class="row rate-row">
+        <button id="btn-lol">LOL</button>
+        <button id="btn-smirk">smirk</button>
+        <button id="btn-nothing">nothing</button>
+        <button id="btn-bad">bad</button>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="screenshot-toggle" />
+        <label for="screenshot-toggle">would you screenshot this?</label>
+      </div>
+      <div id="reason">
+        <label for="failure-select">failure reason (optional)</label>
+        <select id="failure-select">
+          <option value="">— none —</option>
+          <option value="too tame">too tame</option>
+          <option value="generic">generic</option>
+          <option value="random">random</option>
+          <option value="answers the text">answers the text</option>
+          <option value="too long">too long</option>
+          <option value="too far">too far</option>
+        </select>
+        <p class="sub" style="margin-top:6px;">"too far" and "bad" are independent — a line can be shocking and excellent, or offensive and unfunny.</p>
+      </div>
+      <div class="row">
+        <button class="ghost" id="skip-btn">skip (don't rate this one)</button>
+        <button class="ghost" id="finish-btn">finish now &amp; download</button>
+      </div>
+    </section>
 
-  <section id="review" class="hidden">
-    <div id="progress"></div>
-    <div id="current-line"></div>
-    <div class="row rate-row">
-      <button id="btn-love">😍 love</button>
-      <button id="btn-forgettable">😐 forgettable</button>
-      <button id="btn-hate">😡 hate</button>
-    </div>
-    <div id="reason">
-      <label for="reason-input">why (optional, short)</label>
-      <input type="text" id="reason-input" maxlength="140" placeholder="one sentence — what made it land or not" />
-    </div>
-    <div class="row">
-      <button class="ghost" id="skip-btn">skip (don't rate this one)</button>
-      <button class="ghost" id="finish-btn">finish now &amp; download</button>
-    </div>
-  </section>
+    <section id="done" class="hidden">
+      <p><strong id="done-summary"></strong></p>
+      <div class="row">
+        <button id="download-btn">download ratings.csv</button>
+        <button class="ghost" id="restart-btn">rate more</button>
+      </div>
+      <table id="results-table">
+        <thead><tr><th>rating</th><th>screenshot</th><th>failure</th><th>text</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
 
-  <section id="done" class="hidden">
-    <p><strong id="done-summary"></strong></p>
-    <div class="row">
-      <button id="download-btn">download bible.csv</button>
-      <button class="ghost" id="restart-btn">rate more</button>
-    </div>
-    <table id="results-table">
-      <thead><tr><th>rating</th><th>text</th><th>reason</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
+  <!-- ================= CANDIDATE AUDIT MODE ================= -->
+  <div id="mode-audit" class="hidden">
+    <section id="audit-setup">
+      <label for="audit-file-input">load bible/audit-pool.json (from npm run audit-prep)</label>
+      <input type="file" id="audit-file-input" accept=".json" />
+      <p class="sub" id="audit-setup-status"></p>
+    </section>
+
+    <section id="audit-review" class="hidden">
+      <div id="audit-progress"></div>
+      <p class="sub">they sent:</p>
+      <div id="audit-original"></div>
+      <div class="candidate-list" id="candidate-list"></div>
+      <div class="row">
+        <button class="ghost" id="none-funny-btn">none are funny</button>
+        <button id="audit-next-btn" disabled>confirm &amp; next</button>
+      </div>
+    </section>
+
+    <section id="audit-done" class="hidden">
+      <p><strong id="audit-done-summary"></strong></p>
+      <div class="row">
+        <button id="audit-download-btn">download audit.csv</button>
+        <button class="ghost" id="audit-restart-btn">audit more</button>
+      </div>
+    </section>
+  </div>
 
 <script>
-  var pasteBox = document.getElementById("paste-box");
-  var fileInput = document.getElementById("file-input");
-  var resumeInput = document.getElementById("resume-input");
-  var startBtn = document.getElementById("start-btn");
-  var setupStatus = document.getElementById("setup-status");
+  // ============================================================
+  // Mode tabs
+  // ============================================================
+  var tabRate = document.getElementById("tab-rate");
+  var tabAudit = document.getElementById("tab-audit");
+  var modeRate = document.getElementById("mode-rate");
+  var modeAudit = document.getElementById("mode-audit");
+  tabRate.addEventListener("click", function () {
+    tabRate.classList.add("active"); tabAudit.classList.remove("active");
+    modeRate.classList.remove("hidden"); modeAudit.classList.add("hidden");
+  });
+  tabAudit.addEventListener("click", function () {
+    tabAudit.classList.add("active"); tabRate.classList.remove("active");
+    modeAudit.classList.remove("hidden"); modeRate.classList.add("hidden");
+  });
 
-  var setupSection = document.getElementById("setup");
-  var reviewSection = document.getElementById("review");
-  var doneSection = document.getElementById("done");
-
-  var progressEl = document.getElementById("progress");
-  var currentLineEl = document.getElementById("current-line");
-  var reasonInput = document.getElementById("reason-input");
-
-  var doneSummaryEl = document.getElementById("done-summary");
-  var resultsTableBody = document.querySelector("#results-table tbody");
-
-  var queue = [];        // {original, text} pairs still to rate, in order — original is null for a plain pasted/CSV line with no context
-  var cursor = 0;        // index into queue
-  var rated = [];         // {text, rating, reason} — new ratings from THIS session
-  var resumed = [];       // {text, rating, reason} — loaded from an existing bible.csv, carried through unchanged
-  var loadedPairs = [];   // {original, text} pairs loaded from a file — kept separate from the paste box, which can only ever hold bare strings
-
+  // ============================================================
+  // Shared CSV helpers
+  // ============================================================
   // Minimal RFC4180-ish CSV: handles quoted fields, escaped "" quotes,
   // commas inside quotes. Good enough for a file this tool itself writes
   // the format of — not a general-purpose CSV library.
@@ -147,32 +217,10 @@
     fields.push(cur);
     return fields;
   }
-
   function csvField(value) {
     var s = String(value == null ? "" : value);
     return '"' + s.replace(/"/g, '""') + '"';
   }
-
-  function buildCsv(rows) {
-    var lines = ["text,rating,reason"];
-    rows.forEach(function (r) {
-      lines.push([csvField(r.text), csvField(r.rating), csvField(r.reason || "")].join(","));
-    });
-    return lines.join("\n") + "\n";
-  }
-
-  function parseBibleCsv(raw) {
-    var lines = String(raw || "").split(/\r?\n/).filter(function (l) { return l.trim(); });
-    if (!lines.length) return [];
-    var start = /^text,rating,reason/i.test(lines[0]) ? 1 : 0;
-    var out = [];
-    for (var i = start; i < lines.length; i++) {
-      var fields = parseCsvLine(lines[i]);
-      if (fields[0]) out.push({ text: fields[0], rating: (fields[1] || "").trim().toLowerCase(), reason: fields[2] || "" });
-    }
-    return out;
-  }
-
   function readFileAsText(file) {
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
@@ -181,11 +229,79 @@
       reader.readAsText(file);
     });
   }
+  function downloadCsv(rows, filename) {
+    var blob = new Blob([rows], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ============================================================
+  // RATE LINES mode
+  // ============================================================
+  var pasteBox = document.getElementById("paste-box");
+  var fileInput = document.getElementById("file-input");
+  var resumeInput = document.getElementById("resume-input");
+  var startBtn = document.getElementById("start-btn");
+  var setupStatus = document.getElementById("setup-status");
+
+  var setupSection = document.getElementById("setup");
+  var reviewSection = document.getElementById("review");
+  var doneSection = document.getElementById("done");
+
+  var progressEl = document.getElementById("progress");
+  var currentLineEl = document.getElementById("current-line");
+  var screenshotToggle = document.getElementById("screenshot-toggle");
+  var failureSelect = document.getElementById("failure-select");
+
+  var doneSummaryEl = document.getElementById("done-summary");
+  var resultsTableBody = document.querySelector("#results-table tbody");
+
+  var queue = [];        // {original, text} pairs still to rate, in order — original is null for a plain pasted/CSV line with no context
+  var cursor = 0;        // index into queue
+  var rated = [];         // {text, rating, screenshot, failure} — new ratings from THIS session
+  var resumed = [];       // {text, rating, screenshot, failure} — loaded from an existing ratings CSV, carried through unchanged
+  var loadedPairs = [];   // {original, text} pairs loaded from a file — kept separate from the paste box, which can only ever hold bare strings
+
+  function buildCsv(rows) {
+    var lines = ["text,rating,screenshot,failure"];
+    rows.forEach(function (r) {
+      lines.push([csvField(r.text), csvField(r.rating), csvField(r.screenshot ? "yes" : "no"), csvField(r.failure || "")].join(","));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  // Tolerant of the OLD three-column (text,rating,reason) format too —
+  // resuming a pre-v4-addendum CSV just carries reason forward as-is
+  // rather than refusing to load it; screenshot/failure default to
+  // false/empty for rows that predate those columns.
+  function parseRatingsCsv(raw) {
+    var lines = String(raw || "").split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (!lines.length) return [];
+    var start = /^text,rating/i.test(lines[0]) ? 1 : 0;
+    var out = [];
+    for (var i = start; i < lines.length; i++) {
+      var fields = parseCsvLine(lines[i]);
+      if (!fields[0]) continue;
+      out.push({
+        text: fields[0],
+        rating: (fields[1] || "").trim().toLowerCase(),
+        screenshot: /^(yes|true|1)$/i.test((fields[2] || "").trim()),
+        failure: fields[3] || fields[2] || ""
+      });
+    }
+    return out;
+  }
 
   // Pulls {original, text} pairs out of whatever the loaded file turns
   // out to be:
   // - scripts/bible-prep.js's own bible/lines.json shape — a JSON array
-  //   of {original, text, lane, q, shock} — original is kept, so the
+  //   of {original, text, lane, q, reaction} — original is kept, so the
   //   review screen can show what the line was actually replying to.
   // - any other JSON array of strings, or of objects with a text/sent/
   //   line field (an events/inbox export shaped either way) — original
@@ -235,7 +351,7 @@
     var file = resumeInput.files[0];
     if (!file) return;
     var text = await readFileAsText(file);
-    resumed = parseBibleCsv(text);
+    resumed = parseRatingsCsv(text);
     setupStatus.textContent = "resuming from " + file.name + " — " + resumed.length + " existing rating(s) will be kept and re-downloaded alongside anything new.";
   });
 
@@ -260,28 +376,22 @@
     } else {
       currentLineEl.textContent = item.text;
     }
-    reasonInput.value = "";
-    reasonInput.focus();
+    screenshotToggle.checked = false;
+    failureSelect.value = "";
   }
 
   function rateCurrentAndAdvance(rating) {
     if (cursor >= queue.length) return;
-    rated.push({ text: queue[cursor].text, rating: rating, reason: reasonInput.value.trim() });
+    rated.push({ text: queue[cursor].text, rating: rating, screenshot: screenshotToggle.checked, failure: failureSelect.value });
     cursor++;
     showReviewLine();
   }
 
-  document.getElementById("btn-love").addEventListener("click", function () { rateCurrentAndAdvance("love"); });
-  document.getElementById("btn-forgettable").addEventListener("click", function () { rateCurrentAndAdvance("forgettable"); });
-  document.getElementById("btn-hate").addEventListener("click", function () { rateCurrentAndAdvance("hate"); });
+  document.getElementById("btn-lol").addEventListener("click", function () { rateCurrentAndAdvance("lol"); });
+  document.getElementById("btn-smirk").addEventListener("click", function () { rateCurrentAndAdvance("smirk"); });
+  document.getElementById("btn-nothing").addEventListener("click", function () { rateCurrentAndAdvance("nothing"); });
+  document.getElementById("btn-bad").addEventListener("click", function () { rateCurrentAndAdvance("bad"); });
   document.getElementById("skip-btn").addEventListener("click", function () { cursor++; showReviewLine(); });
-  // Enter in the reason field is the common case (typed a reason, wants to
-  // move on) — defaults to "forgettable" only as a safe no-op; love/hate
-  // are deliberate button taps, never implied by pressing Enter.
-  reasonInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); }
-  });
-
   document.getElementById("finish-btn").addEventListener("click", finishRating);
 
   startBtn.addEventListener("click", function () {
@@ -307,13 +417,16 @@
       var ratingTd = document.createElement("td");
       ratingTd.textContent = r.rating;
       ratingTd.className = "rating-" + r.rating;
+      var screenshotTd = document.createElement("td");
+      screenshotTd.textContent = r.screenshot ? "yes" : "";
+      var failureTd = document.createElement("td");
+      failureTd.textContent = r.failure || "";
       var textTd = document.createElement("td");
       textTd.textContent = r.text;
-      var reasonTd = document.createElement("td");
-      reasonTd.textContent = r.reason || "";
       tr.appendChild(ratingTd);
+      tr.appendChild(screenshotTd);
+      tr.appendChild(failureTd);
       tr.appendChild(textTd);
-      tr.appendChild(reasonTd);
       resultsTableBody.appendChild(tr);
     });
   }
@@ -322,24 +435,16 @@
     reviewSection.classList.add("hidden");
     doneSection.classList.remove("hidden");
     var all = resumed.concat(rated);
-    var loved = all.filter(function (r) { return r.rating === "love"; }).length;
-    var hated = all.filter(function (r) { return r.rating === "hate"; }).length;
-    doneSummaryEl.textContent = "rated " + rated.length + " this session (" + all.length + " total in bible.csv) — " +
-      loved + " loved, " + hated + " hated.";
+    var lol = all.filter(function (r) { return r.rating === "lol"; }).length;
+    var bad = all.filter(function (r) { return r.rating === "bad"; }).length;
+    var screenshot = all.filter(function (r) { return r.screenshot; }).length;
+    doneSummaryEl.textContent = "rated " + rated.length + " this session (" + all.length + " total) — " +
+      lol + " LOL, " + bad + " bad, " + screenshot + " would-screenshot.";
     renderResultsTable(all);
   }
 
   document.getElementById("download-btn").addEventListener("click", function () {
-    var all = resumed.concat(rated);
-    var blob = new Blob([buildCsv(all)], { type: "text/csv" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = "bible.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    downloadCsv(buildCsv(resumed.concat(rated)), "ratings.csv");
   });
 
   document.getElementById("restart-btn").addEventListener("click", function () {
@@ -348,6 +453,145 @@
     pasteBox.value = "";
     loadedPairs = [];
     setupStatus.textContent = "";
+  });
+
+  // ============================================================
+  // CANDIDATE AUDIT mode (v4 addendum, section H)
+  // ============================================================
+  var auditFileInput = document.getElementById("audit-file-input");
+  var auditSetupStatus = document.getElementById("audit-setup-status");
+  var auditSetupSection = document.getElementById("audit-setup");
+  var auditReviewSection = document.getElementById("audit-review");
+  var auditDoneSection = document.getElementById("audit-done");
+  var auditProgressEl = document.getElementById("audit-progress");
+  var auditOriginalEl = document.getElementById("audit-original");
+  var candidateListEl = document.getElementById("candidate-list");
+  var noneFunnyBtn = document.getElementById("none-funny-btn");
+  var auditNextBtn = document.getElementById("audit-next-btn");
+  var auditDoneSummaryEl = document.getElementById("audit-done-summary");
+
+  var auditQueue = [];   // [{original, candidates}], from bible/audit-pool.json
+  var auditCursor = 0;
+  var auditResults = []; // {original, judgesPick, johnsPick, agree, candidates} — one per audited input
+  var selectedCandidate = null; // the candidate object clicked for the current input, or null
+
+  auditFileInput.addEventListener("change", async function () {
+    var file = auditFileInput.files[0];
+    if (!file) return;
+    var text = await readFileAsText(file);
+    try {
+      var data = JSON.parse(text);
+      if (!Array.isArray(data)) throw new Error("expected a JSON array");
+      auditQueue = data.filter(function (row) { return row && Array.isArray(row.candidates) && row.candidates.length; });
+      auditCursor = 0;
+      auditResults = [];
+      auditSetupStatus.textContent = "loaded " + auditQueue.length + " input(s) from " + file.name + ".";
+      auditSetupSection.classList.add("hidden");
+      auditReviewSection.classList.remove("hidden");
+      auditDoneSection.classList.add("hidden");
+      showAuditInput();
+    } catch (err) {
+      auditSetupStatus.textContent = "couldn't parse " + file.name + " as bible/audit-pool.json — is it the right file? (" + err.message + ")";
+    }
+  });
+
+  function candidateLabel(c) {
+    var parts = [c.lane, c.model];
+    if (c.eliminated) parts.push("eliminated: " + (c.killedBy || "?"));
+    else if (c.q != null) parts.push("q " + c.q + " · reaction " + c.reaction);
+    if (c.safetyFlagged) parts.push("safety-flagged");
+    if (c.position) parts.push("PICKED — position " + c.position);
+    return parts.join(" · ");
+  }
+
+  function showAuditInput() {
+    selectedCandidate = null;
+    auditNextBtn.disabled = true;
+    if (auditCursor >= auditQueue.length) { finishAudit(); return; }
+    var row = auditQueue[auditCursor];
+    auditProgressEl.textContent = (auditCursor + 1) + " / " + auditQueue.length;
+    auditOriginalEl.textContent = row.original;
+    candidateListEl.innerHTML = "";
+    row.candidates.forEach(function (c) {
+      var div = document.createElement("div");
+      div.className = "candidate" + (c.eliminated ? " eliminated" : "") + (c.safetyFlagged ? " flagged" : "");
+      var textEl = document.createElement("div");
+      textEl.className = "text";
+      textEl.textContent = c.text;
+      var metaEl = document.createElement("div");
+      metaEl.className = "meta";
+      var label = candidateLabel(c);
+      if (c.position) {
+        var span = document.createElement("span");
+        span.className = "picked";
+        span.textContent = label;
+        metaEl.appendChild(span);
+      } else {
+        metaEl.textContent = label;
+      }
+      div.appendChild(textEl);
+      div.appendChild(metaEl);
+      div.addEventListener("click", function () {
+        selectedCandidate = c;
+        Array.prototype.forEach.call(candidateListEl.children, function (el) { el.classList.remove("selected"); });
+        div.classList.add("selected");
+        auditNextBtn.disabled = false;
+      });
+      candidateListEl.appendChild(div);
+    });
+  }
+
+  function recordAuditChoice(johnsPick) {
+    var row = auditQueue[auditCursor];
+    var judgesPick = row.candidates.filter(function (c) { return c.position === 1; })[0] || null;
+    auditResults.push({
+      original: row.original,
+      judgesPick: judgesPick ? judgesPick.text : "",
+      johnsPick: johnsPick ? johnsPick.text : "none are funny",
+      agree: !!(judgesPick && johnsPick && judgesPick.text === johnsPick.text),
+      candidates: row.candidates
+    });
+    auditCursor++;
+    showAuditInput();
+  }
+
+  noneFunnyBtn.addEventListener("click", function () { recordAuditChoice(null); });
+  auditNextBtn.addEventListener("click", function () { recordAuditChoice(selectedCandidate); });
+
+  function finishAudit() {
+    auditReviewSection.classList.add("hidden");
+    auditDoneSection.classList.remove("hidden");
+    var agree = auditResults.filter(function (r) { return r.agree; }).length;
+    var none = auditResults.filter(function (r) { return r.johnsPick === "none are funny"; }).length;
+    auditDoneSummaryEl.textContent = "audited " + auditResults.length + " input(s) — judge and John agreed on " +
+      agree + ", \"none are funny\" on " + none + ". Read the CSV three ways: your favorite in the pool but the " +
+      "judge picked another (judge problem), none were funny (generator problem), or crude candidates barely " +
+      "existing in the raw pool (prompt problem).";
+  }
+
+  function buildAuditCsv(rows) {
+    var lines = ["input,judges_pick,johns_pick,agree,candidates_json"];
+    rows.forEach(function (r) {
+      lines.push([
+        csvField(r.original), csvField(r.judgesPick), csvField(r.johnsPick),
+        csvField(r.agree ? "yes" : "no"), csvField(JSON.stringify(r.candidates))
+      ].join(","));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  document.getElementById("audit-download-btn").addEventListener("click", function () {
+    downloadCsv(buildAuditCsv(auditResults), "audit.csv");
+  });
+
+  document.getElementById("audit-restart-btn").addEventListener("click", function () {
+    auditDoneSection.classList.add("hidden");
+    auditSetupSection.classList.remove("hidden");
+    auditQueue = [];
+    auditCursor = 0;
+    auditResults = [];
+    auditFileInput.value = "";
+    auditSetupStatus.textContent = "";
   });
 </script>
 </body>
