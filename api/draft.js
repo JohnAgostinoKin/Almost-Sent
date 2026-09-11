@@ -4,26 +4,29 @@
 // writing a fixed seven-candidate plan across shock/raunchy/deranged/
 // gross/wildcard, GENERATOR_MODEL (GPT-5.4) writing confession/dark (plus
 // absurd on an escalation refetch) — racing the same soft deadline. v5
-// narrows the first-show room to exactly two lanes, both Hermes, at
-// maximum intensity (raunchy + gross — see lib/prompt.js's own header
-// comment for why and for the current counts) and moves GPT-5.4 to
-// escalation-only: runGenerationRound below no longer calls GENERATOR_MODEL
-// at all unless `escalate` is true, so a first-show request is now ONE
-// real model call, not two.
+// moved GPT-5.4 to escalation-only: runGenerationRound below no longer
+// calls GENERATOR_MODEL at all unless `escalate` is true, so a first-show
+// request is one real model call, not two — that part hasn't changed
+// since. Which lanes Hermes writes on the first-show side has, twice: v5
+// first narrowed the room to raunchy/gross only (too far — every pool
+// collapsed into near-identical propositions, see lib/prompt.js's own
+// header), then restored shock/raunchy/deranged/gross as two distinct
+// three-candidate calls with raunchy gated by invitation. See lib/
+// prompt.js's own header for the current lane shape and why.
 //
-// One call, though, meant one BIG call — writing every raunchy/gross
-// candidate in a single request left nothing partial for the soft
-// deadline (below) to fall back to; it was one slow call or nothing.
-// runGenerationRound now fires Hermes as TWO parallel calls instead
-// (wildcardA/wildcardB, see lib/prompt.js's WILDCARD_LANE_PLAN_A/_B),
-// each faster than the one big call was, merged back into a single
-// `wildcard` result before safety/taste ever sees it — every other
-// consumer of `wildcard` in this file is unaffected. On an escalation
-// refetch, GENERATOR_MODEL joins as a third concurrent call, writing
-// confession/dark/absurd for the first time — same soft-deadline race as
-// before, just with three calls now instead of two on that path (still
-// exactly one call, the resolved zero-candidate stub, on a first-show
-// request).
+// One call, though, meant one BIG call — writing every candidate in a
+// single request left nothing partial for the soft deadline (below) to
+// fall back to; it was one slow call or nothing. runGenerationRound fires
+// Hermes as TWO parallel calls instead (wildcardA/wildcardB, see lib/
+// prompt.js's WILDCARD_LANE_PLAN_A/_B — different lane sets, not the same
+// lanes split in half), each faster than one big call would be, merged
+// back into a single `wildcard` result before safety/taste ever sees it —
+// every other consumer of `wildcard` in this file is unaffected. On an
+// escalation refetch, GENERATOR_MODEL joins as a third concurrent call,
+// writing confession/dark/absurd for the first time — same soft-deadline
+// race as before, just with three calls now instead of two on that path
+// (still exactly one call, the resolved zero-candidate stub, on a
+// first-show request).
 //
 // A later latency pass shrank Hermes' own per-call count (three
 // candidates a call, not four — lib/prompt.js's own header has the
@@ -120,8 +123,8 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_wildcardA: 0, // wall-clock of Hermes call A (3 raunchy + 1 gross), including any retry/fallback — runs parallel to B and to primary
-    t_wildcardB: 0, // wall-clock of Hermes call B (3 raunchy + 1 gross) — see this file's own header comment for why the room is split into two calls now
+    t_wildcardA: 0, // wall-clock of Hermes call A (shock, raunchy, deranged), including any retry/fallback — runs parallel to B and to primary
+    t_wildcardB: 0, // wall-clock of Hermes call B (shock, raunchy, gross) — see this file's own header comment for why the room is split into two calls now
     t_wildcard: 0,  // max(t_wildcardA, t_wildcardB) — the wall-clock cost of the Hermes step as a whole, not their sum
     t_primary: 0,  // wall-clock of the GPT-5.4 (clever) generator call, including any retry/fallback — runs parallel to both Hermes halves
     t_judge: 0,    // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
@@ -474,7 +477,7 @@ module.exports = async function handler(req, res) {
     const wildcardBPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
       .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
     // GENERATOR_MODEL only ever runs on an escalation refetch now — the
-    // first-show room is raunchy/gross only (see this file's own header
+    // first-show room is entirely Hermes (see this file's own header
     // comment and lib/prompt.js's). A first-show request never pays for or
     // waits on this call at all: it resolves immediately with zero
     // candidates, same shape a real call's result would have, so nothing
@@ -483,7 +486,7 @@ module.exports = async function handler(req, res) {
     const primaryStarted = Date.now();
     const primaryPromise = (escalate
       ? runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
-      : Promise.resolve({ lines: [], why: "skipped — first-show room is raunchy/gross only, confession/dark/absurd are escalation-only", provider: null, premises: null }))
+      : Promise.resolve({ lines: [], why: "skipped — first-show room is Hermes only (shock/raunchy/deranged/gross), confession/dark/absurd are escalation-only", provider: null, premises: null }))
       .then(function (r) { t.t_primary = Date.now() - primaryStarted; slots.primary.settled = true; slots.primary.result = r; return r; });
     const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise, primary: primaryPromise };
 
@@ -706,15 +709,17 @@ module.exports = async function handler(req, res) {
       // the highest-q candidate — unchanged. Positions 2 and 3 used to
       // require MORE reaction than the position before them, strictly —
       // a real v4 rule for a room with real headroom between candidates.
-      // v5's raunchy/gross room runs everything near max intensity
-      // already (see lib/prompt.js's own header comment), so "strictly
-      // more intense than the last one" almost never had anywhere left
-      // to climb: position 2 came back empty on most requests,
-      // `pool.length` was 1, and index.html's "make it worse" tap (which
-      // reveals an already-returned position 2/3 for free — see that
-      // file's own comment on `pool`) had nothing to reveal, so it paid
-      // for a real regenerate on nearly every tap. The fix (applied in
-      // the outer handler's own position-selection loop, not here): both
+      // v5's raunchy/gross-only room (a since-revised version of the room
+      // — see lib/prompt.js's own header for the lane-mix restore that
+      // brought shock/deranged back) ran everything near max intensity,
+      // so "strictly more intense than the last one" almost never had
+      // anywhere left to climb: position 2 came back empty on most
+      // requests, `pool.length` was 1, and index.html's "make it worse"
+      // tap (which reveals an already-returned position 2/3 for free —
+      // see that file's own comment on `pool`) had nothing to reveal, so
+      // it paid for a real regenerate on nearly every tap. The fix
+      // (applied in the outer handler's own position-selection loop, not
+      // here, and still in effect with the wider lane mix): both
       // position 2 and 3 are judged against position 1 specifically, not
       // chained against the position right before them, and "close
       // enough" replaces "strictly more." `reaction` replaces v3's
@@ -950,14 +955,26 @@ module.exports = async function handler(req, res) {
   // this file's own comment above `survivors` for why this replaced a
   // strict "more intense than the one before it" rule.
   const REACTION_CLOSE_ENOUGH = 2;
+  // Mechanical backstop for the lane-mix restore's RAUNCHY_INVITATION_RULE
+  // (lib/prompt.js) — at most one proposition-shaped (lane:raunchy) line
+  // across the whole pool a visitor sees, whatever the model made of the
+  // prompt's own gating. A candidate is only ever tagged raunchy when the
+  // model actually wrote a real proposition (a dry text is told to write
+  // shock/deranged/gross in that slot instead — see that file's own rule),
+  // so "at most one raunchy position" and "at most one proposition-shaped
+  // line" are the same rule here, not two separate checks.
+  let raunchyUsed = false;
   const positions = [];
   if (survivors.length) {
     positions.push(survivors[0]);
     diversityTracker.record(survivors[0].candidate.text);
+    if (survivors[0].candidate.lane === "raunchy") raunchyUsed = true;
   }
   const lead = positions[0];
   for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
-    const remaining = survivors.slice(1).filter(function (s) { return positions.indexOf(s) === -1; });
+    const remaining = survivors.slice(1).filter(function (s) {
+      return positions.indexOf(s) === -1 && !(raunchyUsed && s.candidate.lane === "raunchy");
+    });
     // remaining is still q-descending (inherited from `survivors`'
     // own order), so the first one clearing every bar is the highest-q
     // qualifier — no separate re-sort needed. Both position 2 and 3 are
@@ -968,6 +985,7 @@ module.exports = async function handler(req, res) {
     if (!next) break;
     positions.push(next);
     diversityTracker.record(next.candidate.text);
+    if (next.candidate.lane === "raunchy") raunchyUsed = true;
   }
 
   const responseStarted = Date.now();
