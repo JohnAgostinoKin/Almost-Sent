@@ -8,12 +8,21 @@
 // maximum intensity (raunchy x6, gross x2 — see lib/prompt.js's own header
 // comment for why) and moves GPT-5.4 to escalation-only: runGenerationRound
 // below no longer calls GENERATOR_MODEL at all unless `escalate` is true,
-// so a first-show request is now ONE real model call, not two. On an
-// escalation refetch both calls still fire — Hermes writing a worse
-// raunchy/gross pass, GPT-5.4 writing confession/dark/absurd for the
-// first time — same soft-deadline race as before, just asymmetric now:
-// the primary call is either a real fetch (escalate) or a resolved stub
-// with zero candidates (first show), never in between.
+// so a first-show request is now ONE real model call, not two.
+//
+// One call, though, meant one BIG call — writing all eight raunchy/gross
+// candidates in a single request left nothing partial for the soft
+// deadline (below) to fall back to; it was one slow call or nothing.
+// runGenerationRound now fires Hermes as TWO parallel calls instead
+// (wildcardA/wildcardB, three raunchy + one gross each — see lib/
+// prompt.js's WILDCARD_LANE_PLAN_A/_B), each faster than the one big call
+// was, merged back into a single `wildcard` result before safety/taste
+// ever sees it — every other consumer of `wildcard` in this file is
+// unaffected. On an escalation refetch, GENERATOR_MODEL joins as a third
+// concurrent call, writing confession/dark/absurd for the first time —
+// same soft-deadline race as before, just with three calls now instead of
+// two on that path (still exactly one call, the resolved zero-candidate
+// stub, on a first-show request).
 //
 // Selection past generation is still two separate jobs, run CONCURRENTLY
 // on the full candidate set rather than one gating the other: SAFETY
@@ -38,7 +47,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, primaryLanePlan, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
@@ -99,8 +108,10 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_wildcard: 0, // wall-clock of the Hermes (crude) generator call, including any retry/fallback
-    t_primary: 0,  // wall-clock of the GPT-5.4 (clever) generator call, including any retry/fallback — both run in parallel with each other
+    t_wildcardA: 0, // wall-clock of Hermes call A (3 raunchy + 1 gross), including any retry/fallback — runs parallel to B and to primary
+    t_wildcardB: 0, // wall-clock of Hermes call B (3 raunchy + 1 gross) — see this file's own header comment for why the room is split into two calls now
+    t_wildcard: 0,  // max(t_wildcardA, t_wildcardB) — the wall-clock cost of the Hermes step as a whole, not their sum
+    t_primary: 0,  // wall-clock of the GPT-5.4 (clever) generator call, including any retry/fallback — runs parallel to both Hermes halves
     t_judge: 0,    // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
     t_pairwise: 0, // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
     t_response: 0
@@ -109,7 +120,7 @@ function newStages() {
 
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
-    " t_wildcard=" + s.t_wildcard + "ms t_primary=" + s.t_primary + "ms" +
+    " t_wildcardA=" + s.t_wildcardA + "ms t_wildcardB=" + s.t_wildcardB + "ms t_wildcard=" + s.t_wildcard + "ms t_primary=" + s.t_primary + "ms" +
     " t_judge=" + s.t_judge + "ms t_pairwise=" + s.t_pairwise + "ms t_response=" + s.t_response + "ms";
 }
 
@@ -387,6 +398,11 @@ module.exports = async function handler(req, res) {
   // below (true for both explicit_crisis and ambiguous_distress, which
   // currently share the same 988 treatment — see lib/crisis.js's header
   // comment on why they're still logged as separate states regardless).
+  // Called here, not awaited here — checkCrisis's own fetch fires the
+  // instant this line runs; see the Promise.all further down (right
+  // before runGenerationRound is awaited) for where this actually gets
+  // raced against generation, so the classifier's ~500ms never lands on
+  // top of a multi-second generate-then-judge round instead of overlapping it.
   const crisisPromise = !escalate
     ? checkCrisis(process.env.LLM_API_KEY, sent)
     : Promise.resolve({ state: "skipped", crisis: false });
@@ -423,21 +439,28 @@ module.exports = async function handler(req, res) {
   // round's numbers — the caller copies whichever round it actually keeps
   // into `stages` once that's decided.
   async function runGenerationRound() {
-    const t = { t_wildcard: 0, t_primary: 0, t_judge: 0, t_pairwise: 0 };
+    const t = { t_wildcardA: 0, t_wildcardB: 0, t_wildcard: 0, t_primary: 0, t_judge: 0, t_pairwise: 0 };
 
     // Each call's own slot, plus whether it's settled yet — the soft
     // deadline below needs to inspect exactly which calls are already
     // done at the 4500ms mark, not just "some subset finished." The
     // promise itself is untouched either way: a call past the deadline
     // isn't cancelled, it just isn't awaited for this response — see the
-    // soft-deadline branch below for what happens to it instead.
+    // soft-deadline branch below for what happens to it instead. Three
+    // slots now, not two — wildcardA/wildcardB are the two halves of the
+    // Hermes room (see this file's own header comment for why one big
+    // call became two smaller parallel ones).
     const slots = {
-      wildcard: { settled: false, result: null },
+      wildcardA: { settled: false, result: null },
+      wildcardB: { settled: false, result: null },
       primary: { settled: false, result: null }
     };
-    const wildcardStarted = Date.now();
-    const wildcardPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN }, genOpts))
-      .then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; slots.wildcard.settled = true; slots.wildcard.result = r; return r; });
+    const wildcardAStarted = Date.now();
+    const wildcardAPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts))
+      .then(function (r) { t.t_wildcardA = Date.now() - wildcardAStarted; slots.wildcardA.settled = true; slots.wildcardA.result = r; return r; });
+    const wildcardBStarted = Date.now();
+    const wildcardBPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
+      .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
     // GENERATOR_MODEL only ever runs on an escalation refetch now — the
     // first-show room is raunchy/gross only (see this file's own header
     // comment and lib/prompt.js's). A first-show request never pays for or
@@ -450,35 +473,48 @@ module.exports = async function handler(req, res) {
       ? runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
       : Promise.resolve({ lines: [], why: "skipped — first-show room is raunchy/gross only, confession/dark/absurd are escalation-only", provider: null, premises: null }))
       .then(function (r) { t.t_primary = Date.now() - primaryStarted; slots.primary.settled = true; slots.primary.result = r; return r; });
+    const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise, primary: primaryPromise };
 
-    // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for BOTH
-    // calls — symmetric now, unlike v3 (see this file's own header
-    // comment for why the old asymmetry doesn't hold anymore). If both
-    // are done by then (the common case — this is a race against a
-    // timer, not a fixed delay), this behaves exactly like the plain
-    // Promise.all it replaces. If the deadline wins instead, check what's
-    // actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or more real
-    // candidates already resolved is enough to start judging now rather
-    // than wait on a slow straggler — fewer than that, and the soft
-    // deadline can't help (proceeding with too little just means a
-    // thinner result), so it falls back to waiting for both, same as
-    // before this feature existed.
+    // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for all three
+    // calls. If all are done by then (the common case — this is a race
+    // against a timer, not a fixed delay, and splitting Hermes into two
+    // smaller calls makes this the common case far more often than the
+    // old single eight-candidate call did), this behaves exactly like the
+    // plain Promise.all it replaces. If the deadline wins instead, check
+    // what's actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or more
+    // real candidates already resolved is enough to start judging now
+    // rather than wait on a slow straggler — fewer than that, and the
+    // soft deadline can't help (proceeding with too little just means a
+    // thinner result), so it falls back to waiting for everything, same
+    // as before this feature existed.
+    //
+    // Lowered from 5 to 4 for the split: on a first-show request, primary
+    // is always the zero-candidate stub (see above), so the old threshold
+    // of 5 could never be cleared by "one Hermes half landed, the other
+    // didn't" — it required BOTH halves to finish, which isn't a soft
+    // deadline actually firing, just Promise.all resolving early. 4 is
+    // exactly one full half (WILDCARD_LANE_PLAN_A or _B's own length), so
+    // a single completed half is now enough on its own to proceed without
+    // the slower one.
     const GENERATION_SOFT_DEADLINE_MS = 4500;
-    const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 5;
+    const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 4;
     let lateGroupCount = 0;
-    await Promise.race([Promise.all([wildcardPromise, primaryPromise]), sleep(GENERATION_SOFT_DEADLINE_MS)]);
+    await Promise.race([Promise.all([wildcardAPromise, wildcardBPromise, primaryPromise]), sleep(GENERATION_SOFT_DEADLINE_MS)]);
 
     const pendingKeys = Object.keys(slots).filter(function (k) { return !slots[k].settled; });
-    let wildcard, primaryResult;
+    let wildcardA, wildcardB, primaryResult;
     if (!pendingKeys.length) {
-      wildcard = slots.wildcard.result;
+      wildcardA = slots.wildcardA.result;
+      wildcardB = slots.wildcardB.result;
       primaryResult = slots.primary.result;
     } else {
       const inHandCount = Object.keys(slots).reduce(function (sum, k) { return sum + (slots[k].settled ? (slots[k].result.lines || []).length : 0); }, 0);
       if (inHandCount >= MIN_CANDIDATES_FOR_SOFT_DEADLINE) {
         lateGroupCount = pendingKeys.length;
-        wildcard = slots.wildcard.settled ? slots.wildcard.result : { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
-        primaryResult = slots.primary.settled ? slots.primary.result : { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
+        const pendingFallback = { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
+        wildcardA = slots.wildcardA.settled ? slots.wildcardA.result : pendingFallback;
+        wildcardB = slots.wildcardB.settled ? slots.wildcardB.result : pendingFallback;
+        primaryResult = slots.primary.settled ? slots.primary.result : pendingFallback;
         // The pending call(s) are already running — nothing to cancel,
         // nothing more to await here. waitUntil just keeps the function
         // alive long enough for them to actually finish (rather than the
@@ -487,7 +523,7 @@ module.exports = async function handler(req, res) {
         // failure here is swallowed on purpose — a lost straggler just
         // means the next escalation request generates fresh, same as it
         // always has.
-        const pendingPromises = pendingKeys.map(function (k) { return k === "wildcard" ? wildcardPromise : primaryPromise; });
+        const pendingPromises = pendingKeys.map(function (k) { return allPromises[k]; });
         waitUntil(
           Promise.all(pendingPromises)
             .then(function (results) {
@@ -500,11 +536,30 @@ module.exports = async function handler(req, res) {
             .catch(function () {})
         );
       } else {
-        const both = await Promise.all([wildcardPromise, primaryPromise]);
-        wildcard = both[0];
-        primaryResult = both[1];
+        const all = await Promise.all([wildcardAPromise, wildcardBPromise, primaryPromise]);
+        wildcardA = all[0];
+        wildcardB = all[1];
+        primaryResult = all[2];
       }
     }
+
+    // Merges the two Hermes sub-calls back into the single `wildcard`
+    // shape every downstream consumer already expects (lines/why/
+    // provider/premises/debugLines/t_gen/skip) — nothing past this point
+    // in the function, or in the outer handler, needs to know there were
+    // two calls instead of one. `skip` is true if EITHER half refused,
+    // same "either refusal is a full refusal" reasoning the wildcard/
+    // primary check just below already applies.
+    const wildcard = {
+      skip: !!(wildcardA.skip || wildcardB.skip),
+      lines: (wildcardA.lines || []).concat(wildcardB.lines || []),
+      why: "A: " + (wildcardA.skip ? "skipped" : (wildcardA.why || "?")) + " · B: " + (wildcardB.skip ? "skipped" : (wildcardB.why || "?")),
+      provider: wildcardA.provider || wildcardB.provider || null,
+      debugLines: (wildcardA.debugLines || []).concat(wildcardB.debugLines || []),
+      t_gen: Math.max(wildcardA.t_gen || 0, wildcardB.t_gen || 0) || null,
+      premises: wildcardA.premises || wildcardB.premises || null
+    };
+    t.t_wildcard = Math.max(t.t_wildcardA || 0, t.t_wildcardB || 0);
 
     // Either generator declining outright is a full refusal. v3 only gave
     // this treatment to the (several) primary calls, since a lone
@@ -600,16 +655,25 @@ module.exports = async function handler(req, res) {
         : "") +
       (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
-    // Escalation is intensity, not rank. Position 1 is still the highest-q
-    // candidate — unchanged. Position 2 has to be a real escalation from
-    // it: more reaction (intensity) than position 1, AND still good enough
-    // to ship (q within 70% of position 1's) — highest-q-next isn't enough
-    // on its own, or "make it worse" would just mean "next best," which is
-    // what a plain rank-order reveal already was. Position 3 is the same
-    // rule applied against position 2, not position 1. `reaction` replaces
-    // v3's `shock` here — see lib/judge.js's header comment for why: it's
-    // the same intensity axis, renamed to match what the score actually
-    // measures now that it's a real judged criterion instead of a value
+    // Escalation is intensity, not strict ranking. Position 1 is still the
+    // highest-q candidate — unchanged. Positions 2 and 3 used to require
+    // MORE reaction than the position before them, strictly — a real v4
+    // rule for a room with real headroom between candidates. v5's raunchy/
+    // gross room runs everything near max intensity already (see lib/
+    // prompt.js's own header comment), so "strictly more intense than the
+    // last one" almost never had anywhere left to climb: position 2 came
+    // back empty on most requests, `pool.length` was 1, and index.html's
+    // "make it worse" tap (which reveals an already-returned position 2/3
+    // for free — see that file's own comment on `pool`) had nothing to
+    // reveal, so it paid for a real regenerate on nearly every tap. The
+    // fix: both position 2 and 3 are now judged against position 1
+    // specifically (REACTION_CLOSE_ENOUGH below), not chained against the
+    // position right before them, and "close enough" replaces "strictly
+    // more" — within REACTION_CLOSE_ENOUGH points of position 1's own
+    // reaction, not required to beat it. `reaction` replaces v3's `shock`
+    // here — see lib/judge.js's header comment for why: it's the same
+    // intensity axis, renamed to match what the score actually measures
+    // now that it's a real judged criterion instead of a value
     // deliberately held out of q.
     let survivors, tasteNote;
     if (taste.ok) {
@@ -672,9 +736,19 @@ module.exports = async function handler(req, res) {
     };
   }
 
-  let round = await runGenerationRound();
+  // crisisPromise (built above, right after the curated-lead check) has
+  // been in flight since before this line — checkCrisis() starts its own
+  // fetch the instant it's called, not when awaited — but the two awaits
+  // used to be sequential here (`await runGenerationRound()` THEN `await
+  // crisisPromise`), which reads as "crisis check happens after
+  // generation" even though the underlying requests were already
+  // overlapping. Promise.all makes that explicit and unambiguous instead
+  // of relying on incidental ordering that a future edit could silently
+  // break by adding an await in between: crisisResult adds essentially no
+  // wall-clock here either way, since the classifier call is far shorter
+  // than a full generate-then-judge round.
+  let [round, crisisResult] = await Promise.all([runGenerationRound(), crisisPromise]);
 
-  const crisisResult = await crisisPromise;
   if (crisisResult.crisis) {
     waitUntil(rememberPromise.then(function () { return forget(sent); }));
     res.status(200).json({ crisis: true, source: "model", drafts: [], safety: { state: crisisResult.state, source: "classifier" } });
@@ -735,6 +809,8 @@ module.exports = async function handler(req, res) {
   const finalBestReaction = bestReactionOf(round);
   const weakLead = finalBestReaction != null && finalBestReaction < REACTION_LEAD_GATE;
 
+  stages.t_wildcardA = round.t.t_wildcardA;
+  stages.t_wildcardB = round.t.t_wildcardB;
   stages.t_wildcard = round.t.t_wildcard;
   stages.t_primary = round.t.t_primary;
   stages.t_judge = round.t.t_judge;
@@ -760,20 +836,26 @@ module.exports = async function handler(req, res) {
   // pipeline; this was the one real gap found, not bible-prep.js or the
   // word cap/crutch filters, which were already applied everywhere).
   const diversityTracker = createDiversityTracker();
+  // How far below (or above) position 1's own reaction score a later
+  // position may still land and count as "worse enough" to reveal — see
+  // this file's own comment above `survivors` for why this replaced a
+  // strict "more intense than the one before it" rule.
+  const REACTION_CLOSE_ENOUGH = 2;
   const positions = [];
   if (survivors.length) {
     positions.push(survivors[0]);
     diversityTracker.record(survivors[0].candidate.text);
   }
+  const lead = positions[0];
   for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
-    const prev = positions[need - 2];
     const remaining = survivors.slice(1).filter(function (s) { return positions.indexOf(s) === -1; });
     // remaining is still q-descending (inherited from `survivors`'
     // own order), so the first one clearing every bar is the highest-q
-    // qualifier — no separate re-sort needed.
-    const next = prev.reaction == null
+    // qualifier — no separate re-sort needed. Both position 2 and 3 are
+    // compared against `lead` (position 1) here, not against each other.
+    const next = lead.reaction == null
       ? remaining.filter(function (s) { return !diversityTracker.isDuplicate(s.candidate.text); })[0]
-      : remaining.filter(function (s) { return s.reaction > prev.reaction && s.q >= 0.7 * prev.q && !diversityTracker.isDuplicate(s.candidate.text); })[0];
+      : remaining.filter(function (s) { return Math.abs(s.reaction - lead.reaction) <= REACTION_CLOSE_ENOUGH && s.q >= 0.7 * lead.q && !diversityTracker.isDuplicate(s.candidate.text); })[0];
     if (!next) break;
     positions.push(next);
     diversityTracker.record(next.candidate.text);
@@ -808,6 +890,18 @@ module.exports = async function handler(req, res) {
   // debugLines does for its own "nothing to show" case.
   const premises = { wildcard: wildcard.premises || null, primary: primaryResult.premises || null };
 
+  const t_total = Date.now() - requestStarted;
+  // Escalation latency specifically — this whole round of changes exists
+  // because "make it worse" taps were slow, so this is the number that
+  // actually says whether they still are, without having to go dig
+  // t_total back out of a client-side network log. First-show requests
+  // don't get this same console.log: their latency is already visible in
+  // `why`'s own `stages` breakdown above, logged on every response either
+  // way.
+  if (escalate) {
+    console.log("escalation t_total=" + t_total + "ms (fetch this text has asked for since the original request)");
+  }
+
   res.status(200).json({
     sent: sent,
     drafts: drafts,
@@ -824,7 +918,7 @@ module.exports = async function handler(req, res) {
     },
     t_gen: genTGen,
     t_judge: stages.t_judge,
-    t_total: Date.now() - requestStarted,
+    t_total: t_total,
     safety: { state: crisisResult.state, source: "classifier" }
   });
 };
