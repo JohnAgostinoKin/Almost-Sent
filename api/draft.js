@@ -39,6 +39,14 @@
 // the cap), never pile on top of a full batch — see runGenerationRound's
 // own comment on JUDGED_POOL_CAP for the exact rule.
 //
+// t_cold (module-load-to-request gap — see MODULE_LOADED_AT below) is now
+// console.log'd unconditionally, before any branch, and carried on every
+// JSON response that already had a t_total — the "is a cold paste really
+// still 11s" question needs this visible in both Vercel's own function
+// logs and the Supabase funnel (index.html forwards it into draft_shown's
+// meta; see scripts/funnel.sql's own t_cold query) to actually answer,
+// not just asserted from a single manual run.
+//
 // Selection past generation is still two separate jobs, run CONCURRENTLY
 // on the full candidate set rather than one gating the other: SAFETY
 // (lib/judge.js's judgeOneLine, cheap model, one call per candidate)
@@ -296,6 +304,14 @@ const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http:/
 module.exports = async function handler(req, res) {
   const stages = newStages();
   stages.t_cold = Date.now() - MODULE_LOADED_AT;
+  // Unconditional, before any branch (block/curated/crisis/refuse/model) —
+  // t_cold is already computed for every request regardless of how it
+  // ends up being answered; this just makes sure every one of those paths
+  // actually surfaces it, in Vercel's own function logs (for a quick "is
+  // keep-warm actually working" check without a Supabase query) and,
+  // where noted below, in the JSON response itself so index.html can fold
+  // it into the funnel (see scripts/funnel.sql's own t_cold query).
+  console.log("t_cold=" + stages.t_cold + "ms");
 
   const origin = req.headers.origin;
   if (origin && ORIGINS.indexOf(origin) !== -1) {
@@ -390,6 +406,7 @@ module.exports = async function handler(req, res) {
         debug: null,
         t_gen: null,
         t_judge: null,
+        t_cold: stages.t_cold,
         t_total: Date.now() - requestStarted,
         // A curated match never runs the classifier below (or even reaches
         // it) — hand-picked benign text needs neither check, but the
@@ -435,6 +452,7 @@ module.exports = async function handler(req, res) {
       debug: null,
       t_gen: null,
       t_judge: null,
+      t_cold: stages.t_cold,
       t_total: Date.now() - requestStarted,
       safety: { state: crisisResult.state, source: "classifier" }
     });
@@ -1063,6 +1081,7 @@ module.exports = async function handler(req, res) {
     },
     t_gen: genTGen,
     t_judge: stages.t_judge,
+    t_cold: stages.t_cold,
     t_total: t_total,
     safety: { state: crisisResult.state, source: "classifier" }
   });

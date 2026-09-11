@@ -53,6 +53,28 @@ where event = 'draft_shown'
   and meta->>'t_total' is not null
   and created_at > now() - interval '7 days';
 
+-- 2b. t_cold (ms since this container's own module load — see api/
+-- draft.js's MODULE_LOADED_AT) for first results, cold vs. warm split,
+-- against the same t_total — this is the number that says whether "11s
+-- on a cold paste" is still actually happening, and whether it's cold
+-- starts specifically dragging t_total up or something else. 500ms is a
+-- rough cutoff, not a measured threshold — a container that's truly cold
+-- (post keep-warm-miss) should read in the seconds, not hundreds of ms;
+-- adjust in place if that line turns out to be in the wrong place once
+-- there's real data to look at.
+select
+  count(*) filter (where (meta->>'t_cold')::numeric >= 500) as cold_count,
+  count(*) filter (where (meta->>'t_cold')::numeric < 500) as warm_count,
+  percentile_cont(0.5) within group (order by (meta->>'t_cold')::numeric) as median_t_cold_ms,
+  percentile_cont(0.95) within group (order by (meta->>'t_cold')::numeric) as p95_t_cold_ms,
+  percentile_cont(0.5) within group (order by (meta->>'t_total')::numeric) filter (where (meta->>'t_cold')::numeric >= 500) as median_t_total_ms_when_cold,
+  percentile_cont(0.5) within group (order by (meta->>'t_total')::numeric) filter (where (meta->>'t_cold')::numeric < 500) as median_t_total_ms_when_warm
+from events
+where event = 'draft_shown'
+  and (meta->>'revealIndex')::int = 0
+  and meta->>'t_cold' is not null
+  and created_at > now() - interval '7 days';
+
 -- 3a. First-result 😂 ("hit") rate — reactions tapped on position 1 only.
 select
   count(*) filter (where meta->>'value' = 'hit') as hits,

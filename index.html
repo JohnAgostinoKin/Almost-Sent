@@ -942,7 +942,11 @@
         // handler's own draft_shown calls below reveal an already-fetched
         // line (or a fresh escalation batch with its own separate timing
         // question, not what "how long did the first result take" means).
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor, t_total: data.t_total });
+        // t_cold rides along too, same reasoning — the gap between this
+        // container's own module load and this request (see api/draft.js's
+        // MODULE_LOADED_AT) is what tells scripts/funnel.sql's own t_cold
+        // query whether a slow paste actually was a cold one.
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
         if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
         writeEl.value = "";
