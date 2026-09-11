@@ -705,28 +705,26 @@ module.exports = async function handler(req, res) {
           : "") +
         (safetyReasons.length ? " · " + safetyReasons.slice(0, 3).join(" | ") + (safetyReasons.length > 3 ? " (+" + (safetyReasons.length - 3) + " more, see logs)" : "") : "");
 
-      // Escalation is intensity, not strict ranking. Position 1 is still
-      // the highest-q candidate — unchanged. Positions 2 and 3 used to
-      // require MORE reaction than the position before them, strictly —
-      // a real v4 rule for a room with real headroom between candidates.
-      // v5's raunchy/gross-only room (a since-revised version of the room
-      // — see lib/prompt.js's own header for the lane-mix restore that
-      // brought shock/deranged back) ran everything near max intensity,
-      // so "strictly more intense than the last one" almost never had
-      // anywhere left to climb: position 2 came back empty on most
-      // requests, `pool.length` was 1, and index.html's "make it worse"
-      // tap (which reveals an already-returned position 2/3 for free —
-      // see that file's own comment on `pool`) had nothing to reveal, so
-      // it paid for a real regenerate on nearly every tap. The fix
-      // (applied in the outer handler's own position-selection loop, not
-      // here, and still in effect with the wider lane mix): both
-      // position 2 and 3 are judged against position 1 specifically, not
-      // chained against the position right before them, and "close
-      // enough" replaces "strictly more." `reaction` replaces v3's
-      // `shock` here — see lib/judge.js's header comment for why: it's
-      // the same intensity axis, renamed to match what the score
-      // actually measures now that it's a real judged criterion instead
-      // of a value deliberately held out of q.
+      // Escalation is intensity, not a plain rank order. Position 1 is
+      // still the highest-q candidate — unchanged throughout every
+      // revision of this rule. Positions 2 and 3's own rule has moved
+      // twice past the original v4 shape (reaction strictly greater than
+      // the position before it, chained): the raunchy/gross-only room ran
+      // everything near max intensity, so "strictly more" almost never
+      // had anywhere left to climb (see lib/prompt.js's own header for
+      // that room and its later lane-mix revision); the fix at the time
+      // loosened this to "within 2 of position 1, either direction" —
+      // which then let a "take it further" tap reveal something LESS
+      // intense than what was already shown, reading as a reroll rather
+      // than an escalation. Current rule (in the outer handler's own
+      // position-selection loop, not here): chained again, position 2
+      // against position 1 and position 3 against position 2, but not
+      // required to be STRICTLY greater anymore — `next.reaction >=
+      // prev.reaction` — see that loop's own comment for why. `reaction`
+      // replaces v3's `shock` here — see lib/judge.js's header comment
+      // for why: it's the same intensity axis, renamed to match what the
+      // score actually measures now that it's a real judged criterion
+      // instead of a value deliberately held out of q.
       let survivors, tasteNote;
       if (taste.ok) {
         survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
@@ -950,11 +948,32 @@ module.exports = async function handler(req, res) {
   // pipeline; this was the one real gap found, not bible-prep.js or the
   // word cap/crutch filters, which were already applied everywhere).
   const diversityTracker = createDiversityTracker();
-  // How far below (or above) position 1's own reaction score a later
-  // position may still land and count as "worse enough" to reveal — see
-  // this file's own comment above `survivors` for why this replaced a
-  // strict "more intense than the one before it" rule.
-  const REACTION_CLOSE_ENOUGH = 2;
+  // "Escalation must escalate" fix: the previous rule (within
+  // REACTION_CLOSE_ENOUGH=2 of position 1's own reaction, either
+  // direction) let a "take it further" tap reveal something LESS intense
+  // than what was already shown, which reads as a reroll, not an
+  // escalation. Positions 2 and 3 now have to be at least as intense as
+  // the position right before them — chained again, like the original
+  // pre-v5 rule, not anchored to position 1 the way the last fix had it.
+  //
+  // Written here as `s.reaction >= prev.reaction`, which is the actual
+  // requirement — the task that asked for this fix stated it as two
+  // conditions, "shock >= shock(prev) AND reaction >= reaction(prev) -
+  // 2"; `shock` is this codebase's own retired name for the same
+  // `reaction` field (see lib/judge.js's own header on why v4 folded
+  // shock into reaction), so both conditions are on the same scale, and
+  // the first (>=) already implies the second (>= -2) — there's nothing
+  // the second half of that AND would ever additionally exclude. Kept as
+  // one condition rather than two redundant ones; flag if a genuinely
+  // separate second metric was actually intended.
+  //
+  // No q-based tolerance gate anymore either (the pre-v5 rule's `s.q >=
+  // 0.7 * prev.q`) — the new rule is stated purely in terms of
+  // reaction/shock, so a candidate that clears the reaction bar is
+  // eligible regardless of how its q compares; q still decides which one
+  // among the eligible candidates gets picked (`remaining` stays
+  // q-descending).
+  let raunchyUsed = false;
   // Mechanical backstop for the lane-mix restore's RAUNCHY_INVITATION_RULE
   // (lib/prompt.js) — at most one proposition-shaped (lane:raunchy) line
   // across the whole pool a visitor sees, whatever the model made of the
@@ -963,25 +982,23 @@ module.exports = async function handler(req, res) {
   // shock/deranged/gross in that slot instead — see that file's own rule),
   // so "at most one raunchy position" and "at most one proposition-shaped
   // line" are the same rule here, not two separate checks.
-  let raunchyUsed = false;
   const positions = [];
   if (survivors.length) {
     positions.push(survivors[0]);
     diversityTracker.record(survivors[0].candidate.text);
     if (survivors[0].candidate.lane === "raunchy") raunchyUsed = true;
   }
-  const lead = positions[0];
   for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
+    const prev = positions[need - 2];
     const remaining = survivors.slice(1).filter(function (s) {
       return positions.indexOf(s) === -1 && !(raunchyUsed && s.candidate.lane === "raunchy");
     });
     // remaining is still q-descending (inherited from `survivors`'
-    // own order), so the first one clearing every bar is the highest-q
-    // qualifier — no separate re-sort needed. Both position 2 and 3 are
-    // compared against `lead` (position 1) here, not against each other.
-    const next = lead.reaction == null
+    // own order), so the first one clearing the reaction bar is the
+    // highest-q qualifier — no separate re-sort needed.
+    const next = prev.reaction == null
       ? remaining.filter(function (s) { return !diversityTracker.isDuplicate(s.candidate.text); })[0]
-      : remaining.filter(function (s) { return Math.abs(s.reaction - lead.reaction) <= REACTION_CLOSE_ENOUGH && s.q >= 0.7 * lead.q && !diversityTracker.isDuplicate(s.candidate.text); })[0];
+      : remaining.filter(function (s) { return s.reaction >= prev.reaction && !diversityTracker.isDuplicate(s.candidate.text); })[0];
     if (!next) break;
     positions.push(next);
     diversityTracker.record(next.candidate.text);
