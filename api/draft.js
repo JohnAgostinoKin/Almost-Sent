@@ -1,20 +1,19 @@
-// api/draft.js — v4: two generator calls (Hermes writes crude, GPT-5.4
-// writes clever), judged on reaction.
+// api/draft.js — v5: one lane pool, one room, GPT-5.4 only on escalation.
 //
-// v3 (see lib/legacy/) fired one primary-model call per PRIMARY_LANE_GROUP
-// (four calls of two lanes each, all GENERATOR_MODEL) plus one wildcard
-// call (WILDCARD_MODEL, two lanes) — five calls total, asymmetric in size
-// and in how each was awaited (wildcard was always awaited in full;
-// primary alone got the soft deadline race). v4 collapses this to exactly
-// two calls, symmetric in every way that matters here: WILDCARD_MODEL
-// (Hermes) writes a fixed seven-candidate plan across shock/raunchy/
-// deranged/gross/wildcard, GENERATOR_MODEL (GPT-5.4) writes confession/
-// dark (plus absurd on an escalation refetch) — see lib/prompt.js's own
-// header for why the split is by strength, not by call count. Both calls
-// race the same soft deadline now (see runGenerationRound below);
-// whichever generator writes the bulk of a round's candidates changed
-// (Hermes now, not GPT-5.4), so the old "wildcard is small, always wait
-// for it" asymmetry doesn't hold anymore either.
+// v4 fired both generator calls on every request — WILDCARD_MODEL (Hermes)
+// writing a fixed seven-candidate plan across shock/raunchy/deranged/
+// gross/wildcard, GENERATOR_MODEL (GPT-5.4) writing confession/dark (plus
+// absurd on an escalation refetch) — racing the same soft deadline. v5
+// narrows the first-show room to exactly two lanes, both Hermes, at
+// maximum intensity (raunchy x6, gross x2 — see lib/prompt.js's own header
+// comment for why) and moves GPT-5.4 to escalation-only: runGenerationRound
+// below no longer calls GENERATOR_MODEL at all unless `escalate` is true,
+// so a first-show request is now ONE real model call, not two. On an
+// escalation refetch both calls still fire — Hermes writing a worse
+// raunchy/gross pass, GPT-5.4 writing confession/dark/absurd for the
+// first time — same soft-deadline race as before, just asymmetric now:
+// the primary call is either a real fetch (escalate) or a resolved stub
+// with zero candidates (first show), never in between.
 //
 // Selection past generation is still two separate jobs, run CONCURRENTLY
 // on the full candidate set rather than one gating the other: SAFETY
@@ -439,8 +438,17 @@ module.exports = async function handler(req, res) {
     const wildcardStarted = Date.now();
     const wildcardPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN }, genOpts))
       .then(function (r) { t.t_wildcard = Date.now() - wildcardStarted; slots.wildcard.settled = true; slots.wildcard.result = r; return r; });
+    // GENERATOR_MODEL only ever runs on an escalation refetch now — the
+    // first-show room is raunchy/gross only (see this file's own header
+    // comment and lib/prompt.js's). A first-show request never pays for or
+    // waits on this call at all: it resolves immediately with zero
+    // candidates, same shape a real call's result would have, so nothing
+    // downstream (soft deadline, safety/taste, `why`) needs to know the
+    // difference.
     const primaryStarted = Date.now();
-    const primaryPromise = runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
+    const primaryPromise = (escalate
+      ? runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
+      : Promise.resolve({ lines: [], why: "skipped — first-show room is raunchy/gross only, confession/dark/absurd are escalation-only", provider: null, premises: null }))
       .then(function (r) { t.t_primary = Date.now() - primaryStarted; slots.primary.settled = true; slots.primary.result = r; return r; });
 
     // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for BOTH
