@@ -256,8 +256,17 @@ function tagModel(result, model, note) {
 // === 0 after the full generate-then-judge round) — logged in `why` and
 // returned as its own `stall_reason` field so index.html can log it as a
 // "stall" event (see api/event.js's own header) without ever having to
-// parse `why`'s own free text itself. Six named reasons, checked in the
-// order that actually explains "why zero candidates survived":
+// parse `why`'s own free text itself. Seven named reasons, checked in
+// the order that actually explains "why zero candidates survived":
+//   - "credits" — OpenRouter itself returned HTTP 402 (Payment Required
+//     — the account is out of credits). Checked FIRST and ahead of
+//     everything else: a real production incident traced every stall in
+//     a whole window back to exactly this, and it's the one reason that
+//     isn't really "the model had a bad moment" — it's "every call is
+//     going to keep failing until someone tops up the account." Also
+//     console.error'd immediately, at error level, specifically so it
+//     shows up in Vercel's own function logs without anyone having to go
+//     dig a stall_reason back out of a client report first.
 //   - "rate limit" / "parse" / "fallback timeout" / "primary timeout" —
 //     generation itself produced nothing (wildcard.lines is empty).
 //     Distinguished by scanning wildcard.why (the merged A+B string —
@@ -280,10 +289,19 @@ function tagModel(result, model, note) {
 //     fixed-lane-order fallback still came back empty, which can only
 //     happen the same way: safety flagged everything).
 // Only ever called when survivors.length is already known to be 0 —
-// this doesn't re-check that itself.
+// this doesn't re-check that itself. Never cached either way: this only
+// ever runs when drafts.length is 0 (source:"stall"), and
+// isCacheableResult's own gate already refuses any non-"model" source
+// regardless of which stall_reason produced it — a 402 gets the exact
+// same "never sticks around for 24 hours" treatment as every other
+// stall, nothing extra needed here for that part.
 function classifyStallReason(wildcard, taste) {
   const why = String(wildcard.why || "");
   if (!wildcard.lines || !wildcard.lines.length) {
+    if (/\bllm 402\b/i.test(why)) {
+      console.error("OpenRouter 402 (out of credits) — every call is going to keep failing until this is topped up: " + why);
+      return "credits";
+    }
     if (/\brate.?limit\b|\bhttp 429\b/i.test(why)) return "rate limit";
     if (/no json in output|hit token limit|unparsable/i.test(why)) return "parse";
     if (/timed out/i.test(why)) {

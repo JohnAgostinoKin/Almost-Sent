@@ -47,9 +47,11 @@ const { waitUntil } = require("@vercel/functions");
 // "stall" is logged whenever a response comes back source:"stall" (see
 // api/draft.js's handler) — a request that produced nothing worth
 // showing, whatever the reason. meta carries { reason }: one of "no api
-// key", "rate limit", "parse", "primary timeout", "fallback timeout",
-// "judge-eliminated-all", or "safety-eliminated-all" — see
-// classifyStallReason in api/draft.js for what each one actually means.
+// key", "credits" (OpenRouter itself is out of credits — HTTP 402, also
+// console.error'd server-side the moment it's seen), "rate limit",
+// "parse", "primary timeout", "fallback timeout", "judge-eliminated-all",
+// or "safety-eliminated-all" — see classifyStallReason in api/draft.js
+// for what each one actually means.
 // Never the pasted text itself, same as everywhere else here.
 //
 // "safety" is logged once per api/draft.js request/response, whatever the
