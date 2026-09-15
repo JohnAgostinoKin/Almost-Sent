@@ -131,7 +131,7 @@ function takeStragglers(sent) {
 // deliberately "the straggler cache's store," not a second Map), just a
 // different key shape so the two never collide: a straggler entry's key
 // is bare normalizeBefore(sent), a result entry's is that prefixed with
-// "result:". A repeated first-show input (the common case for a shared
+// "result2:". A repeated first-show input (the common case for a shared
 // chip or a viral screenshot) skips generation and judging entirely for
 // RESULT_CACHE_TTL_MS — same warm-container-only caveat as every other
 // cache in this file: a cold start just means the next request for that
@@ -139,17 +139,39 @@ function takeStragglers(sent) {
 // NOT cached here — `shown` and the escalation state change every tap for
 // the same `sent`, so there's no single "the" result for that key to
 // reuse.
+//
+// "result2:" (not "result:") is deliberate — a real bug shipped where a
+// stall could reach the cache (see isCacheableResult below for the fix)
+// and then serve for up to RESULT_CACHE_TTL_MS to everyone else who
+// pasted the same common input, in ~50ms, looking exactly like a real
+// response. Bumping the key prefix orphans every entry any earlier
+// deploy might have written — a real purge, not just a promise that the
+// write-side bug is fixed now — and isCacheableResult below is checked
+// on BOTH read and write so a bad entry can never be written OR served
+// again even if something upstream of this function regresses.
 const RESULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 function resultCacheKey(sent) {
-  return "result:" + normalizeBefore(sent);
+  return "result2:" + normalizeBefore(sent);
+}
+// The only gate for whether a result belongs in this cache at all: real
+// drafts, from a real model, none of them the client-side stall line.
+// `source` alone (the "model" vs "stall" distinction computed once, at
+// the bottom of the handler, off `positions.length`) would be enough on
+// its own — this also checks `drafts` directly so a future edit that
+// forgets to update `source` in lockstep still can't slip a stall
+// through either check alone.
+function isCacheableResult(source, drafts) {
+  return source === "model" && Array.isArray(drafts) && drafts.length > 0 &&
+    drafts.every(function (d) { return d && d.lane !== "stall"; });
 }
 function cacheResult(sent, payload) {
+  if (!isCacheableResult(payload.source, payload.drafts)) return;
   stragglerCache.set(resultCacheKey(sent), { payload: payload, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
 }
 function getCachedResult(sent) {
   const key = resultCacheKey(sent);
   const entry = stragglerCache.get(key);
-  if (!entry || entry.expiresAt < Date.now()) {
+  if (!entry || entry.expiresAt < Date.now() || !isCacheableResult(entry.payload.source, entry.payload.drafts)) {
     if (entry) stragglerCache.delete(key);
     return null;
   }
@@ -1060,10 +1082,11 @@ module.exports = async function handler(req, res) {
   // (never escalation, never a stall) is worth serving again for
   // RESULT_CACHE_TTL_MS: see cacheResult's own comment above for why
   // escalation is excluded, and this file's own header for why the cache
-  // exists at all. A stall (no API key, or every candidate eliminated)
-  // isn't cached — a transient failure shouldn't become a sticky one for
-  // 24 hours.
-  if (!escalate && source === "model") {
+  // exists at all. `!escalate` is checked here; cacheResult's own
+  // isCacheableResult check is what actually refuses a stall (no API
+  // key, or every candidate eliminated) — a transient failure shouldn't
+  // become a sticky one for 24 hours.
+  if (!escalate) {
     cacheResult(sent, { drafts: drafts, source: source, why: why, provider: genProvider, weak_lead: weakLead, debug: debug, safety: safetyField });
   }
 
