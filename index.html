@@ -10,12 +10,22 @@
   <meta name="apple-mobile-web-app-title" content="almost sent.">
   <meta property="og:title" content="almost sent.">
   <meta property="og:description" content="paste what they sent. see what they almost sent.">
-  <meta property="og:image" content="https://almostsent.app/og.png">
+  <!-- ?v=2 — the file itself is already the current "sorry, i fell
+       asleep" version (confirmed against the .example block below,
+       pixel for pixel — see git history for the "social preview
+       matches new example" commit that made it so). Facebook/Twitter/
+       iMessage/Slack all cache a link preview by URL, independent of
+       the image file's own Cache-Control or even whether it changed —
+       a stale preview scraped before that commit keeps showing until
+       the URL itself changes, no matter how long the correct file has
+       been sitting at /og.png. Bump this again (v=3, v=4, ...) if
+       og.png ever changes again and previews still lag. -->
+  <meta property="og:image" content="https://almostsent.app/og.png?v=2">
   <meta property="og:url" content="https://almostsent.app/">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="almost sent.">
   <meta name="twitter:description" content="paste what they sent. see what they almost sent.">
-  <meta name="twitter:image" content="https://almostsent.app/og.png">
+  <meta name="twitter:image" content="https://almostsent.app/og.png?v=2">
   <style>
     :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --line:#242424; --red:#e23b2f; }
     .dot { color:var(--red); }
