@@ -29,8 +29,11 @@ const { waitUntil } = require("@vercel/functions");
 // and writes it to bible/hits.json, which lib/prompt.js rotates into the
 // generator's own prompt as real-reaction examples. The wall's own single
 // 😂 button (see wall.html) fires the same event with meta.source: "wall"
-// added — that entry's own line, not a generated continuation, but the
-// same "our text, already public" reasoning applies (see api/entries.js).
+// and meta.entry_id (the entries.id it's reacting to) added — that
+// entry's own line, not a generated continuation, but the same "our
+// text, already public" reasoning applies (see api/entries.js).
+// api/wall.js reads entry_id back out to tally and show each entry's own
+// hit count on the wall.
 //
 // "entry" and "entry_email" are the contest submission (index.html's
 // #contest, api/entries.js) — logged from the client once the entry

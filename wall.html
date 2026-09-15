@@ -30,6 +30,7 @@
     .entry-react:hover:not(:disabled) { border-color:#3d3d3d; }
     .entry-react:disabled { opacity:0.4; cursor:default; }
     .entry-react.picked { opacity:1; border-color:var(--red); }
+    .entry-count { font-family:ui-sans-serif,system-ui,sans-serif; font-size:13px; color:var(--mute); min-width:1em; }
   </style>
 </head>
 <body>
@@ -67,6 +68,36 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ device_id: DEVICE_ID, event: event, meta: meta || {} })
         }).catch(function () {});
+      } catch (err) {}
+    }
+
+    // "One tap per device per entry" is enforced here, client-side, same
+    // as everything else this app tracks per-device (device_id itself
+    // included) — a plain array of entry ids this device has already
+    // reacted to, persisted in localStorage so it survives a reload, not
+    // just a page-load-scoped `reacted` flag like the main app's own
+    // react row uses (see index.html). Storage blocked (private mode,
+    // cookies off) just means every visit reads back an empty set —
+    // nothing crashes, the button just re-arms every reload for that
+    // one visitor.
+    var WALL_REACTED_KEY = "wall_reacted";
+    function getReactedSet() {
+      try {
+        var raw = localStorage.getItem(WALL_REACTED_KEY);
+        var arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr.map(String) : [];
+      } catch (err) {
+        return [];
+      }
+    }
+    function markReacted(id) {
+      try {
+        var set = getReactedSet();
+        var key = String(id);
+        if (set.indexOf(key) === -1) {
+          set.push(key);
+          localStorage.setItem(WALL_REACTED_KEY, JSON.stringify(set));
+        }
       } catch (err) {}
     }
 
@@ -113,18 +144,38 @@
       btn.className = "entry-react";
       btn.textContent = "😂";
       btn.setAttribute("aria-label", "nailed it");
+
+      // entry.hits is api/wall.js's own tally (every "rate" event with
+      // this entry's id, counted server-side) — count starts there and
+      // only ever moves by +1 from here, the moment THIS device taps,
+      // so the number updates without waiting on a reload/refetch.
+      var count = Number(entry.hits) || 0;
+      var countEl = document.createElement("span");
+      countEl.className = "entry-count";
+      countEl.textContent = count > 0 ? String(count) : "";
+
+      if (getReactedSet().indexOf(String(entry.id)) !== -1) {
+        btn.disabled = true;
+        btn.classList.add("picked");
+      }
+
       btn.addEventListener("click", function () {
         if (btn.disabled) return;
         btn.disabled = true;
         btn.classList.add("picked");
+        markReacted(entry.id);
+        count += 1;
+        countEl.textContent = String(count);
         // Same "rate" event the main app's reaction row logs, just with
-        // source: "wall" instead of a lane/position — this isn't a
-        // generated draft, it's a contest entry, so there's no lane or
-        // position to attach. `text` is the entry's own line, already
-        // public on this page — see api/event.js's own header.
-        logEvent("rate", { source: "wall", value: "hit", text: String(entry.text || "").slice(0, 300) });
+        // source: "wall" instead of a lane/position, and entry_id so
+        // api/wall.js can tally hits per entry — this isn't a generated
+        // draft, it's a contest entry, so there's no lane or position to
+        // attach. `text` is the entry's own line, already public on this
+        // page — see api/event.js's own header.
+        logEvent("rate", { source: "wall", value: "hit", entry_id: entry.id, text: String(entry.text || "").slice(0, 300) });
       });
       foot.appendChild(btn);
+      foot.appendChild(countEl);
       wrap.appendChild(foot);
 
       return wrap;
