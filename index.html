@@ -135,10 +135,18 @@
     .contest { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
     .contest-headline { font-weight:400; font-size:clamp(24px,6vw,30px); letter-spacing:-0.01em; line-height:1.1; color:var(--red); }
     .contest-sub { margin-top:6px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:15px; line-height:1.5; color:var(--fg); }
-    .contest textarea { margin-top:16px; min-height:70px; }
+    /* A contenteditable div, not a textarea — the sent text lives inside
+       it as a fixed, non-editable prefix (see primeContestLine in the
+       script), so it needs the textarea's own visual treatment spelled
+       out explicitly rather than inherited from the global `textarea`
+       selector. */
+    .contest-line { display:block; width:100%; min-height:70px; margin-top:16px; background:#101010; color:var(--fg); border:1px solid #2a2a2a; padding:14px; font:inherit; font-size:18px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; }
+    .contest-line:focus { outline:2px solid var(--red); outline-offset:2px; }
+    .contest-line[contenteditable="false"] { opacity:0.6; }
+    .contest-line .contest-sent-part { color:var(--mute); }
     .contest input[type="email"] { display:block; width:100%; margin-top:10px; background:#101010; color:var(--fg); border:1px solid #2a2a2a; padding:12px 14px; font:inherit; font-size:15px; }
     .contest input[type="email"]::placeholder { color:var(--mute); }
-    .contest input[type="email"]:disabled, .contest textarea:disabled { opacity:0.6; }
+    .contest input[type="email"]:disabled { opacity:0.6; }
     .contest .hide-toggle { margin-top:10px; }
     .contest #contest-submit { margin-top:12px; }
     .contest-legal { margin-top:10px; }
@@ -235,7 +243,13 @@
       <div class="contest" id="contest">
         <h2 class="contest-headline">didn't laugh?</h2>
         <p class="contest-sub">make it funnier. best line each week wins $50.</p>
-        <textarea id="contest-line" maxlength="180" placeholder="finish it."></textarea>
+        <!-- contenteditable, not a textarea — primeContestLine (see the
+             script) fills this with the sent text as a fixed, non-
+             editable prefix the moment a result renders, cursor placed
+             right after it, so continuing it is the only thing typing
+             can do. contestContinuation() reads back everything past
+             that prefix — the only part that ever reaches /api/entries. -->
+        <div class="contest-line" id="contest-line" contenteditable="true" role="textbox" aria-multiline="true" aria-label="continue the text"></div>
         <input type="email" id="contest-email" maxlength="200" placeholder="email (to reach you if you win)">
         <label class="hide-toggle" id="contest-wall-row" for="contest-wall">
           <input type="checkbox" id="contest-wall">
@@ -244,6 +258,7 @@
         <button type="button" id="contest-submit">enter</button>
         <p class="hint hidden" id="contest-feedback"></p>
         <p class="hint contest-legal">by entering you agree to the <a href="/rules">rules</a> and authorize us to show and use your line.</p>
+        <a class="beat-toggle" href="/wall">see this week's best &rarr;</a>
       </div>
 
       <!-- The one share row on the page now (see this file's own git
@@ -337,7 +352,7 @@
     </section>
   </main>
 
-  <footer>your text is used to make the draft and deleted after 30 days. don't paste names, numbers, or private details. 18+. <a href="/privacy">privacy</a></footer>
+  <footer>your text is used to make the draft and deleted after 30 days. don't paste names, numbers, or private details. 18+. <a href="/privacy">privacy</a> · <a href="/rules">rules</a> · <a href="/wall">wall</a></footer>
 
   <script>
     var go = document.getElementById("go");
@@ -721,15 +736,90 @@
       });
     }
 
+    var CONTEST_LINE_MAXLEN = 180; // same cap the old #write textarea's own maxlength enforced
+    var CONTEST_SENT_PART_CLASS = "contest-sent-part";
+
+    // Collapses the current selection to a single point immediately after
+    // `node` — used both to prime a fresh result (right after the sent-
+    // text prefix span) and to re-plant the caret after a length trim.
+    // Wrapped in try/catch: Selection/Range are well-supported, but
+    // there's no upside to a caret-placement failure ever throwing into
+    // the middle of an input handler over a cosmetic detail.
+    function placeCaretAfter(node) {
+      try {
+        var range = document.createRange();
+        range.setStartAfter(node);
+        range.collapse(true);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (err) {}
+    }
+
+    // Fills #contest-line with the sent text as a fixed, non-editable
+    // prefix — the same "sent muted, continuation not" split #out-draft
+    // already renders (see composeParts/renderDraft), just editable past
+    // the prefix instead of static. Called once per result, not once per
+    // escalation tap — `current` (the sent text) never changes across
+    // taps within the same result, only which of the AI's own lines is
+    // on screen does.
+    function primeContestLine(sentText) {
+      contestLineEl.textContent = "";
+      var prefix = document.createElement("span");
+      prefix.className = CONTEST_SENT_PART_CLASS;
+      prefix.contentEditable = "false";
+      prefix.textContent = sentText;
+      contestLineEl.appendChild(prefix);
+      placeCaretAfter(prefix);
+    }
+
+    // Everything in #contest-line after the fixed sent-text prefix — the
+    // only part that's ever actually submitted (see #contest-submit's
+    // click handler and api/entries.js's own "their own line, verbatim"
+    // comment). Falls back to the whole box's text if the prefix is
+    // missing entirely — shouldn't happen, primeContestLine always runs
+    // before the box is ever shown.
+    function contestContinuation() {
+      var prefix = contestLineEl.querySelector("." + CONTEST_SENT_PART_CLASS);
+      if (!prefix) return contestLineEl.textContent.trim();
+      var text = "";
+      var node = prefix.nextSibling;
+      while (node) { text += node.textContent; node = node.nextSibling; }
+      return text.trim();
+    }
+
+    // Keeps the prefix intact and the continuation under the cap. A
+    // contenteditable region has no native maxlength, and nothing in the
+    // DOM stops a selection that spans into the prefix from deleting
+    // (or a paste from overwriting) part of it — re-priming from scratch
+    // whenever the prefix isn't exactly the box's first child loses
+    // whatever was typed in that one edit, but never leaves the sent
+    // text editable, moved, or gone.
+    contestLineEl.addEventListener("input", function () {
+      var prefix = contestLineEl.querySelector("." + CONTEST_SENT_PART_CLASS);
+      if (!prefix || contestLineEl.firstChild !== prefix) {
+        primeContestLine(current);
+        return;
+      }
+      var text = contestContinuation();
+      if (text.length > CONTEST_LINE_MAXLEN) {
+        contestLineEl.textContent = "";
+        contestLineEl.appendChild(prefix);
+        contestLineEl.appendChild(document.createTextNode(text.slice(0, CONTEST_LINE_MAXLEN)));
+        placeCaretAfter(contestLineEl.lastChild);
+      }
+    });
+
     // Clears #contest back to its idle state — called both by reset()
-    // (a fresh "new text") and by the submit handler's own success path
-    // (a fresh result for the SAME sent text still needs a blank box).
-    // Re-enables the fields too: a successful submission disables them
+    // (a fresh "new text," no sent text to prime yet) and by the submit
+    // handler's own success path, right before primeContestLine(sent)
+    // fills it back in for the new result. Re-enables the fields too: a
+    // successful submission makes them contenteditable="false"/disabled
     // for the rest of that result (see #contest-submit's click handler)
     // so there's something to undo here, not just clearing values.
     function resetContest() {
-      contestLineEl.value = "";
-      contestLineEl.disabled = false;
+      contestLineEl.textContent = "";
+      contestLineEl.contentEditable = "true";
       contestEmailEl.value = "";
       contestEmailEl.disabled = false;
       contestWallEl.checked = false;
@@ -938,6 +1028,7 @@
         escalateFetches = 0;
         tapCount = 0;
         resetContest();
+        primeContestLine(current);
         resetReact();
         renderDraft(sent, pool[0].text);
         // Unlike v2, the rest of this batch (up to two more drafts) is
@@ -1060,8 +1151,13 @@
     // the entries table, not there.
     contestSubmitEl.addEventListener("click", async function () {
       if (contestSubmitEl.disabled || entrySubmitted) return;
-      var line = contestLineEl.value.trim();
-      if (!line) { contestLineEl.focus(); return; }
+      var line = contestContinuation();
+      if (!line) {
+        contestLineEl.focus();
+        var prefix = contestLineEl.querySelector("." + CONTEST_SENT_PART_CLASS);
+        if (prefix) placeCaretAfter(prefix);
+        return;
+      }
       var email = contestEmailEl.value.trim();
       var wallOk = contestWallEl.checked;
       contestSubmitEl.disabled = true;
@@ -1078,7 +1174,7 @@
           entrySubmitted = true;
           logEvent("entry", { wall_ok: wallOk });
           if (email) logEvent("entry_email");
-          contestLineEl.disabled = true;
+          contestLineEl.contentEditable = "false";
           contestEmailEl.disabled = true;
           contestWallEl.disabled = true;
           contestSubmitEl.textContent = "entered";
@@ -1372,12 +1468,12 @@
       return "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
     }
 
-    // "i almost sent" only shows up when #contest-line actually has
-    // something in it — the share buttons work the moment a draft is on
-    // screen (see the submit handler above), before anyone's typed their
-    // own line into the contest box.
+    // "i almost sent" only shows up when #contest-line has an actual
+    // continuation typed past its fixed sent-text prefix — the share
+    // buttons work the moment a draft is on screen (see the submit
+    // handler above), before anyone's typed anything into the contest box.
     function buildShareText() {
-      var mine = contestLineEl.value.trim();
+      var mine = contestContinuation();
       var text = "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n";
       if (mine) text += "i almost sent: " + current + mine + "\n";
