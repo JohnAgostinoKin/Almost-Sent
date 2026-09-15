@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>entries — almost sent admin</title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --red:#e23b2f; --ok:#3fae5c; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body { background:var(--bg); color:var(--fg); }
+    body { font-family:ui-sans-serif,system-ui,sans-serif; padding:32px 20px 64px; }
+    main { max-width:720px; margin:0 auto; }
+    h1 { font-size:22px; font-weight:600; margin-bottom:20px; }
+    .auth-row { display:flex; gap:8px; margin-bottom:24px; }
+    input[type="password"], input[type="text"] { flex:1; background:#101010; color:var(--fg); border:1px solid #2a2a2a; padding:10px 12px; font:inherit; font-size:14px; }
+    button { border:0; background:var(--red); color:#fff; padding:10px 16px; font:inherit; font-size:13px; cursor:pointer; }
+    button:disabled { opacity:0.5; cursor:default; }
+    button.ghost { background:transparent; border:1px solid #4a4742; color:var(--mute); }
+    button.ghost:hover { color:var(--fg); }
+    .status { font-size:13px; color:var(--mute); margin-bottom:16px; }
+    .row { border:1px solid #1c1c1c; padding:16px; margin-bottom:12px; }
+    .row.approved { border-color:#1e3d29; }
+    .row.winner { border-color:var(--red); }
+    .row-meta { font-size:11px; color:var(--mute); margin-bottom:8px; display:flex; flex-wrap:wrap; gap:10px; }
+    .row-sent { color:var(--mute); font-size:14px; margin-bottom:4px; }
+    .row-line { font-size:16px; margin-bottom:10px; }
+    .flags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+    .flag { font-size:11px; padding:2px 8px; border:1px solid #2a2a2a; color:var(--mute); }
+    .flag.on { border-color:var(--ok); color:var(--ok); }
+    .flag.win { border-color:var(--red); color:var(--red); }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>contest entries</h1>
+    <div class="auth-row">
+      <input type="password" id="secret" placeholder="ADMIN_SECRET">
+      <button type="button" id="load">load</button>
+    </div>
+    <p class="status" id="status"></p>
+    <div id="list"></div>
+  </main>
+
+  <script>
+    // Stored per-tab-session only (sessionStorage, not localStorage) —
+    // this is a shared-secret admin tool, not a real login; the secret
+    // shouldn't outlive the browser session it was typed into. Sent back
+    // as `Authorization: Bearer <secret>` on every call — see
+    // api/admin/entries.js's own isAuthorized().
+    var secretEl = document.getElementById("secret");
+    var loadBtn = document.getElementById("load");
+    var statusEl = document.getElementById("status");
+    var listEl = document.getElementById("list");
+
+    try {
+      var stored = sessionStorage.getItem("admin_secret");
+      if (stored) secretEl.value = stored;
+    } catch (err) {}
+
+    function authHeader() {
+      return "Bearer " + secretEl.value.trim();
+    }
+
+    function setStatus(text) { statusEl.textContent = text || ""; }
+
+    function fmtDate(iso) {
+      try { return new Date(iso).toLocaleString(); } catch (err) { return iso || ""; }
+    }
+
+    async function patchEntry(id, action, btn) {
+      var buttons = btn ? [btn] : [];
+      buttons.forEach(function (b) { b.disabled = true; });
+      try {
+        var res = await fetch("/api/admin/entries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "Authorization": authHeader() },
+          body: JSON.stringify({ id: id, action: action })
+        });
+        var data = await res.json();
+        if (!res.ok || !data.ok) { setStatus("action failed: " + (data.reason || res.status)); return; }
+        await load();
+      } catch (err) {
+        setStatus("action failed: " + err.message);
+      } finally {
+        buttons.forEach(function (b) { b.disabled = false; });
+      }
+    }
+
+    function renderRow(entry) {
+      var row = document.createElement("div");
+      row.className = "row" + (entry.approved ? " approved" : "") + (entry.winner ? " winner" : "");
+
+      var meta = document.createElement("div");
+      meta.className = "row-meta";
+      meta.textContent = "#" + entry.id + " · " + fmtDate(entry.created_at) +
+        (entry.email ? " · " + entry.email : " · no email") +
+        (entry.device_id ? " · " + entry.device_id : "");
+      row.appendChild(meta);
+
+      var sent = document.createElement("p");
+      sent.className = "row-sent";
+      sent.textContent = "they sent: " + entry.sent;
+      row.appendChild(sent);
+
+      var line = document.createElement("p");
+      line.className = "row-line";
+      line.textContent = entry.text;
+      row.appendChild(line);
+
+      var flags = document.createElement("div");
+      flags.className = "flags";
+      var wallFlag = document.createElement("span");
+      wallFlag.className = "flag" + (entry.wall_ok ? " on" : "");
+      wallFlag.textContent = entry.wall_ok ? "wall: yes" : "wall: no";
+      flags.appendChild(wallFlag);
+      var approvedFlag = document.createElement("span");
+      approvedFlag.className = "flag" + (entry.approved ? " on" : "");
+      approvedFlag.textContent = entry.approved ? "approved" : "pending";
+      flags.appendChild(approvedFlag);
+      if (entry.winner) {
+        var winFlag = document.createElement("span");
+        winFlag.className = "flag win";
+        winFlag.textContent = "winner";
+        flags.appendChild(winFlag);
+      }
+      row.appendChild(flags);
+
+      var actions = document.createElement("div");
+      actions.className = "actions";
+
+      function actionButton(label, action, ghost) {
+        var b = document.createElement("button");
+        b.type = "button";
+        if (ghost) b.className = "ghost";
+        b.textContent = label;
+        b.addEventListener("click", function () { patchEntry(entry.id, action, b); });
+        return b;
+      }
+
+      actions.appendChild(actionButton(entry.approved ? "un-approve" : "approve", entry.approved ? "reject" : "approve", entry.approved));
+      actions.appendChild(actionButton(entry.winner ? "unmark winner" : "mark winner", entry.winner ? "unwinner" : "winner", entry.winner));
+      row.appendChild(actions);
+
+      return row;
+    }
+
+    async function load() {
+      var secret = secretEl.value.trim();
+      if (!secret) { setStatus("enter ADMIN_SECRET first."); return; }
+      try { sessionStorage.setItem("admin_secret", secret); } catch (err) {}
+      setStatus("loading…");
+      try {
+        var res = await fetch("/api/admin/entries", { headers: { "Authorization": authHeader() } });
+        if (res.status === 401) { setStatus("wrong secret."); listEl.textContent = ""; return; }
+        var data = await res.json();
+        if (!data.ok) { setStatus("load failed: " + (data.reason || "unknown")); return; }
+        listEl.textContent = "";
+        if (!data.entries.length) { setStatus("no entries yet."); return; }
+        setStatus(data.entries.length + " entr" + (data.entries.length === 1 ? "y" : "ies"));
+        data.entries.forEach(function (entry) { listEl.appendChild(renderRow(entry)); });
+      } catch (err) {
+        setStatus("load failed: " + err.message);
+      }
+    }
+
+    loadBtn.addEventListener("click", load);
+    secretEl.addEventListener("keydown", function (e) { if (e.key === "Enter") load(); });
+    if (secretEl.value.trim()) load();
+  </script>
+</body>
+</html>

@@ -103,7 +103,7 @@
     .crisis-msg { font-size:17px; line-height:1.6; margin:0; }
     .crisis-msg a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
     /* Everything below the message is joke-app chrome — reactions, share,
-       reroll, "write your own" — none of it belongs next to a crisis
+       reroll, the contest pitch — none of it belongs next to a crisis
        response. See index.html's submit handler for when this gets set. */
     #out.crisis-mode #out-draft,
     #out.crisis-mode .react,
@@ -112,8 +112,7 @@
     #out.crisis-mode #save-image-fallback,
     #out.crisis-mode #social-download-feedback,
     #out.crisis-mode .worse,
-    #out.crisis-mode #beat-toggle,
-    #out.crisis-mode .turn { display:none; }
+    #out.crisis-mode #contest { display:none; }
     .react { display:flex; gap:8px; margin-top:16px; }
     .react button { width:auto; padding:8px 13px; font-size:20px; line-height:1; background:transparent; border:1px solid #2a2a2a; color:var(--fg); }
     .react button:hover:not(:disabled) { border-color:#3d3d3d; }
@@ -125,12 +124,25 @@
     .debug li.dropped { color:#8a4a42; }
     .minor { margin-top:14px; }
     .minor button { width:auto; padding:7px 13px; font-size:12px; }
+    /* Still used by the .example block's own "do one now →" link
+       (#do-one-now) — the contest's old collapsed "beat the ai" link
+       that used to share this class is gone (see .contest below). */
     .beat-toggle { display:block; width:auto; background:transparent; border:0; padding:0; margin-top:18px; color:var(--mute); font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
     .beat-toggle:hover { color:var(--fg); }
-    .turn { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
-    .turn .label { margin-top:0; }
-    .sent-context { margin-bottom:10px; font-size:15px; line-height:1.5; color:var(--mute); }
-    #write { min-height:76px; margin-top:8px; }
+    /* Always visible under a result now, not a collapsed link — see
+       #contest's own markup. Headline in the wordmark's own serif, large,
+       brand red; the sub-line under it is normal text, not muted. */
+    .contest { margin-top:34px; padding-top:26px; border-top:1px solid #1c1c1c; }
+    .contest-headline { font-weight:400; font-size:clamp(24px,6vw,30px); letter-spacing:-0.01em; line-height:1.1; color:var(--red); }
+    .contest-sub { margin-top:6px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:15px; line-height:1.5; color:var(--fg); }
+    .contest textarea { margin-top:16px; min-height:70px; }
+    .contest input[type="email"] { display:block; width:100%; margin-top:10px; background:#101010; color:var(--fg); border:1px solid #2a2a2a; padding:12px 14px; font:inherit; font-size:15px; }
+    .contest input[type="email"]::placeholder { color:var(--mute); }
+    .contest input[type="email"]:disabled, .contest textarea:disabled { opacity:0.6; }
+    .contest .hide-toggle { margin-top:10px; }
+    .contest #contest-submit { margin-top:12px; }
+    .contest-legal { margin-top:10px; }
+    .contest-legal a { color:inherit; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
     footer { margin-top:auto; padding-top:80px; color:#6e6960; font-size:13px; max-width:440px; width:100%; line-height:1.7; }
     footer a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
@@ -193,38 +205,65 @@
         <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
       </div>
       <!-- Escalation comes next — after reactions now, still ahead of
-           share. Red/primary again (no more .ghost) — the icon row below
-           is the share now, there's no "share this" button left to be
-           the one red button instead. A three-tap progression, not a
-           static "make it worse" label — see ESCALATE_LABELS below —
-           that implies the first draft was the best one and every tap
-           past it is a deliberate dare, not "here's another." Reveals
-           whatever's already sitting in the pool when it qualifies (see
-           api/draft.js's intensity-gated position 2/3 selection), or
+           share and the contest pitch. Red/primary again (no more
+           .ghost) — the icon row below is the share now, there's no
+           "share this" button left to be the one red button instead.
+           Capped to a single tap now — "one more," then disabled for
+           good, not a three-tap progression (see this file's own git
+           history for the old ESCALATE_LABELS ladder). Reveals whatever's
+           already sitting in the pool when it qualifies (see
+           api/draft.js's intensity-gated position 2 selection), or
            fetches a fresh escalated batch when it doesn't — see
-           fetchEscalation and the click handler below. Disables for good
-           after the third tap, full stop, regardless of which taps
-           needed a fetch underneath. Paired here with a second "new
-           text" (.again-btn, same reset() as the one at the bottom) so
-           starting over doesn't require scrolling past the whole share
-           block just to get back to a blank textarea. -->
+           fetchEscalation and the click handler below. Paired here with a
+           second "new text" (.again-btn, same reset() as the one at the
+           bottom) so starting over doesn't require scrolling past the
+           whole contest/share block just to get back to a blank
+           textarea. -->
       <div class="row-split worse">
-        <button type="button" id="another" disabled>take it further</button>
+        <button type="button" id="another" disabled>one more</button>
         <button class="ghost again-btn" type="button" id="again-top">new text</button>
       </div>
 
-      <!-- The icon row IS the share now — no separate native-share-sheet
-           button above it. It always acts on whatever's currently on
-           screen (renderDraft's latest call), never what was there when
-           the page first rendered: buildShareText() reads
-           draftEl.textContent live and attemptNativeImageShare/
-           buildShareImageBlob read pool[cursor] live, both at share time,
-           not render time. Destinations only (see #card-controls further
+      <!-- Always visible under a result now, not a collapsed "think you
+           can do better?" link (see this file's own git history for that
+           version) — the contest is the app's actual retention hook, not
+           an easter egg. Submits to /api/entries: their line, judged
+           server-side by lib/judge.js's safety judge before it's ever
+           stored (see that file's own header), plus an optional email
+           and a "show me on the wall" opt-in. See /rules for the full
+           terms and privacy.html for the plain-language disclosure. -->
+      <div class="contest" id="contest">
+        <h2 class="contest-headline">didn't laugh?</h2>
+        <p class="contest-sub">make it funnier. best line each week wins $50.</p>
+        <textarea id="contest-line" maxlength="180" placeholder="finish it."></textarea>
+        <input type="email" id="contest-email" maxlength="200" placeholder="email (to reach you if you win)">
+        <label class="hide-toggle" id="contest-wall-row" for="contest-wall">
+          <input type="checkbox" id="contest-wall">
+          show my line on the wall (anonymous)
+        </label>
+        <button type="button" id="contest-submit">enter</button>
+        <p class="hint hidden" id="contest-feedback"></p>
+        <p class="hint contest-legal">see the <a href="/rules">rules</a>.</p>
+      </div>
+
+      <!-- The one share row on the page now (see this file's own git
+           history — a second copy used to live under a collapsed
+           "beat the ai" box; that box is gone, replaced by the always-
+           visible #contest above, which doesn't get its own share row).
+           It always acts on whatever's currently on screen (renderDraft's
+           latest call), never what was there when the page first
+           rendered: buildShareText() reads draftEl.textContent live and
+           attemptNativeImageShare/buildShareImageBlob read pool[cursor]
+           live, both at share time, not render time — and now also folds
+           in #contest-line's value as "i almost sent: ..." when it has
+           something in it (see buildShareText's own comment).
+           Destinations only (see #card-controls further
            down for "save image"/"hide their text" — options for the
            card, not places to send it, so they don't belong in this
-           row): text/email reuse the .text-share/.email-share classes
-           that also drive .turn's own copy further down (shared click
-           handlers, see the script); whatsapp, facebook, x, and copy
+           row): text/email/copy/link-share-icon/social-app-icon are each
+           wired to exactly one button now (shared click
+           handlers, see the script — no more per-row duplication to
+           match up); whatsapp, facebook, x, and copy
            carry buildShareText()'s block (which already ends in the
            referral URL) — facebook actually just wants that URL, not the
            whole block, so its own click handler pulls that back out via
@@ -256,6 +295,11 @@
            tiktok app or site." Empty and hidden until one of them
            actually downloads (see showSocialDownloadFeedback). -->
       <p class="hint hidden download-feedback" id="social-download-feedback"></p>
+      <!-- "whew." — shown after any share tap (see the share handlers'
+           own logEvent calls). Used to live inside the collapsed .turn
+           box, back when there were two share rows; one row now, one
+           whew. -->
+      <p class="whew hidden" id="whew">whew.</p>
       <!-- Card controls, not destinations — "save image" and "hide their
            text" both describe or produce the card, they don't send it
            anywhere, so they sit on their own line beneath the row above,
@@ -290,40 +334,6 @@
            the hidden-chrome list — see the stylesheet), so it can't be
            the top one alone. -->
       <div class="minor"><button class="ghost again-btn" type="button" id="again">new text</button></div>
-
-      <!-- "think you can do better" used to sit open on the page, competing
-           with the result itself and confusing first-timers. Collapsed now
-           — nothing about it visible until this link is tapped, which
-           reveals .turn (the box and its own share row) and logs beat_open
-           once (see the click handler below). -->
-      <button class="beat-toggle" type="button" id="beat-toggle">think you can do better? beat the ai &rarr;</button>
-
-      <div class="turn hidden" id="turn">
-        <label class="label" for="write">think you can do better? show us.</label>
-        <p class="sent-context" id="sent-context"></p>
-        <textarea id="write" maxlength="180" placeholder="finish it."></textarea>
-        <!-- Same component as #share-icons above — every button here is
-             matched by the same classes/data-via, so it's wired up by
-             the exact same click handlers (see the script's
-             shareSection() helper for how they tell the two rows
-             apart for logging). buildShareText() already folds in "i
-             almost sent: ..." whenever #write has something in it — see
-             its own comment — so that's true here for free, same as it
-             always was. -->
-        <div class="share-icons" id="share-icons-turn">
-          <button class="ghost link-share-icon" type="button" data-via="facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
-          <button class="ghost link-share-icon" type="button" data-via="x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
-          <button class="ghost link-share-icon" type="button" data-via="whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
-          <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
-          <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
-          <button class="ghost social-app-icon" type="button" data-via="instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
-          <button class="ghost social-app-icon" type="button" data-via="snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
-          <button class="ghost social-app-icon" type="button" data-via="tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
-          <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
-        </div>
-        <p class="hint hidden download-feedback"></p>
-        <p class="whew hidden" id="whew">whew.</p>
-      </div>
     </section>
   </main>
 
@@ -335,16 +345,12 @@
     var draftEl = document.getElementById("out-draft");
     var crisisMsgEl = document.getElementById("crisis-msg");
     var outEl = document.getElementById("out");
-    var writeEl = document.getElementById("write");
-    // Every share control appears twice now — once under the draft
-    // (#share-icons), once under "write your own" (#share-icons-turn) —
-    // one and the same component (identical markup), matched by class
-    // (text-share/email-share/copy-share) or by class+data-via
-    // (link-share-icon: facebook/x/whatsapp; social-app-icon: instagram/
-    // snapchat/tiktok) rather than id, since ids have to be unique.
-    // shareSection() below is how a click handler tells the two rows
-    // apart for logging (meta.section: "beat" for the .turn copy, no
-    // section field for the top one).
+    // One share row now (#share-icons) — see this file's own git history
+    // for the second copy that used to live under the collapsed "beat
+    // the ai" box. Still matched by class rather than id (text-share/
+    // email-share/copy-share, or class+data-via for link-share-icon/
+    // social-app-icon) since that's what the click handlers below expect;
+    // each selector just returns one button now instead of two.
     var textShareBtns = Array.prototype.slice.call(document.querySelectorAll(".text-share"));
     var emailShareBtns = Array.prototype.slice.call(document.querySelectorAll(".email-share"));
     var copyShareBtns = Array.prototype.slice.call(document.querySelectorAll(".copy-share"));
@@ -354,35 +360,33 @@
     var hideOriginalEl = document.getElementById("hide-original");
     // save-image and copy-share both relabel on the fly (see below and
     // their click handlers). copy-share carries its changeable text in a
-    // .label span (both rows now — see #share-icons/#share-icons-turn's
-    // markup) so relabeling never clobbers the icon span next to it;
+    // .label span so relabeling never clobbers the icon span next to it;
     // save-image (a plain card-control, not an icon — see #card-controls)
     // has no icon at all, so this just falls back to the button itself.
     function labelTarget(el) {
       return el.querySelector(".label") || el;
     }
     var SAVE_IMAGE_LABEL = labelTarget(saveImageBtn).textContent; // "save image" — captured once, restored after every outcome
-    // One idle label per copy-share button, not one shared string — the
-    // top row's reads "copy" (see the icon row's markup), .turn's own
-    // reads "copy it", and resetCopyLabel below has to restore each to
-    // its OWN idle text, not whichever one happens to run first.
+    // One idle label per copy-share button — there's only one now, but
+    // this stays an array/map rather than a bare string so resetCopyLabel
+    // below doesn't need its own special case.
     var copyIdleLabels = copyShareBtns.map(function (btn) { return labelTarget(btn).textContent; });
     var saveImageFallbackEl = document.getElementById("save-image-fallback");
     var saveImageFallbackImgEl = document.getElementById("save-image-fallback-img");
     var saveImageFeedbackTimer = null;
     // Fallback only — the real lookup (showSocialDownloadFeedback below)
     // finds whichever row's own .download-feedback actually sits next to
-    // the button that got clicked, since #share-icons-turn has its own
-    // copy of this paragraph now too. Each one tracks its own timer as
-    // an expando property (el._feedbackTimer), not a single shared var —
-    // a click in one row can't cut short the other row's message.
+    // the button that got clicked. Tracks its own timer as an expando
+    // property (el._feedbackTimer), not a single shared var.
     var socialDownloadFeedbackEl = document.getElementById("social-download-feedback");
     var anotherBtn = document.getElementById("another");
     var whewEl = document.getElementById("whew");
     var debugEl = document.getElementById("debug");
-    var sentContextEl = document.getElementById("sent-context");
-    var turnEl = document.getElementById("turn");
-    var beatToggleEl = document.getElementById("beat-toggle");
+    var contestLineEl = document.getElementById("contest-line");
+    var contestEmailEl = document.getElementById("contest-email");
+    var contestWallEl = document.getElementById("contest-wall");
+    var contestSubmitEl = document.getElementById("contest-submit");
+    var contestFeedbackEl = document.getElementById("contest-feedback");
     var reactEl = document.getElementById("react");
     var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
     var chipsEl = document.getElementById("chips");
@@ -644,31 +648,25 @@
                                     // per tap).
     var fetchingEscalation = false; // true for the life of any escalation call — guards against a
                                      // double-click firing two overlapping fetches.
-    var ownLineLogged = false;  // one own_line log per result, not one per keystroke
     var reacted = false;        // one reaction tap per draft shown, see resetReact()/reactButtons below
-    var beatOpened = false;     // one beat_open log per result — see the toggle's click handler below
+    var entrySubmitted = false; // one contest entry per result — see #contest-submit's click handler
 
-    // "make it worse" three times in a row used to imply the first draft
-    // was mediocre — a fixed label repeated at you reads as "here's
-    // another, and another." A progression instead implies the opposite:
-    // the first one was the best available, and every tap past it is a
-    // deliberate dare. tapCount is taps on THIS button for THIS result,
-    // capped at 3 regardless of how many of those taps needed a real
-    // escalation fetch underneath (see the click handler below) — the
-    // visible lifecycle is simple even when what's happening underneath
-    // (stored reveal vs. fetch, see api/draft.js's intensity-gated
-    // selection) isn't.
+    // Capped to a single tap now — "take it further, and again, and
+    // again" used to imply the first draft was mediocre; one tap reads as
+    // a deliberate "show me the edge" instead, and the contest section
+    // right below is where a visitor who's still unsatisfied actually
+    // goes next. tapCount is taps on THIS button for THIS result.
     var tapCount = 0;
-    var ESCALATE_LABELS = ["take it further", "cross the line", "call a lawyer"];
+    var ESCALATE_LABELS = ["one more"];
 
     // Sets the button's label to whatever tapCount's NEXT click will do,
     // and its disabled state. A click always does SOMETHING now — reveal
     // from the pool, or fetch (see the click handler below) — so the only
     // real disable conditions are: mid-fetch already, a refusal (no
-    // escalation ever allowed), or the third tap already spent.
+    // escalation ever allowed), or the one tap already spent.
     function refreshAnotherState() {
       anotherBtn.textContent = ESCALATE_LABELS[Math.min(tapCount, ESCALATE_LABELS.length - 1)];
-      anotherBtn.disabled = fetchingEscalation || !alternatesAllowed || tapCount >= 3;
+      anotherBtn.disabled = fetchingEscalation || !alternatesAllowed || tapCount >= 1;
     }
 
     // Re-arms the 😂/😐/😬 row for a newly shown draft — one tap is allowed
@@ -723,6 +721,26 @@
       });
     }
 
+    // Clears #contest back to its idle state — called both by reset()
+    // (a fresh "new text") and by the submit handler's own success path
+    // (a fresh result for the SAME sent text still needs a blank box).
+    // Re-enables the fields too: a successful submission disables them
+    // for the rest of that result (see #contest-submit's click handler)
+    // so there's something to undo here, not just clearing values.
+    function resetContest() {
+      contestLineEl.value = "";
+      contestLineEl.disabled = false;
+      contestEmailEl.value = "";
+      contestEmailEl.disabled = false;
+      contestWallEl.checked = false;
+      contestWallEl.disabled = false;
+      contestSubmitEl.disabled = false;
+      contestSubmitEl.textContent = "enter";
+      contestFeedbackEl.textContent = "";
+      contestFeedbackEl.classList.add("hidden");
+      entrySubmitted = false;
+    }
+
     function reset() {
       outEl.classList.add("hidden");
       outEl.classList.remove("crisis-mode");
@@ -731,7 +749,6 @@
       crisisMsgEl.textContent = "";
       sentEl.value = "";
       sentEl.readOnly = false;
-      writeEl.value = "";
       setShareDisabled(true);
       hideOriginalEl.checked = false;
       resetCopyLabel();
@@ -740,10 +757,7 @@
       whewEl.classList.add("hidden");
       debugEl.textContent = "";
       debugEl.classList.add("hidden");
-      sentContextEl.textContent = "";
-      turnEl.classList.add("hidden");
-      beatToggleEl.classList.remove("hidden");
-      beatOpened = false;
+      resetContest();
       pool = [];
       cursor = 0;
       currentSource = null;
@@ -753,7 +767,6 @@
       escalateFetches = 0;
       fetchingEscalation = false;
       tapCount = 0;
-      ownLineLogged = false;
       resetReact();
       anotherBtn.textContent = ESCALATE_LABELS[0];
       anotherBtn.disabled = true;
@@ -893,18 +906,14 @@
           alternatesAllowed = false;
           escalateFetches = 0;
           tapCount = 0;
-          turnEl.classList.add("hidden");
-          beatToggleEl.classList.remove("hidden");
-          beatOpened = false;
+          resetContest();
           resetReact();
           outEl.classList.add("crisis-mode");
           crisisMsgEl.innerHTML = CRISIS_MESSAGE_HTML;
           crisisMsgEl.classList.remove("hidden");
-          sentContextEl.textContent = sent;
           logEvent("draft_shown", { source: "crisis", provider: null, revealIndex: 0, t_total: data.t_total });
           if (DEBUG) renderDebug("result", data);
           sentEl.readOnly = true;
-          writeEl.value = "";
           setShareDisabled(true);
           whewEl.classList.add("hidden");
           exampleEl.classList.add("hidden");
@@ -928,10 +937,9 @@
         alternatesAllowed = !data.refuse;
         escalateFetches = 0;
         tapCount = 0;
-        ownLineLogged = false;
+        resetContest();
         resetReact();
         renderDraft(sent, pool[0].text);
-        sentContextEl.textContent = sent;
         // Unlike v2, the rest of this batch (up to two more drafts) is
         // already sitting in `pool` — no second call to wait on, so
         // "make it worse" is live immediately.
@@ -949,16 +957,14 @@
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
         if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
-        writeEl.value = "";
         // Enabled the moment the draft is up, not gated on the visitor
-        // typing anything into #write — buildShareText() below already
-        // handles an empty #write by leaving "i almost sent" out.
+        // typing anything into #contest-line — buildShareText() below
+        // already handles an empty box by leaving "i almost sent" out.
         setShareDisabled(false);
         resetCopyLabel();
         whewEl.classList.add("hidden");
         exampleEl.classList.add("hidden");
         outEl.classList.remove("hidden");
-        writeEl.focus({ preventScroll: true });
       } catch (err) {
         if (!gotResult) alert("the draft didn't come through. try again.");
       } finally {
@@ -992,7 +998,7 @@
         refreshAnotherState();
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
         logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
-        // "stored" — this draft (position 2 or 3, per api/draft.js's own
+        // "stored" — this draft (position 2, per api/draft.js's own
         // intensity-gated selection) was already sitting in the pool from
         // the request that produced it, no fetch needed for this tap.
         logEvent("escalation", { position: pool[cursor].position, source: "stored", q: pool[cursor].q, reaction: pool[cursor].reaction });
@@ -1002,8 +1008,8 @@
       // Exhausted the current batch — reroll never dead-ends on its own,
       // so fetch a fresh escalated batch and reveal its first line the
       // moment it lands, rather than making this click just prime the
-      // pool for a second one. Still bounded to at most 3 taps total
-      // (tapCount, above) regardless of how many of them land here.
+      // pool for a second one. Still bounded to the one tap total
+      // (tapCount, above) regardless of whether it lands here.
       var sent = current;
       anotherBtn.disabled = true;
       await fetchEscalation(sent);
@@ -1042,25 +1048,53 @@
       });
     });
 
-    // Reveals .turn (the "write your own" box and its own share row) and
-    // hides itself — a one-way expand, no need to collapse back once open.
-    // Logs beat_open once per result, not once per (impossible, since the
-    // link is gone after) tap.
-    beatToggleEl.addEventListener("click", function () {
-      turnEl.classList.remove("hidden");
-      beatToggleEl.classList.add("hidden");
-      if (!beatOpened) {
-        beatOpened = true;
-        logEvent("beat_open");
-      }
-      writeEl.focus({ preventScroll: true });
-    });
-
-    writeEl.addEventListener("input", function () {
-      var hasText = writeEl.value.trim().length > 0;
-      if (!ownLineLogged && hasText) {
-        ownLineLogged = true;
-        logEvent("own_line");
+    // The contest submission — POSTs to api/entries.js, which runs the
+    // line through the same safety judge production drafts get before
+    // ever storing it (see that file's own header); a flagged line comes
+    // back {ok:false, error:"flagged"} and never reaches the table at
+    // all. One entry per result: a successful submit disables the box
+    // rather than allowing a second one for the same draft (resetContest,
+    // called on the next "new text" or fresh result, is what re-arms it).
+    // "entry" and "entry_email" (see api/event.js's own header) are the
+    // anonymous interaction-log side of this — the real content lives in
+    // the entries table, not there.
+    contestSubmitEl.addEventListener("click", async function () {
+      if (contestSubmitEl.disabled || entrySubmitted) return;
+      var line = contestLineEl.value.trim();
+      if (!line) { contestLineEl.focus(); return; }
+      var email = contestEmailEl.value.trim();
+      var wallOk = contestWallEl.checked;
+      contestSubmitEl.disabled = true;
+      contestSubmitEl.textContent = "sending…";
+      contestFeedbackEl.classList.add("hidden");
+      try {
+        var res = await fetch("/api/entries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sent: current, text: line, email: email, wall_ok: wallOk, device_id: DEVICE_ID })
+        });
+        var data = await res.json();
+        if (data && data.ok) {
+          entrySubmitted = true;
+          logEvent("entry", { wall_ok: wallOk });
+          if (email) logEvent("entry_email");
+          contestLineEl.disabled = true;
+          contestEmailEl.disabled = true;
+          contestWallEl.disabled = true;
+          contestSubmitEl.textContent = "entered";
+          contestFeedbackEl.textContent = "in. good luck.";
+          contestFeedbackEl.classList.remove("hidden");
+        } else {
+          contestSubmitEl.disabled = false;
+          contestSubmitEl.textContent = "enter";
+          contestFeedbackEl.textContent = "couldn't submit that one — try a different line.";
+          contestFeedbackEl.classList.remove("hidden");
+        }
+      } catch (err) {
+        contestSubmitEl.disabled = false;
+        contestSubmitEl.textContent = "enter";
+        contestFeedbackEl.textContent = "couldn't reach the server — try again.";
+        contestFeedbackEl.classList.remove("hidden");
       }
     });
 
@@ -1338,11 +1372,12 @@
       return "https://almostsent.app/" + (DEVICE_ID ? "?r=" + encodeURIComponent(DEVICE_ID) : "");
     }
 
-    // "i almost sent" only shows up when #write actually has something in
-    // it — the share buttons work the moment a draft is on screen (see the
-    // submit handler above), before anyone's typed their own line.
+    // "i almost sent" only shows up when #contest-line actually has
+    // something in it — the share buttons work the moment a draft is on
+    // screen (see the submit handler above), before anyone's typed their
+    // own line into the contest box.
     function buildShareText() {
-      var mine = writeEl.value.trim();
+      var mine = contestLineEl.value.trim();
       var text = "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n";
       if (mine) text += "i almost sent: " + current + mine + "\n";
@@ -1402,15 +1437,6 @@
       }, 4000);
     }
 
-    // Every duplicated share control (text/email/copy always were; now
-    // link-share-icon and social-app-icon too — see the var declarations
-    // above) lives in both #share-icons and #share-icons-turn.
-    // meta.section: "beat" tags an event as coming from .turn's copy;
-    // the top row logs no section field at all.
-    function shareSection(btn) {
-      return btn.closest("#turn") ? "beat" : undefined;
-    }
-
     // instagram/snapchat/tiktok: none of the three have a real web share
     // intent (no wa.me/twitter.com equivalent for any of them). On
     // mobile each opens the native share sheet (attemptNativeImageShare
@@ -1426,7 +1452,6 @@
         if (btn.disabled) return;
         btn.disabled = true;
         var via = btn.dataset.via;
-        var section = shareSection(btn);
         try {
           var hidden = hideOriginalEl.checked;
           if (isDesktopLayout()) {
@@ -1434,16 +1459,13 @@
             var blob = await buildShareImageBlob(current, draftText, hidden);
             downloadBlobAsPng(blob);
             showSocialDownloadFeedback(via, btn);
-            var downloadMeta = { via: via, mode: "download" };
-            if (section) downloadMeta.section = section;
-            logEvent("share", downloadMeta);
+            logEvent("share", { via: via, mode: "download" });
           } else {
             var result = await attemptNativeImageShare(hidden);
             // Same "hidden only means anything for the files branch" rule
             // as saveImageBtn's own log.
             var meta = { via: via };
             if (result === "files") meta.hidden = hidden;
-            if (section) meta.section = section;
             logEvent("share", meta);
             whewEl.classList.remove("hidden");
           }
@@ -1455,15 +1477,9 @@
       });
     });
 
-    // Both copies of each button (top row and the one under "write your
-    // own") get the same listener — whichever one someone actually taps
-    // does the exact same share.
     textShareBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var meta = { via: "sms" };
-        var section = shareSection(btn);
-        if (section) meta.section = section;
-        logEvent("share", meta);
+        logEvent("share", { via: "sms" });
         whewEl.classList.remove("hidden");
         location.href = "sms:?&body=" + encodeURIComponent(buildShareText());
       });
@@ -1471,10 +1487,7 @@
 
     emailShareBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var meta = { via: "email" };
-        var section = shareSection(btn);
-        if (section) meta.section = section;
-        logEvent("share", meta);
+        logEvent("share", { via: "email" });
         whewEl.classList.remove("hidden");
         location.href = "mailto:?subject=" + encodeURIComponent("almost sent") + "&body=" + encodeURIComponent(buildShareText());
       });
@@ -1482,15 +1495,10 @@
 
     copyShareBtns.forEach(function (btn) {
       btn.addEventListener("click", async function () {
-        var meta = { via: "copy" };
-        var section = shareSection(btn);
-        if (section) meta.section = section;
-        logEvent("share", meta);
+        logEvent("share", { via: "copy" });
         whewEl.classList.remove("hidden");
         try {
           await navigator.clipboard.writeText(buildShareText());
-          // Only the button actually clicked relabels — the other copy
-          // stays at its own idle label until someone taps it too.
           labelTarget(btn).textContent = "copied. use irresponsibly.";
         } catch (err) { /* clipboard blocked — button just doesn't relabel */ }
       });
@@ -1515,10 +1523,7 @@
       btn.addEventListener("click", function () {
         if (btn.disabled) return;
         var via = btn.dataset.via;
-        var meta = { via: via };
-        var section = shareSection(btn);
-        if (section) meta.section = section;
-        logEvent("share", meta);
+        logEvent("share", { via: via });
         whewEl.classList.remove("hidden");
         window.open(linkShareUrl(via, buildShareText()), "_blank", "noopener");
       });

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>the wall — almost sent.</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <meta name="theme-color" content="#070707">
+  <style>
+    :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --line:#242424; --red:#e23b2f; }
+    .dot { color:var(--red); }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body { background:var(--bg); color:var(--fg); }
+    body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
+    main { width:100%; max-width:440px; }
+    @media (min-width:800px) { main { max-width:560px; } h1 { font-size:44px; } }
+    h1 { font-weight:400; font-size:clamp(30px,7vw,44px); letter-spacing:-0.02em; line-height:1.05; margin-bottom:10px; }
+    .tag { font-family:ui-sans-serif,system-ui,sans-serif; font-size:13px; color:var(--mute); line-height:1.5; margin-bottom:28px; }
+    a { color:var(--fg); text-decoration:underline; text-underline-offset:2px; }
+    a:hover { color:var(--red); }
+    .back { display:block; margin-top:44px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:13px; color:var(--mute); }
+    .empty { font-family:ui-sans-serif,system-ui,sans-serif; font-size:14px; color:var(--mute); }
+    .entry { padding:20px 0; border-top:1px solid #1c1c1c; }
+    .entry:first-of-type { border-top:0; }
+    .entry-line { font-size:20px; line-height:1.4; text-wrap:pretty; }
+    .entry-sent { color:var(--mute); }
+    .entry-foot { margin-top:10px; display:flex; align-items:center; gap:10px; }
+    .entry-react { font-family:ui-sans-serif,system-ui,sans-serif; width:auto; background:transparent; border:1px solid #2a2a2a; color:var(--fg); padding:6px 11px; font-size:17px; line-height:1; cursor:pointer; }
+    .entry-react:hover:not(:disabled) { border-color:#3d3d3d; }
+    .entry-react:disabled { opacity:0.4; cursor:default; }
+    .entry-react.picked { opacity:1; border-color:var(--red); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>the wall<span class="dot">.</span></h1>
+    <p class="tag">lines people submitted trying to beat the ai. shown here only if
+    they checked the box — see <a href="/rules">the rules</a>.</p>
+
+    <div id="list"><p class="empty">loading…</p></div>
+
+    <a class="back" href="/">&larr; back to almost sent</a>
+  </main>
+
+  <script>
+    // Same device-id-on-this-browser pattern as index.html's getDeviceId
+    // — no personal data, nothing tied to an identity, only ever sent to
+    // /api/event. Duplicated rather than shared (no build step here to
+    // import index.html's own copy).
+    function getDeviceId() {
+      var id = null;
+      try { id = localStorage.getItem("device_id"); } catch (err) { id = null; }
+      if (id) return id;
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      try { localStorage.setItem("device_id", id); } catch (err) {}
+      return id;
+    }
+    var DEVICE_ID = getDeviceId();
+
+    function logEvent(event, meta) {
+      try {
+        fetch("/api/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: DEVICE_ID, event: event, meta: meta || {} })
+        }).catch(function () {});
+      } catch (err) {}
+    }
+
+    // Same continuation-rendering convention as index.html's composeParts
+    // — a line that opens with the connecting punctuation renders as two
+    // tones (sent muted, their line not); one that doesn't stands alone.
+    // Duplicated for the same "no build step" reason as getDeviceId above.
+    var OPENER_RE = /^[,.!?\s]/;
+    var SENT_END_PUNCT_RE = /[.,!?]$/;
+    var LEADING_DOT_COMMA_RE = /^[.,]/;
+    function composeParts(sentText, lineText) {
+      var text = typeof lineText === "string" ? lineText : "";
+      if (OPENER_RE.test(text)) {
+        if (SENT_END_PUNCT_RE.test(sentText) && LEADING_DOT_COMMA_RE.test(text)) {
+          text = text.slice(1);
+        }
+        return [{ text: sentText, muted: true }, { text: text, muted: false }];
+      }
+      return [{ text: text, muted: false }];
+    }
+
+    function renderEntry(entry) {
+      var wrap = document.createElement("div");
+      wrap.className = "entry";
+
+      var line = document.createElement("p");
+      line.className = "entry-line";
+      composeParts(entry.sent, entry.text).forEach(function (part) {
+        if (part.muted) {
+          var span = document.createElement("span");
+          span.className = "entry-sent";
+          span.textContent = part.text;
+          line.appendChild(span);
+        } else {
+          line.appendChild(document.createTextNode(part.text));
+        }
+      });
+      wrap.appendChild(line);
+
+      var foot = document.createElement("div");
+      foot.className = "entry-foot";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "entry-react";
+      btn.textContent = "😂";
+      btn.setAttribute("aria-label", "nailed it");
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.classList.add("picked");
+        // Same "rate" event the main app's reaction row logs, just with
+        // source: "wall" instead of a lane/position — this isn't a
+        // generated draft, it's a contest entry, so there's no lane or
+        // position to attach. `text` is the entry's own line, already
+        // public on this page — see api/event.js's own header.
+        logEvent("rate", { source: "wall", value: "hit", text: String(entry.text || "").slice(0, 300) });
+      });
+      foot.appendChild(btn);
+      wrap.appendChild(foot);
+
+      return wrap;
+    }
+
+    fetch("/api/wall")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var listEl = document.getElementById("list");
+        var entries = (data && data.entries) || [];
+        listEl.textContent = "";
+        if (!entries.length) {
+          var empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "nothing here yet.";
+          listEl.appendChild(empty);
+          return;
+        }
+        entries.forEach(function (entry) { listEl.appendChild(renderEntry(entry)); });
+      })
+      .catch(function () {
+        var listEl = document.getElementById("list");
+        listEl.textContent = "";
+        var err = document.createElement("p");
+        err.className = "empty";
+        err.textContent = "couldn't load the wall — try again.";
+        listEl.appendChild(err);
+      });
+  </script>
+</body>
+</html>

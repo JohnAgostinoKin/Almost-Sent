@@ -27,7 +27,19 @@ const { waitUntil } = require("@vercel/functions");
 // needs its own text stored somewhere or it can never be recovered later.
 // scripts/hits.js pulls every "hit" (😂) row's `text` out of this table
 // and writes it to bible/hits.json, which lib/prompt.js rotates into the
-// generator's own prompt as real-reaction examples.
+// generator's own prompt as real-reaction examples. The wall's own single
+// 😂 button (see wall.html) fires the same event with meta.source: "wall"
+// added — that entry's own line, not a generated continuation, but the
+// same "our text, already public" reasoning applies (see api/entries.js).
+//
+// "entry" and "entry_email" are the contest submission (index.html's
+// #contest, api/entries.js) — logged from the client once the entry
+// actually stored, not on every keystroke. "entry" always fires, meta
+// carries { wall_ok }; "entry_email" fires ADDITIONALLY, no meta, only
+// when an email was given, so how many entrants leave one is visible
+// without ever logging the address itself (that's in the entries table,
+// not here). Never the line or the sent text either — same rule as
+// everywhere else in this file, the real content lives in `entries`.
 //
 // "safety" is logged once per api/draft.js request/response, whatever the
 // outcome — every response now carries a `safety` field (see the
@@ -40,18 +52,19 @@ const { waitUntil } = require("@vercel/functions");
 // hand-picked line that never ran either check). Never the pasted text
 // itself.
 //
-// "escalation" is a "make it worse" tap revealing position 2 or 3 (see
-// index.html's anotherBtn handler and api/draft.js's handler, which is
-// what computes q/reaction per draft — escalation is intensity now, not
-// just rank, see its own comment). meta carries { position: 2 | 3,
-// source: "stored" | "fetched", q, reaction }: position is which slot got
-// revealed; source is whether it was already sitting in the pool from
-// the original request or needed a fresh escalated fetch; q/reaction are
-// that draft's own scores (both null for a curated or stall draft, which
-// never ran the taste judge at all). `reaction` was named `shock` before
-// the v4 judge rewrite (lib/judge.js) — same intensity axis, renamed to
-// match what the score actually measures now.
-const EVENTS = ["paste", "draft_shown", "another", "own_line", "share", "arrival", "rate", "safety", "escalation"];
+// "escalation" is the one "make it worse" tap revealing position 2 (see
+// index.html's anotherBtn handler, capped to a single tap now, and api/
+// draft.js's handler, which is what computes q/reaction per draft —
+// escalation is intensity now, not just rank, see its own comment). meta
+// carries { position: 2, source: "stored" | "fetched", q, reaction }:
+// source is whether it was already sitting in the pool from the original
+// request or needed a fresh escalated fetch; q/reaction are that draft's
+// own scores (both null for a curated or stall draft, which never ran
+// the taste judge at all). `reaction` was named `shock` before the v4
+// judge rewrite (lib/judge.js) — same intensity axis, renamed to match
+// what the score actually measures now. position was 2 or 3, uncapped at
+// three taps, before the escalation-cap-to-one change.
+const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {
