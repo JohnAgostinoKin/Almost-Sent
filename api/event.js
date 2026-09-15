@@ -27,20 +27,22 @@ const { waitUntil } = require("@vercel/functions");
 // needs its own text stored somewhere or it can never be recovered later.
 // `source` is the SAME "model" | "curated" | "stall" value draft_shown
 // already logs (currentSource on the client) — what actually lets
-// scripts/hits.js only ever pull a real, non-stall line into bible/
-// hits.json: a stall reaction would otherwise look identical to a real
-// one here, and did, once (see lib/postprocess.js's own stall-mimic
-// CRUTCHES entries for the bug this was covering for). scripts/hits.js
-// pulls every "hit" (😂) row with source "model" or "curated", writes
-// `text` to bible/hits.json, and lib/prompt.js rotates that into the
-// generator's own prompt as real-reaction examples. The wall's own single
-// 😂 button (see wall.html) fires the same event with meta.source: "wall"
-// instead — never pulled into hits.json, a contest entry is a human's
-// own writing, not the generator's voice — plus meta.entry_id (the
-// entries.id it's reacting to) added — that entry's own line, not a
-// generated continuation, but the same "our text, already public"
-// reasoning applies (see api/entries.js). api/wall.js reads entry_id
-// back out to tally and show each entry's own hit count on the wall.
+// lib/prompt.js's own live Supabase query only ever pull a real,
+// non-stall line into the generator's prompt: a stall reaction would
+// otherwise look identical to a real one here, and did, once (see lib/
+// postprocess.js's own stall-mimic CRUTCHES entries for the bug this was
+// covering for). lib/prompt.js queries every "hit" (😂) row with
+// source:"model" from the last 30 days directly (see its own
+// fetchHitsFromDb) and rotates the result into the generator's own prompt
+// as real-reaction examples, cached in memory for an hour. The wall's own
+// single 😂 button (see wall.html) fires the same event with
+// meta.source: "wall" instead — never pulled into that query, a contest
+// entry is a human's own writing, not the generator's voice — plus
+// meta.entry_id (the entries.id it's reacting to) added — that entry's
+// own line, not a generated continuation, but the same "our text,
+// already public" reasoning applies (see api/entries.js). api/wall.js
+// reads entry_id back out to tally and show each entry's own hit count
+// on the wall.
 //
 // "entry" and "entry_email" are the contest submission (index.html's
 // #contest, api/entries.js) — logged from the client once the entry
