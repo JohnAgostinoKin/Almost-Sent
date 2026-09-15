@@ -148,7 +148,6 @@
     .contest input[type="email"]::placeholder { color:var(--mute); }
     .contest input[type="email"]:disabled { opacity:0.6; }
     .contest .hide-toggle { margin-top:10px; }
-    .contest #contest-submit { margin-top:12px; }
     .contest-legal { margin-top:10px; }
     .contest-legal a { color:inherit; }
     .whew { margin-top:22px; font-size:12px; letter-spacing:0.1em; color:var(--red); }
@@ -255,10 +254,17 @@
           <input type="checkbox" id="contest-wall">
           show my line on the wall (anonymous)
         </label>
-        <button type="button" id="contest-submit">enter</button>
+        <!-- Equal-width pair, same .row-split component .worse's own
+             "one more"/"new text" row uses — submit red (default button
+             styling) on the left, the wall ghost on the right. Replaces
+             the small standalone "see this week's best" link this file
+             used to have here. -->
+        <div class="row-split">
+          <button type="button" id="contest-submit">enter</button>
+          <button type="button" class="ghost" id="contest-wall-link">see the wall</button>
+        </div>
         <p class="hint hidden" id="contest-feedback"></p>
         <p class="hint contest-legal">by entering you agree to the <a href="/rules">rules</a> and authorize us to show and use your line.</p>
-        <a class="beat-toggle" href="/wall">see this week's best &rarr;</a>
       </div>
 
       <!-- The one share row on the page now (see this file's own git
@@ -401,6 +407,7 @@
     var contestEmailEl = document.getElementById("contest-email");
     var contestWallEl = document.getElementById("contest-wall");
     var contestSubmitEl = document.getElementById("contest-submit");
+    var contestWallLinkEl = document.getElementById("contest-wall-link");
     var contestFeedbackEl = document.getElementById("contest-feedback");
     var reactEl = document.getElementById("react");
     var reactButtons = Array.prototype.slice.call(reactEl.querySelectorAll("button"));
@@ -1192,6 +1199,10 @@
         contestFeedbackEl.textContent = "couldn't reach the server — try again.";
         contestFeedbackEl.classList.remove("hidden");
       }
+    });
+
+    contestWallLinkEl.addEventListener("click", function () {
+      location.href = "/wall";
     });
 
     // Share-as-image: a 9:16 PNG drawn on a client-side <canvas> — not a
