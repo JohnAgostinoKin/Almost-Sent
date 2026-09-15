@@ -99,13 +99,14 @@ function sleep(ms) {
 
 // The one v6 generator call (Hermes/WILDCARD_MODEL — GENERATOR_MODEL and
 // the lanes it only ever wrote retired, see lib/prompt.js's own header).
-// Same builder, same premise-first {premises, candidates} output shape
-// (extractPremiseCandidates) api/draft.js's callOneGenerator uses. No
-// retry/fallback-model chain the way api/draft.js's runGenerator has — a
-// call that fails here just contributes zero candidates for this input
-// rather than costing a second call; this script is prepping a wide pool
-// from 100 inputs, not trying to guarantee every single one produces
-// something.
+// Same builder, same {premises, candidates} output shape
+// (extractPremiseCandidates) api/draft.js's callOneGenerator uses — the
+// wildcard prompt no longer asks for premises (see that file's header),
+// so `premises` just comes back empty every time now. No retry/fallback-
+// model chain the way api/draft.js's runGenerator has — a call that fails
+// here just contributes zero candidates for this input rather than
+// costing a second call; this script is prepping a wide pool from 100
+// inputs, not trying to guarantee every single one produces something.
 async function callOneGenerator(model, lanes, kind, input) {
   try {
     const result = await callLLM(apiKey, model, input, { lanes: lanes, kind: kind });

@@ -10,10 +10,11 @@
 // pool instead — every candidate that cleared the basic postprocess
 // filter, whichever lane wrote it, whether taste eliminated it or scored
 // it, whether safety flagged it, and which one the REAL selection
-// algorithm (taste rank + the pairwise final call) actually picked for
-// position 1 — for a small, deliberately narrow set of inputs (25 by
-// default) meant to be read by a person, one at a time, not tallied in
-// bulk the way bible-prep.js's wider pool is.
+// algorithm (taste rank alone — see api/draft.js's own header on why the
+// pairwise final is gone) actually picked for position 1 — for a small,
+// deliberately narrow set of inputs (25 by default) meant to be read by a
+// person, one at a time, not tallied in bulk the way bible-prep.js's
+// wider pool is.
 //
 // scripts/bible-rate.html's "candidate audit" mode reads bible/audit-
 // pool.json and shows all of it per input, letting John pick his own
@@ -24,17 +25,16 @@
 //   AUDIT_PREP_LIMIT=5  npm run audit-prep   # fewer inputs, for a cheap test run
 //
 // Cost/time note: 25 inputs, each costing one Hermes call (six
-// candidates), up to six safety calls, a taste judge call, and (when
-// there are at least two survivors) one pairwise call, is a real bill —
-// small on purpose, this tool is meant to be read closely, not sampled
-// statistically the way bible-prep's 100 is.
+// candidates) plus up to six safety calls plus a taste judge call, is a
+// real bill — small on purpose, this tool is meant to be read closely,
+// not sampled statistically the way bible-prep's 100 is.
 
 const fs = require("fs");
 const path = require("path");
 
 const { callLLM } = require("../lib/llm");
 const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
-const { judgeOneLine, judgeCandidates, judgePairwise } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { WILDCARD_MODEL, WILDCARD_LANE_PLAN } = require("../lib/prompt");
 
@@ -137,14 +137,8 @@ async function processInput(input) {
     positions.push(next);
   }
 
-  // Pairwise final — same rule as production: only meaningful with a real
-  // top two by q, and only swaps which SURVIVOR ends up in `positions[0]`.
-  if (taste.ok && positions.length >= 2 && positions[0] === survivors[0] && positions[1] === survivors[1]) {
-    const pw = await judgePairwise(apiKey, input, survivors[0].candidate, survivors[1].candidate);
-    if (pw.winner === 2) {
-      const tmp = positions[0]; positions[0] = positions[1]; positions[1] = tmp;
-    }
-  }
+  // No pairwise final — production drops that call too (see api/draft.js's
+  // own header); position 1 is simply the top-q survivor.
 
   const positionOf = new Map();
   positions.forEach(function (p, i) { positionOf.set(p.candidate, i + 1); });

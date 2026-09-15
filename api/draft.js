@@ -21,14 +21,22 @@
 //
 // A later latency pass shrank Hermes' own per-call count (three
 // candidates a call, not four — lib/prompt.js's own header has the
-// current split), lowered GENERATION_SOFT_DEADLINE_MS to 3500ms, and
-// capped the judged candidate pool at JUDGED_POOL_CAP on an escalation
-// refetch specifically — a large straggler cache could otherwise stack on
-// top of a full fresh Hermes batch, taking safety+taste well past what a
-// "make it worse" tap should cost. Stragglers only backfill the gap now
-// (fresh generation short of the cap), never pile on top of a full batch
-// — see runGenerationRound's own comment on JUDGED_POOL_CAP for the exact
-// rule.
+// current split), lowered GENERATION_SOFT_DEADLINE_MS to 3500ms, dropped
+// premise-first from the wildcard prompt (built for GPT, costing Hermes a
+// real second per call for output nothing downstream ever showed — see
+// lib/prompt.js's own header), dropped the pairwise final call entirely
+// (position 1 is just the top-q survivor now — see judgeAndRank below),
+// and capped the judged candidate pool at JUDGED_POOL_CAP on an
+// escalation refetch specifically — a large straggler cache could
+// otherwise stack on top of a full fresh Hermes batch, taking safety+
+// taste well past what a "make it worse" tap should cost. Stragglers only
+// backfill the gap now (fresh generation short of the cap), never pile on
+// top of a full batch — see runGenerationRound's own comment on
+// JUDGED_POOL_CAP for the exact rule. That same pass adds a full-result
+// cache, keyed by normalized input, alongside the straggler cache's own
+// store — see cacheResult/getCachedResult below — so a repeated
+// first-show input skips generation and judging entirely for 24 hours
+// instead of paying for it again.
 //
 // t_cold (module-load-to-request gap — see MODULE_LOADED_AT below) is now
 // console.log'd unconditionally, before any branch, and carried on every
@@ -48,7 +56,9 @@
 // for why. Once BOTH resolve, any candidate safety flagged is removed
 // from the ranking regardless of what taste made of it. A failed taste
 // call falls back to fixed lane order rather than blocking the response
-// on a second expensive call.
+// on a second expensive call. Position 1 is simply the highest-q
+// survivor — the pairwise final (one more head-to-head call between the
+// top two by q) is gone; see judgeAndRank's own comment.
 //
 // v4 adds one more hard gate past taste's own five (see the v4 addendum,
 // section F): position 1 must score reaction >= REACTION_LEAD_GATE. A
@@ -65,7 +75,7 @@ const { WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, ALL_LANES, n
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
-const { judgeOneLine, judgeCandidates, judgePairwise } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { classifyBlock } = require("../lib/block");
@@ -117,6 +127,35 @@ function takeStragglers(sent) {
   return entry.candidates;
 }
 
+// Full-result cache — the same Map as the stragglers above (this is
+// deliberately "the straggler cache's store," not a second Map), just a
+// different key shape so the two never collide: a straggler entry's key
+// is bare normalizeBefore(sent), a result entry's is that prefixed with
+// "result:". A repeated first-show input (the common case for a shared
+// chip or a viral screenshot) skips generation and judging entirely for
+// RESULT_CACHE_TTL_MS — same warm-container-only caveat as every other
+// cache in this file: a cold start just means the next request for that
+// text generates fresh, same as it always has. Escalation is deliberately
+// NOT cached here — `shown` and the escalation state change every tap for
+// the same `sent`, so there's no single "the" result for that key to
+// reuse.
+const RESULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+function resultCacheKey(sent) {
+  return "result:" + normalizeBefore(sent);
+}
+function cacheResult(sent, payload) {
+  stragglerCache.set(resultCacheKey(sent), { payload: payload, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
+}
+function getCachedResult(sent) {
+  const key = resultCacheKey(sent);
+  const entry = stragglerCache.get(key);
+  if (!entry || entry.expiresAt < Date.now()) {
+    if (entry) stragglerCache.delete(key);
+    return null;
+  }
+  return entry.payload;
+}
+
 function newStages() {
   return {
     t_cold: 0,
@@ -126,7 +165,6 @@ function newStages() {
     t_wildcardB: 0, // wall-clock of Hermes call B (shock, raunchy, gross) — see this file's own header comment for why the room is split into two calls
     t_wildcard: 0,  // max(t_wildcardA, t_wildcardB) — the wall-clock cost of the Hermes step as a whole, not their sum
     t_judge: 0,    // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
-    t_pairwise: 0, // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
     t_response: 0
   };
 }
@@ -134,7 +172,7 @@ function newStages() {
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
     " t_wildcardA=" + s.t_wildcardA + "ms t_wildcardB=" + s.t_wildcardB + "ms t_wildcard=" + s.t_wildcard + "ms" +
-    " t_judge=" + s.t_judge + "ms t_pairwise=" + s.t_pairwise + "ms t_response=" + s.t_response + "ms";
+    " t_judge=" + s.t_judge + "ms t_response=" + s.t_response + "ms";
 }
 
 function readBody(req) {
@@ -147,12 +185,14 @@ function readBody(req) {
 // One call to the wildcard/Hermes generator — the only generator left
 // (see this file's own header). `kind` is carried into `why`/logs for
 // ?debug=1 and into callLLM's genOpts, though lib/llm.js itself no longer
-// branches on it now that buildWildcardRequest is its only builder. The
-// wildcard prompt still parses the premise-first {premises, candidates}
-// shape (extractPremiseCandidates — see lib/prompt.js's
-// buildWildcardPrompt). `premises` rides on the returned result purely
-// for api/draft.js's handler to fold into `debug` — never shown to a
-// visitor.
+// branches on it now that buildWildcardRequest is its only builder.
+// extractPremiseCandidates (lib/postprocess.js) still parses the
+// response — the wildcard prompt dropped premise-first (see lib/
+// prompt.js's own header), so `premises` now comes back empty every time,
+// but the shape it parses ({candidates: [...]}, premises defaulting to an
+// empty array when absent) needed no change to keep working. `premises`
+// still rides on the returned result into `debug` for symmetry with past
+// runs — never shown to a visitor, and always null now in practice.
 async function callOneGenerator(key, model, sent, kind, genOpts) {
   try {
     const result = await callLLM(key, model, sent, Object.assign({ kind: kind }, genOpts));
@@ -403,6 +443,33 @@ module.exports = async function handler(req, res) {
       });
       return;
     }
+
+    // Result cache — a repeated first-show input (same normalized text,
+    // within RESULT_CACHE_TTL_MS of the last real generation for it —
+    // see cacheResult/getCachedResult above) skips generation and judging
+    // entirely. Checked after curated (curated is already instant, no
+    // model call either way) and before the crisis pre-check and
+    // generation below — a cache hit means neither of those needs to run
+    // again for text that already cleared them once.
+    const cached = getCachedResult(sent);
+    if (cached) {
+      res.status(200).json({
+        sent: sent,
+        drafts: cached.drafts,
+        source: cached.source,
+        why: (cached.why || "") + " · cache: hit",
+        provider: cached.provider,
+        logged: logged,
+        weak_lead: cached.weak_lead,
+        debug: cached.debug,
+        t_gen: null,
+        t_judge: null,
+        t_cold: stages.t_cold,
+        t_total: Date.now() - requestStarted,
+        safety: cached.safety
+      });
+      return;
+    }
   }
 
   // Crisis pre-check (lib/crisis.js) — a second, semantic layer past
@@ -449,11 +516,10 @@ module.exports = async function handler(req, res) {
   const genOpts = { escalate: escalate, shown: shown };
 
   // One full generate-then-judge pass — Hermes' two calls, safety+taste
-  // running concurrently on the combined candidate set, then the
-  // pairwise final call between the top two by q (see lib/judge.js's
-  // judgePairwise). Factored into its own function because regenerate-if-
-  // weak (below) can run this exact sequence a second time — never more
-  // than once, whatever the second round's own result turns out to be.
+  // running concurrently on the combined candidate set. Factored into its
+  // own function because regenerate-if-weak (below) can run this exact
+  // sequence a second time — never more than once, whatever the second
+  // round's own result turns out to be.
   // Every timing lands in a LOCAL object, not the outer `stages` directly,
   // so running this twice doesn't leave `stages` reporting a discarded
   // round's numbers — the caller copies whichever round it actually keeps
@@ -603,13 +669,14 @@ module.exports = async function handler(req, res) {
     // not safety-then-taste gating what taste even sees (taste judges
     // every candidate in parallel with safety judging every candidate,
     // and only once both are back does a safety flag remove a candidate
-    // from the ranking), then the pairwise final between the top two by
-    // q. Factored out of what used to be this function's own inline body
-    // so the stall-rescue path below (a straggler landing just after
-    // everything else got eliminated) can re-run this exact judging on a
-    // second, smaller candidate list without duplicating it — the
-    // ordinary path just below calls this exactly once, same behavior as
-    // before this existed.
+    // from the ranking). Position 1 is simply the top-q survivor once
+    // that's done — no pairwise final anymore (see this file's own header
+    // comment). Factored out of what used to be this function's own
+    // inline body so the stall-rescue path below (a straggler landing
+    // just after everything else got eliminated) can re-run this exact
+    // judging on a second, smaller candidate list without duplicating it
+    // — the ordinary path just below calls this exactly once, same
+    // behavior as before this existed.
     //
     // lib/judge.js's judgeOneLine (safety, cheap model, one call per
     // candidate) and judgeCandidates (taste, expensive model, split into
@@ -727,41 +794,11 @@ module.exports = async function handler(req, res) {
         tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
       }
 
-      // Pairwise final: after gates and scoring, the top two by q get
-      // one head-to-head call — "which would make a stranger put the
-      // phone down and go show someone" — and the winner becomes
-      // position 1. Only meaningful when taste actually produced real q
-      // scores to pick a "top two" from; the fixed-lane-order fallback
-      // above has nothing worth comparing on. Swaps `survivors[0]`/
-      // `survivors[1]` in place when 2 wins — the position-selection
-      // loop in the outer handler stays exactly as it was, just starting
-      // from whichever candidate the pairwise call preferred. A failed
-      // or unparsable pairwise call just keeps taste's own order, same
-      // "degrade, don't block" pattern the taste judge itself follows.
-      let pairwiseNote = "";
-      let tPairwise = 0;
-      if (taste.ok && survivors.length >= 2) {
-        const pairwiseStarted = Date.now();
-        const pw = await judgePairwise(key, sent, survivors[0].candidate, survivors[1].candidate);
-        tPairwise = Date.now() - pairwiseStarted;
-        if (pw.winner === 2) {
-          const tmp = survivors[0];
-          survivors[0] = survivors[1];
-          survivors[1] = tmp;
-          pairwiseNote = "pairwise: swapped, 2 won (" + pw.latencyMs + "ms)";
-        } else if (pw.winner === 1) {
-          pairwiseNote = "pairwise: kept, 1 won (" + pw.latencyMs + "ms)";
-        } else {
-          pairwiseNote = "pairwise: no verdict (" + pw.reason + "), kept taste's order";
-        }
-      }
-
-      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, pairwiseNote: pairwiseNote, tJudge: tJudge, tPairwise: tPairwise };
+      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, tJudge: tJudge };
     }
 
     let judged = await judgeAndRank(allCandidates);
     t.t_judge += judged.tJudge;
-    t.t_pairwise += judged.tPairwise;
     let stragglerPickupCount = stragglersUsed.length;
 
     // Stall rescue: if every candidate in this round's own pool got
@@ -801,7 +838,6 @@ module.exports = async function handler(req, res) {
         } else {
           const rescued = await judgeAndRank(rescueCandidates);
           t.t_judge += rescued.tJudge;
-          t.t_pairwise += rescued.tPairwise;
           if (rescued.survivors.length) {
             judged = rescued;
             stragglerPickupCount += rescueCandidates.length;
@@ -816,7 +852,7 @@ module.exports = async function handler(req, res) {
 
     return {
       refuse: false, wildcard: wildcard, taste: judged.taste,
-      safetyNote: judged.safetyNote, tasteNote: judged.tasteNote, pairwiseNote: judged.pairwiseNote,
+      safetyNote: judged.safetyNote, tasteNote: judged.tasteNote,
       survivors: judged.survivors, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
       stallRescueNote: stallRescueNote
     };
@@ -899,12 +935,10 @@ module.exports = async function handler(req, res) {
   stages.t_wildcardB = round.t.t_wildcardB;
   stages.t_wildcard = round.t.t_wildcard;
   stages.t_judge = round.t.t_judge;
-  stages.t_pairwise = round.t.t_pairwise;
   const wildcard = round.wildcard;
   const taste = round.taste;
   const safetyNote = round.safetyNote;
   const tasteNote = round.tasteNote;
-  const pairwiseNote = round.pairwiseNote;
   const survivors = round.survivors;
   const lateGroupCount = round.lateGroupCount;
   const stragglerPickupCount = round.stragglerPickupCount;
@@ -988,7 +1022,6 @@ module.exports = async function handler(req, res) {
   stages.t_response = Date.now() - responseStarted;
   const why = "wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
-    (pairwiseNote ? " · " + pairwiseNote : "") +
     (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + ", best reaction " + firstRoundBestReaction + ")" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
@@ -998,12 +1031,10 @@ module.exports = async function handler(req, res) {
 
   const genTGen = wildcard.t_gen || null;
   const genProvider = wildcard.provider || null;
-  // Hermes' own three premises about the sent text, worked out before it
-  // wrote its own lanes (see lib/prompt.js's buildWildcardPrompt). Never
+  // Hermes' own premises — always null now that the wildcard prompt
+  // dropped premise-first (see lib/prompt.js's own header comment). Never
   // returned to the client's own display, only into `debug` for ?debug=1
-  // to read. A call that never got that far (parse failure, refusal,
-  // timeout) just carries null premises here, same as debugLines does for
-  // its own "nothing to show" case.
+  // to read.
   const premises = { wildcard: wildcard.premises || null };
 
   const t_total = Date.now() - requestStarted;
@@ -1018,6 +1049,24 @@ module.exports = async function handler(req, res) {
     console.log("escalation t_total=" + t_total + "ms (fetch this text has asked for since the original request)");
   }
 
+  const debug = {
+    wildcard: wildcard.debugLines || null,
+    judge: taste.ok ? taste.details : null,
+    premises: premises
+  };
+  const safetyField = { state: crisisResult.state, source: "classifier" };
+
+  // Result cache — only a real, successfully-generated first-show result
+  // (never escalation, never a stall) is worth serving again for
+  // RESULT_CACHE_TTL_MS: see cacheResult's own comment above for why
+  // escalation is excluded, and this file's own header for why the cache
+  // exists at all. A stall (no API key, or every candidate eliminated)
+  // isn't cached — a transient failure shouldn't become a sticky one for
+  // 24 hours.
+  if (!escalate && source === "model") {
+    cacheResult(sent, { drafts: drafts, source: source, why: why, provider: genProvider, weak_lead: weakLead, debug: debug, safety: safetyField });
+  }
+
   res.status(200).json({
     sent: sent,
     drafts: drafts,
@@ -1026,15 +1075,11 @@ module.exports = async function handler(req, res) {
     provider: genProvider,
     logged: logged,
     weak_lead: weakLead,
-    debug: {
-      wildcard: wildcard.debugLines || null,
-      judge: taste.ok ? taste.details : null,
-      premises: premises
-    },
+    debug: debug,
     t_gen: genTGen,
     t_judge: stages.t_judge,
     t_cold: stages.t_cold,
     t_total: t_total,
-    safety: { state: crisisResult.state, source: "classifier" }
+    safety: safetyField
   });
 };

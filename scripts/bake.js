@@ -148,12 +148,10 @@ const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, d
 async function runOneModel(model, input) {
   try {
     const { text, latencyMs, finishReason } = await callLLM(apiKey, model, input);
-    // Premise-first generation (see lib/prompt.js's buildWildcardPrompt)
-    // changed the wildcard call's own output contract from a bare array
-    // to {premises, candidates} — this harness only ever calls the
-    // wildcard builder (callLLM defaults to it — see lib/llm.js), so it
-    // needs the same extractor api/draft.js uses now, not the old
-    // bare-array one.
+    // The wildcard prompt's output contract is still {candidates: [...]}
+    // (premises: [] always now that premise-first is gone — see lib/
+    // prompt.js's own header) — extractPremiseCandidates handles that
+    // shape fine either way, same extractor api/draft.js uses.
     const parsedObj = extractPremiseCandidates(text);
     const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) {
