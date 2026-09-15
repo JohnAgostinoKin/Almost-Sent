@@ -22,6 +22,7 @@ const { composeDraft } = require("../lib/compose");
 const { judgeOneLine } = require("../lib/judge");
 const { maskPII } = require("../lib/mask");
 const { createLimiter } = require("../lib/rateLimit");
+const { tidy, normalizePunctuation, hasValidOpener, startsWithLetter } = require("../lib/postprocess");
 
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
 const limited = createLimiter();
@@ -76,7 +77,23 @@ module.exports = async function handler(req, res) {
 
   const body = readBody(req);
   const sent = String(body.sent || "").trim().slice(0, 500);
-  const line = String(body.text || "").trim().slice(0, 180);
+  // Same normalization lib/postprocess.js's filterLines applies to the
+  // AI's own output — tidy up typography, then guarantee a valid leading
+  // connector. A human typing into #contest-line almost always types a
+  // real continuation (see index.html's own primeContestLine), but
+  // nothing stops them from deleting the leading space and typing a
+  // capital letter straight through — without this, /wall's own
+  // composeParts (the same "sent muted, continuation bright" split
+  // renderDraft already does) would render that one entry as a bare
+  // standalone line instead of matching every other entry on the page.
+  // A line that starts with neither a connector nor a letter (a stray
+  // digit or symbol) is left as-is rather than guessed at — rare enough
+  // that /admin/entries' own manual review is where it actually gets
+  // sorted out, same as anything else that looks broken there.
+  let line = tidy(normalizePunctuation(String(body.text || "").trim().slice(0, 180)));
+  if (line && !hasValidOpener(line) && startsWithLetter(line)) {
+    line = ". " + line;
+  }
   const email = String(body.email || "").trim().slice(0, 200);
   const wallOk = body.wall_ok === true;
   const deviceId = String(body.device_id || "").trim().slice(0, 100);
