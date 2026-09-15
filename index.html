@@ -928,17 +928,31 @@
 
     // One escalation refetch — always an escalation-button click past an
     // exhausted pool (see the click handler below, the only caller); the
-    // overall 3-tap cap (tapCount) is what actually bounds how many of
-    // these can ever happen, not a separate fetch-specific limit. Sends
+    // one-tap cap (tapCount) is what actually bounds how many of these
+    // can ever happen, not a separate fetch-specific limit. Sends
     // escalate:true plus every line already revealed for this result
     // (pool up through cursor, read directly off
     // the closure rather than a param — see api/draft.js's handler and
     // lib/prompt.js's buildEscalateBlock for what the server does with
-    // them). Increments escalateFetches itself (so the caller doesn't have
-    // to remember to), and always resolves — a network failure just
-    // leaves the pool where it was, counted against the fetch cap same as
-    // a real attempt (still worth the cap either way, so a consistently-
-    // failing draft call can't be retried forever).
+    // them).
+    //
+    // Real production symptom: this hung for 45s in an outside test,
+    // with fetch() itself having no timeout of its own — the button just
+    // stayed disabled forever with nothing to tell the visitor it had
+    // failed. Traced server-side to regenerate-if-weak firing on an
+    // escalation refetch too, doubling an already-slow round (see api/
+    // draft.js's own fix, right where needsRegen is computed) — fixed
+    // there, and backstopped here regardless: ESCALATE_TIMEOUT_MS aborts
+    // client-side if the server still hasn't answered, same
+    // AbortController pattern lib/llm.js's own callLLM uses server-side.
+    //
+    // Returns { ok, reason } now instead of resolving bare — reason is
+    // "timeout" | "rate_limited" | "network" on failure, so the click
+    // handler below can tell a real "nothing came back" apart from a
+    // clear rate-limit message, and give the visitor's tap back either
+    // way rather than leaving the button permanently spent on a failure
+    // that wasn't their fault.
+    var ESCALATE_TIMEOUT_MS = 10000;
     async function fetchEscalation(sent) {
       fetchingEscalation = true;
       escalateFetches++;
@@ -948,12 +962,16 @@
         escalate: true,
         shown: pool.slice(0, cursor + 1).map(function (d) { return d.text; })
       };
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); }, ESCALATE_TIMEOUT_MS);
       try {
         var res = await fetch("/api/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(reqBody)
+          body: JSON.stringify(reqBody),
+          signal: controller.signal
         });
+        if (res.status === 429) return { ok: false, reason: "rate_limited" };
         var data = await res.json();
         // Same "log every safety decision" convention as the submit
         // handler — an escalation request always comes back state:
@@ -964,22 +982,23 @@
         // A "new text" click (or another submit) could land between firing
         // this and it resolving — `current` would have moved on by then.
         // Don't splice an escalation result for an old result onto a new one.
-        if (sent !== current) return;
+        if (sent !== current) return { ok: true };
         // Same "never a draft" rule as submitDraft's own stall check —
         // an escalation stall has nothing worth splicing into `pool`, so
-        // the caller's own `cursor + 1 < pool.length` check below just
-        // finds nothing new and leaves the button spent, same as a
-        // network failure already does. Logged here rather than left
-        // silent, same as any other stall.
+        // the caller treats this the same as any other failure (tap
+        // given back, "try again" shown) rather than silently leaving
+        // the button spent.
         if (data.source === "stall") {
           logEvent("stall", { reason: data.stall_reason || null });
-        } else if (data.drafts && data.drafts.length) {
-          pool = pool.concat(data.drafts);
+          return { ok: false, reason: "stall" };
         }
+        if (data.drafts && data.drafts.length) pool = pool.concat(data.drafts);
         if (DEBUG) renderDebug("escalation " + fetchNum, data);
+        return { ok: true };
       } catch (err) {
-        // pool unchanged this attempt — still counted against the fetch cap above.
+        return { ok: false, reason: (err && err.name === "AbortError") ? "timeout" : "network" };
       } finally {
+        clearTimeout(timer);
         fetchingEscalation = false;
       }
     }
@@ -1045,6 +1064,16 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sent: sent })
         });
+        // Checked before the body is even parsed — a 429 used to fall
+        // through to the generic {error:...} shape below with no
+        // `drafts`, rendering as the same "even the draft wouldn't send
+        // that" line a genuine refusal gets. A clear, specific message
+        // instead (see api/draft.js's own rate-limit response).
+        if (res.status === 429) {
+          gotResult = true;
+          alert("slow down — too many requests right now. try again in a moment.");
+          return;
+        }
         var data = await res.json();
         gotResult = true;
         // Every response carries a safety verdict now, not just a crisis
@@ -1216,8 +1245,27 @@
       // (tapCount, above) regardless of whether it lands here.
       var sent = current;
       anotherBtn.disabled = true;
-      await fetchEscalation(sent);
+      anotherBtn.textContent = "asking…";
+      var result = await fetchEscalation(sent);
       if (sent !== current) return; // moved on to a new result while this was in flight
+
+      // A failed attempt (timeout, rate-limited, network error, or a
+      // stall with nothing to show) gives the tap back rather than
+      // leaving the button permanently spent on something that wasn't
+      // the visitor's fault — see fetchEscalation's own comment for the
+      // real 45s hang this is the fix for. "try again" re-tries the
+      // exact same fetch on the next click, same code path, tapCount
+      // reset to 0 so it isn't immediately capped again.
+      if (result && !result.ok) {
+        tapCount = 0;
+        anotherBtn.disabled = false;
+        anotherBtn.textContent = "try again";
+        if (result.reason === "rate_limited") {
+          alert("slow down — too many requests right now. try again in a moment.");
+        }
+        return;
+      }
+
       if (cursor + 1 < pool.length) {
         cursor++;
         currentLane = pool[cursor].lane || null;

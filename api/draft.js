@@ -67,7 +67,10 @@
 // v3 already had; if the second round STILL doesn't clear the reaction
 // gate, this ships the best available anyway rather than failing a
 // request that already succeeded once — but logs weak_lead:true rather
-// than shipping silently, per the addendum's own instruction.
+// than shipping silently, per the addendum's own instruction. Never on
+// an escalation refetch, though — see needsRegen's own comment for the
+// real production hang (45s, no client-side timeout to ever give up on
+// it) that fix traces back to.
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
@@ -431,7 +434,15 @@ module.exports = async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
 
   const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (limited(ip)) { res.status(429).json({ error: "slow down" }); return; }
+  // A clear, specific message — this used to just say "slow down", which
+  // index.html's own submit handler had no special handling for at all:
+  // a 429 fell through to res.json() same as any other response, parsed
+  // as {error:...} with no `drafts`, and rendered as the generic "even
+  // the draft wouldn't send that" refusal line — indistinguishable from
+  // an actual refused input. index.html now checks res.status === 429
+  // before ever parsing the body, for both a first-show submit and an
+  // escalation fetch, and shows this message specifically.
+  if (limited(ip)) { res.status(429).json({ error: "slow down — too many requests. wait a moment and try again." }); return; }
 
   const parseStarted = Date.now();
   const body = readBody(req);
@@ -521,6 +532,12 @@ module.exports = async function handler(req, res) {
     // again for text that already cleared them once.
     const cached = getCachedResult(sent);
     if (cached) {
+      // This request was already counted against `ip`'s quota at the top
+      // of the handler, before it was known this would turn out to be
+      // free — undo that now (see lib/rateLimit.js's own release()). A
+      // repeated common input shouldn't burn down a visitor's rate limit
+      // for something that costs this server nothing.
+      limited.release(ip);
       res.status(200).json({
         sent: sent,
         drafts: cached.drafts,
@@ -980,11 +997,20 @@ module.exports = async function handler(req, res) {
   function bestQOf(r) { return r.survivors.length && r.survivors[0].q != null ? r.survivors[0].q : null; }
   function bestReactionOf(r) { return r.survivors.length && r.survivors[0].reaction != null ? r.survivors[0].reaction : null; }
 
+  // Never on an escalation refetch — a real production hang (45s in an
+  // outside test) traced back to exactly this: regenerate-if-weak used
+  // to fire regardless of `escalate`, so a weak-scoring "make it worse"
+  // round could pay for a SECOND full generate-then-judge round on top
+  // of an already-slow one, with no client-side timeout (see
+  // index.html's own fetchEscalation) to ever give up waiting. One tap
+  // now means one round, worst case, full stop — JUDGED_POOL_CAP already
+  // exists to keep an escalation round itself cheap; this is what
+  // actually keeps the ROUND COUNT from doubling on top of that.
   let regenerated = false;
   const firstRoundBestQ = bestQOf(round);
   const firstRoundBestReaction = bestReactionOf(round);
-  const needsRegen = (firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) ||
-    (firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE);
+  const needsRegen = !escalate && ((firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) ||
+    (firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE));
   if (needsRegen) {
     const regenRound = await runGenerationRound();
     if (!regenRound.refuse) {
