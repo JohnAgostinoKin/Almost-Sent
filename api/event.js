@@ -20,20 +20,27 @@ const { waitUntil } = require("@vercel/functions");
 //
 // "rate" is the one-tap 😂/😐/😬 reaction under a draft (see index.html's
 // #react buttons). meta carries { lane, value: "hit"|"meh"|"far",
-// position: 1|2|3, text }: `text` is this app's OWN generated
+// position: 1|2|3, text, source }: `text` is this app's OWN generated
 // continuation (pool[cursor].text on the client), not the pasted text the
 // visitor sent in — the "never store the user's text" rule this file's
 // own header states is about their words, not ours, and a rated line
 // needs its own text stored somewhere or it can never be recovered later.
-// scripts/hits.js pulls every "hit" (😂) row's `text` out of this table
-// and writes it to bible/hits.json, which lib/prompt.js rotates into the
+// `source` is the SAME "model" | "curated" | "stall" value draft_shown
+// already logs (currentSource on the client) — what actually lets
+// scripts/hits.js only ever pull a real, non-stall line into bible/
+// hits.json: a stall reaction would otherwise look identical to a real
+// one here, and did, once (see lib/postprocess.js's own stall-mimic
+// CRUTCHES entries for the bug this was covering for). scripts/hits.js
+// pulls every "hit" (😂) row with source "model" or "curated", writes
+// `text` to bible/hits.json, and lib/prompt.js rotates that into the
 // generator's own prompt as real-reaction examples. The wall's own single
 // 😂 button (see wall.html) fires the same event with meta.source: "wall"
-// and meta.entry_id (the entries.id it's reacting to) added — that
-// entry's own line, not a generated continuation, but the same "our
-// text, already public" reasoning applies (see api/entries.js).
-// api/wall.js reads entry_id back out to tally and show each entry's own
-// hit count on the wall.
+// instead — never pulled into hits.json, a contest entry is a human's
+// own writing, not the generator's voice — plus meta.entry_id (the
+// entries.id it's reacting to) added — that entry's own line, not a
+// generated continuation, but the same "our text, already public"
+// reasoning applies (see api/entries.js). api/wall.js reads entry_id
+// back out to tally and show each entry's own hit count on the wall.
 //
 // "entry" and "entry_email" are the contest submission (index.html's
 // #contest, api/entries.js) — logged from the client once the entry
