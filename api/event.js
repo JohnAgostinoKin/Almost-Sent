@@ -1,10 +1,13 @@
 // api/event.js
 //
-// Anonymous interaction logging — never the text itself. That's already
-// captured, on its own, in the `inbox` table via api/draft.js's remember().
-// This endpoint only ever writes a device id (a random value the client
-// generated and stored locally, tied to no identity), an event name from a
-// fixed whitelist, and a small structured `meta` object.
+// Anonymous interaction logging — never the visitor's OWN pasted text.
+// That's already captured, on its own, in the `inbox` table via api/
+// draft.js's remember(). This endpoint only ever writes a device id (a
+// random value the client generated and stored locally, tied to no
+// identity), an event name from a fixed whitelist, and a small structured
+// `meta` object — one exception below (the "rate" event's own `text`)
+// carries this app's OWN generated line, not the visitor's words, which
+// is a different thing than the rule above and never crosses it.
 
 const { createLimiter } = require("../lib/rateLimit");
 const { waitUntil } = require("@vercel/functions");
@@ -17,8 +20,14 @@ const { waitUntil } = require("@vercel/functions");
 //
 // "rate" is the one-tap 😂/😐/😬 reaction under a draft (see index.html's
 // #react buttons). meta carries { lane, value: "hit"|"meh"|"far",
-// position: 1|2|3 } — never the draft text itself, same "no text stored"
-// rule as every other event here.
+// position: 1|2|3, text }: `text` is this app's OWN generated
+// continuation (pool[cursor].text on the client), not the pasted text the
+// visitor sent in — the "never store the user's text" rule this file's
+// own header states is about their words, not ours, and a rated line
+// needs its own text stored somewhere or it can never be recovered later.
+// scripts/hits.js pulls every "hit" (😂) row's `text` out of this table
+// and writes it to bible/hits.json, which lib/prompt.js rotates into the
+// generator's own prompt as real-reaction examples.
 //
 // "safety" is logged once per api/draft.js request/response, whatever the
 // outcome — every response now carries a `safety` field (see the

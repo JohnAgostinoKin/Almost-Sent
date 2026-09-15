@@ -3,15 +3,15 @@
 //
 // Runs the first 100 inputs from bake/inputs.txt (the same locked 200-
 // input corpus scripts/bake-blind.js draws from) through the current
-// production engine — real Hermes (wildcard) + GPT-5.4 (primary)
-// generation, safety, and the taste judge's gates and scoring, the same
-// shape api/draft.js's own runGenerationRound uses — MINUS the pairwise
-// final call, which only ever decides ranking between two already-good
-// candidates and has nothing to contribute to a wide rating pool. Every
-// candidate that actually cleared taste's gates (a real, displayed-
-// quality line — not raw model output, not something safety would have
-// flagged) gets written to bible/lines.json, paired with the original
-// text it replied to.
+// production engine — real Hermes (wildcard, the only generator left as
+// of v6 — see lib/prompt.js's own header) generation, safety, and the
+// taste judge's gates and scoring, the same shape api/draft.js's own
+// runGenerationRound uses (api/draft.js's own pairwise final call is also
+// gone as of v6, so there's nothing this script was ever excluding on
+// that front either). Every candidate that actually cleared taste's
+// gates (a real, displayed-quality line — not raw model output, not
+// something safety would have flagged) gets written to bible/lines.json,
+// paired with the original text it replied to.
 //
 // scripts/bible-rate.html reads that file to show John real lines, in
 // context, to rate. As of the v4 reset, those ratings are archival —
@@ -24,10 +24,10 @@
 //   LLM_API_KEY=...      npm run bible-prep
 //   BIBLE_PREP_LIMIT=20  npm run bible-prep   # fewer inputs, for a cheaper test run
 //
-// Cost/time note: 100 inputs, each costing one Hermes call (seven
-// candidates) plus one GPT-5.4 call (two or three) plus up to ten safety
-// calls plus a taste judge call, is a real bill and a real wait — use
-// BIBLE_PREP_LIMIT for a smaller pass first. Results are written
+// Cost/time note: 100 inputs, each costing one Hermes call (six
+// candidates) plus up to six safety calls plus a taste judge call, is a
+// real bill and a real wait — use BIBLE_PREP_LIMIT for a smaller pass
+// first. Results are written
 // incrementally (flushed after every input), so an interrupted run
 // doesn't lose what it already paid for — re-running overwrites
 // bible/lines.json from scratch, it doesn't resume.
@@ -58,7 +58,7 @@ const { callLLM } = require("../lib/llm");
 const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
-const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan } = require("../lib/prompt");
+const { WILDCARD_MODEL, WILDCARD_LANE_PLAN } = require("../lib/prompt");
 
 // --- tiny .env loader (no dotenv dependency) — same as scripts/bake.js ---
 function loadDotEnv() {
@@ -97,13 +97,15 @@ function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
-// The two v4 generator calls — same builders, same premise-first output
-// shape (extractPremiseCandidates) api/draft.js's callOneGenerator uses
-// for both. No retry/fallback-model chain the way api/draft.js's
-// runGenerator has — a call that fails here just contributes zero
-// candidates for this input rather than costing a second call; this
-// script is prepping a wide pool from 100 inputs, not trying to guarantee
-// every single one produces something.
+// The one v6 generator call (Hermes/WILDCARD_MODEL — GENERATOR_MODEL and
+// the lanes it only ever wrote retired, see lib/prompt.js's own header).
+// Same builder, same premise-first {premises, candidates} output shape
+// (extractPremiseCandidates) api/draft.js's callOneGenerator uses. No
+// retry/fallback-model chain the way api/draft.js's runGenerator has — a
+// call that fails here just contributes zero candidates for this input
+// rather than costing a second call; this script is prepping a wide pool
+// from 100 inputs, not trying to guarantee every single one produces
+// something.
 async function callOneGenerator(model, lanes, kind, input) {
   try {
     const result = await callLLM(apiKey, model, input, { lanes: lanes, kind: kind });
@@ -125,11 +127,7 @@ async function callOneGenerator(model, lanes, kind, input) {
 // contributes nothing rather than guessing at "displayed quality"
 // without real scores to judge it by.
 async function processInput(input) {
-  const [wildcardLines, primaryLines] = await Promise.all([
-    callOneGenerator(WILDCARD_MODEL, WILDCARD_LANE_PLAN, "wildcard", input),
-    callOneGenerator(GENERATOR_MODEL, primaryLanePlan({}), "primary", input)
-  ]);
-  const allCandidates = wildcardLines.concat(primaryLines);
+  const allCandidates = await callOneGenerator(WILDCARD_MODEL, WILDCARD_LANE_PLAN, "wildcard", input);
   if (!allCandidates.length) return [];
 
   const [safetyVerdicts, taste] = await Promise.all([

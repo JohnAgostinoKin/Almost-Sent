@@ -35,7 +35,7 @@ The page will load. `/api/draft` only works with `vercel dev` or after deploy.
 
 1. Push this folder to a GitHub repo.
 2. Import the repo in Vercel.
-3. Add env var `LLM_API_KEY` (and `GENERATOR_MODEL`/`WILDCARD_MODEL`/`JUDGE_MODEL` once
+3. Add env var `LLM_API_KEY` (and `WILDCARD_MODEL`/`JUDGE_MODEL` once
    you've picked them — see `.env.example` and `npm run bake`).
 4. In the domain registrar, point `almostsent.app` to Vercel.
 5. In Vercel → Project → Domains → add `almostsent.app`.

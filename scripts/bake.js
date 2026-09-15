@@ -23,15 +23,14 @@ const { composeDraft } = require("../lib/compose");
 // table for voice/format quality, not as a preview of what a real visitor
 // would see filtered.
 //
-// Bakes lib/prompt.js's CURRENT "primary" generator prompt (v4: GPT-5.4's
-// confession/dark base plan — see buildPrimaryRequest, which
-// lib/llm.js's callLLM reaches for by default when no genOpts.kind is
-// given) across whatever models BAKE_MODELS names — useful for picking
-// GENERATOR_MODEL. It does not exercise the wildcard/Hermes call (shock/
-// raunchy/deranged/gross/wildcard — a fixed plan, not something worth
-// bake-testing across arbitrary models the way GENERATOR_MODEL's seat
-// is), the judge, or the retired v2 four-shape prompt — see lib/legacy/
-// and scripts/bake-blind.js for comparing against that.
+// Bakes lib/prompt.js's CURRENT wildcard generator prompt (v6: shock/
+// raunchy/gross, the entire engine now — see buildWildcardRequest, which
+// lib/llm.js's callLLM always reaches for; GENERATOR_MODEL and its
+// separate primary-generator builder retired along with the lanes it
+// only ever wrote) across whatever models BAKE_MODELS names — useful for
+// picking WILDCARD_MODEL. Does not exercise the judge, or the retired v2
+// four-shape prompt — see lib/legacy/ and scripts/bake-blind.js for
+// comparing against that.
 
 // --- tiny .env loader (no dotenv dependency) --------------------------
 function loadDotEnv() {
@@ -149,11 +148,12 @@ const EMPTY_DROPS = { droppedWords: 0, droppedSuspicious: 0, droppedCrutch: 0, d
 async function runOneModel(model, input) {
   try {
     const { text, latencyMs, finishReason } = await callLLM(apiKey, model, input);
-    // Premise-first generation (see lib/prompt.js's buildPrimaryPrompt)
-    // changed the primary call's own output contract from a bare array to
-    // {premises, candidates} — this harness only ever calls the primary
-    // builder (callLLM defaults to it — see lib/llm.js), so it needs the
-    // same extractor api/draft.js uses now, not the old bare-array one.
+    // Premise-first generation (see lib/prompt.js's buildWildcardPrompt)
+    // changed the wildcard call's own output contract from a bare array
+    // to {premises, candidates} — this harness only ever calls the
+    // wildcard builder (callLLM defaults to it — see lib/llm.js), so it
+    // needs the same extractor api/draft.js uses now, not the old
+    // bare-array one.
     const parsedObj = extractPremiseCandidates(text);
     const parsed = parsedObj && parsedObj.candidates;
     if (!parsed) {

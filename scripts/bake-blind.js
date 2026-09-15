@@ -11,8 +11,8 @@
 // afterward.
 //
 // This is NOT scripts/bake.js — that harness (still there, still useful)
-// runs the CURRENT "primary" (GPT-5.4/clever) prompt raw across models
-// with no judge pass at all, for a quick voice/format read. This one runs
+// runs the CURRENT wildcard (Hermes) prompt raw across models with no
+// judge pass at all, for a quick voice/format read. This one runs
 // each system's FULL pipeline (generation, safety, and — every system
 // but legacy v2 — the taste judge too) because the whole point here is
 // comparing what a visitor would actually be shown, not raw model output.
@@ -45,7 +45,7 @@ const { callLLM, BASE_URL, CHAT_URL } = require("../lib/llm");
 const { extractPremiseCandidates, normalizeItem, isRefusal, filterLines } = require("../lib/postprocess");
 const { judgeOneLine, judgeCandidates } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
-const { WILDCARD_MODEL, GENERATOR_MODEL, WILDCARD_LANE_PLAN, primaryLanePlan } = require("../lib/prompt");
+const { WILDCARD_MODEL, WILDCARD_LANE_PLAN } = require("../lib/prompt");
 
 // System A's full v2 pipeline — frozen, never the live lib/ versions (see
 // lib/legacy/prompt-v2.js's own header comment).
@@ -126,7 +126,7 @@ const SYSTEMS = [
   // lib/judge.js changed to support one.
   { key: "C", label: "gpt-5.4 (v3 lanes, frozen) + sol taste judge", kind: "v3", model: "openai/gpt-5.4", judgeModel: "openai/gpt-5.6-sol" },
   { key: "D", label: "sol (v3 lanes, frozen) + sol taste judge", kind: "v3", model: "openai/gpt-5.6-sol" },
-  { key: "G", label: "v4 (hermes crude + gpt-5.4 clever, live)", kind: "v4" }
+  { key: "G", label: "v6 (hermes crude, live, one generator)", kind: "v4" }
 ];
 
 const LLM_TIMEOUT_MS = 12000;
@@ -246,12 +246,13 @@ async function runV3Input(model, input, judgeModel) {
   }
 }
 
-// System G: v4's real pipeline, live — both generator calls (WILDCARD_
-// MODEL/Hermes' fixed seven-candidate plan, GENERATOR_MODEL/GPT-5.4's
-// base two-candidate plan), merged, safety-judged, then the live taste
-// judge (reaction/specificity/interchangeable — see lib/judge.js). No
-// pairwise, same "taste-ranking stage, not the final head-to-head
-// nuance" scope every other system in this file has.
+// System G: v6's real pipeline, live — Hermes/WILDCARD_MODEL is the only
+// generator now (GENERATOR_MODEL and the lanes it only ever wrote
+// retired — see lib/prompt.js's own header), safety-judged, then the
+// live taste judge (reaction/specificity/interchangeable — see lib/
+// judge.js). No pairwise (api/draft.js's own final call is gone too, as
+// of v6), same "taste-ranking stage, not a final head-to-head nuance"
+// scope every other system in this file has.
 async function runV4Input(input) {
   function parseOne(text) {
     const parsedObj = extractPremiseCandidates(text);
@@ -262,12 +263,9 @@ async function runV4Input(input) {
     return filterLines(items, input).kept;
   }
   try {
-    const [wildcardResult, primaryResult] = await Promise.all([
-      callLLM(apiKey, WILDCARD_MODEL, input, { lanes: WILDCARD_LANE_PLAN, kind: "wildcard" }),
-      callLLM(apiKey, GENERATOR_MODEL, input, { lanes: primaryLanePlan({}), kind: "primary" })
-    ]);
-    const allCandidates = parseOne(wildcardResult.text).concat(parseOne(primaryResult.text));
-    if (!allCandidates.length) return { input: input, top3: [], note: "no candidates from either call" };
+    const wildcardResult = await callLLM(apiKey, WILDCARD_MODEL, input, { lanes: WILDCARD_LANE_PLAN, kind: "wildcard" });
+    const allCandidates = parseOne(wildcardResult.text);
+    if (!allCandidates.length) return { input: input, top3: [], note: "no candidates" };
     const safetyVerdicts = await Promise.all(allCandidates.map(function (item) {
       return judgeOneLine(apiKey, composeDraft(input, item.text));
     }));

@@ -11,6 +11,7 @@
     "bake-tally": "node scripts/bake-tally.js",
     "bible-prep": "node scripts/bible-prep.js",
     "audit-prep": "node scripts/audit-prep.js",
+    "hits": "node scripts/hits.js",
     "crisis-test": "node scripts/crisis-test.js"
   },
   "dependencies": {

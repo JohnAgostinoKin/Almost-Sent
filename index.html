@@ -1026,15 +1026,19 @@
 
     // One tap on 😂/😐/😬, then the whole row greys out until the next draft
     // is shown (resetReact, called on initial render and on "another").
-    // Never logs the draft text itself — only its lane, the tapped value,
-    // and which of the (at most 3 visible) positions it was in.
+    // Logs the draft's own text (pool[cursor].text) alongside lane/value/
+    // position — that's this app's own generated continuation, not the
+    // pasted text the visitor sent in, so it's fine to store: see api/
+    // event.js's own header for the "never the pasted text" rule this
+    // doesn't cross. scripts/hits.js reads it back out to build bible/
+    // hits.json, so a rated line is actually recoverable later.
     reactButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
         if (reacted) return;
         reacted = true;
         reactButtons.forEach(function (b) { b.disabled = true; });
         btn.classList.add("picked");
-        logEvent("rate", { lane: currentLane, value: btn.dataset.value, position: cursor + 1 });
+        logEvent("rate", { lane: currentLane, value: btn.dataset.value, position: cursor + 1, text: String(pool[cursor].text || "").slice(0, 300) });
       });
     });
 

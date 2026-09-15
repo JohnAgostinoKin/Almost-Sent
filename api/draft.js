@@ -1,43 +1,34 @@
-// api/draft.js — v5: one lane pool, one room, GPT-5.4 only on escalation.
+// api/draft.js — v6: one model, one room, three lanes, everywhere.
 //
-// v4 fired both generator calls on every request — WILDCARD_MODEL (Hermes)
-// writing a fixed seven-candidate plan across shock/raunchy/deranged/
-// gross/wildcard, GENERATOR_MODEL (GPT-5.4) writing confession/dark (plus
-// absurd on an escalation refetch) — racing the same soft deadline. v5
-// moved GPT-5.4 to escalation-only: runGenerationRound below no longer
-// calls GENERATOR_MODEL at all unless `escalate` is true, so a first-show
-// request is one real model call, not two — that part hasn't changed
-// since. Which lanes Hermes writes on the first-show side has, twice: v5
-// first narrowed the room to raunchy/gross only (too far — every pool
-// collapsed into near-identical propositions, see lib/prompt.js's own
-// header), then restored shock/raunchy/deranged/gross as two distinct
-// three-candidate calls with raunchy gated by invitation. See lib/
-// prompt.js's own header for the current lane shape and why.
+// v5 fired Hermes (WILDCARD_MODEL) as two parallel calls on every
+// request, and GENERATOR_MODEL (GPT-5.4) as a third concurrent call on an
+// escalation refetch only, writing confession/dark/absurd. v6 retires
+// GENERATOR_MODEL and every lane it only ever wrote — see lib/prompt.js's
+// own header — so Hermes is the entire engine now, first tap through
+// escalation alike: runGenerationRound below fires exactly the same two
+// parallel calls (wildcardA/wildcardB) every time, `escalate` and `shown`
+// riding through genOpts into both regardless of which tap this is. There
+// is no third call, and no more skip-when-not-escalating stub to reason
+// about.
 //
 // One call, though, meant one BIG call — writing every candidate in a
 // single request left nothing partial for the soft deadline (below) to
 // fall back to; it was one slow call or nothing. runGenerationRound fires
 // Hermes as TWO parallel calls instead (wildcardA/wildcardB, see lib/
-// prompt.js's WILDCARD_LANE_PLAN_A/_B — different lane sets, not the same
-// lanes split in half), each faster than one big call would be, merged
-// back into a single `wildcard` result before safety/taste ever sees it —
-// every other consumer of `wildcard` in this file is unaffected. On an
-// escalation refetch, GENERATOR_MODEL joins as a third concurrent call,
-// writing confession/dark/absurd for the first time — same soft-deadline
-// race as before, just with three calls now instead of two on that path
-// (still exactly one call, the resolved zero-candidate stub, on a
-// first-show request).
+// prompt.js's WILDCARD_LANE_PLAN_A/_B — the same three lanes in each now,
+// not a split lane set), each faster than one big call would be, merged
+// back into a single `wildcard` result before safety/taste ever sees it.
 //
 // A later latency pass shrank Hermes' own per-call count (three
 // candidates a call, not four — lib/prompt.js's own header has the
 // current split), lowered GENERATION_SOFT_DEADLINE_MS to 3500ms, and
 // capped the judged candidate pool at JUDGED_POOL_CAP on an escalation
-// refetch specifically — GENERATOR_MODEL's own candidates plus a large
-// straggler cache could otherwise stack on top of a full fresh Hermes
-// batch, taking safety+taste well past what a "make it worse" tap should
-// cost. Stragglers only backfill the gap now (fresh generation short of
-// the cap), never pile on top of a full batch — see runGenerationRound's
-// own comment on JUDGED_POOL_CAP for the exact rule.
+// refetch specifically — a large straggler cache could otherwise stack on
+// top of a full fresh Hermes batch, taking safety+taste well past what a
+// "make it worse" tap should cost. Stragglers only backfill the gap now
+// (fresh generation short of the cap), never pile on top of a full batch
+// — see runGenerationRound's own comment on JUDGED_POOL_CAP for the exact
+// rule.
 //
 // t_cold (module-load-to-request gap — see MODULE_LOADED_AT below) is now
 // console.log'd unconditionally, before any branch, and carried on every
@@ -70,7 +61,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { GENERATOR_MODEL, WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, primaryLanePlan, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
@@ -131,10 +122,9 @@ function newStages() {
     t_cold: 0,
     t_parse: 0,
     t_block: 0,
-    t_wildcardA: 0, // wall-clock of Hermes call A (shock, raunchy, deranged), including any retry/fallback — runs parallel to B and to primary
-    t_wildcardB: 0, // wall-clock of Hermes call B (shock, raunchy, gross) — see this file's own header comment for why the room is split into two calls now
+    t_wildcardA: 0, // wall-clock of Hermes call A (shock, raunchy, gross), including any retry/fallback — runs parallel to B
+    t_wildcardB: 0, // wall-clock of Hermes call B (shock, raunchy, gross) — see this file's own header comment for why the room is split into two calls
     t_wildcard: 0,  // max(t_wildcardA, t_wildcardB) — the wall-clock cost of the Hermes step as a whole, not their sum
-    t_primary: 0,  // wall-clock of the GPT-5.4 (clever) generator call, including any retry/fallback — runs parallel to both Hermes halves
     t_judge: 0,    // wall-clock of safety+taste running CONCURRENTLY (see the handler) — not their sum
     t_pairwise: 0, // the one head-to-head call between the top two by q (see judgePairwise) — 0 when there weren't two real survivors to compare
     t_response: 0
@@ -143,7 +133,7 @@ function newStages() {
 
 function formatStages(s) {
   return "t_cold=" + s.t_cold + "ms t_parse=" + s.t_parse + "ms t_block=" + s.t_block + "ms" +
-    " t_wildcardA=" + s.t_wildcardA + "ms t_wildcardB=" + s.t_wildcardB + "ms t_wildcard=" + s.t_wildcard + "ms t_primary=" + s.t_primary + "ms" +
+    " t_wildcardA=" + s.t_wildcardA + "ms t_wildcardB=" + s.t_wildcardB + "ms t_wildcard=" + s.t_wildcard + "ms" +
     " t_judge=" + s.t_judge + "ms t_pairwise=" + s.t_pairwise + "ms t_response=" + s.t_response + "ms";
 }
 
@@ -154,17 +144,15 @@ function readBody(req) {
   return body;
 }
 
-// One call to one generator (wildcard/Hermes or primary/GPT-5.4). `kind`
-// picks which lib/prompt.js builder callLLM reaches for (see lib/llm.js)
-// and is carried into `why`/logs for ?debug=1. Both generators now parse
-// the same premise-first {premises, candidates} shape
-// (extractPremiseCandidates — see lib/prompt.js's buildWildcardPrompt/
-// buildPrimaryPrompt) — v3 only gave this treatment to the primary call;
-// v4 applies premise-first to both, since it's a mechanic worth keeping
-// regardless of which model or how many lanes a given call is writing
-// (see the v4 brief's own "keep from v3" list). `premises` rides on the
-// returned result purely for api/draft.js's handler to fold into `debug`
-// — never shown to a visitor.
+// One call to the wildcard/Hermes generator — the only generator left
+// (see this file's own header). `kind` is carried into `why`/logs for
+// ?debug=1 and into callLLM's genOpts, though lib/llm.js itself no longer
+// branches on it now that buildWildcardRequest is its only builder. The
+// wildcard prompt still parses the premise-first {premises, candidates}
+// shape (extractPremiseCandidates — see lib/prompt.js's
+// buildWildcardPrompt). `premises` rides on the returned result purely
+// for api/draft.js's handler to fold into `debug` — never shown to a
+// visitor.
 async function callOneGenerator(key, model, sent, kind, genOpts) {
   try {
     const result = await callLLM(key, model, sent, Object.assign({ kind: kind }, genOpts));
@@ -203,9 +191,8 @@ function tagModel(result, model, note) {
 // retry on the SAME model (temperature is 1.0, so a second draw is often
 // clean even when the first wasn't); an outright refusal, parse failure,
 // or thrown error gets one attempt on FALLBACK_MODEL instead — a
-// different provider entirely from either GENERATOR_MODEL or
-// WILDCARD_MODEL, so a bad day for one upstream doesn't take out both
-// attempts.
+// different provider entirely from WILDCARD_MODEL, so a bad day for one
+// upstream doesn't take out both attempts.
 const FALLBACK_MODEL = "mistralai/mistral-large-2512";
 async function runGenerator(key, model, sent, kind, genOpts) {
   const first = await callOneGenerator(key, model, sent, kind, genOpts);
@@ -461,9 +448,9 @@ module.exports = async function handler(req, res) {
 
   const genOpts = { escalate: escalate, shown: shown };
 
-  // One full generate-then-judge pass — the Hermes and GPT-5.4 calls,
-  // safety+taste running concurrently on the combined candidate set, then
-  // the pairwise final call between the top two by q (see lib/judge.js's
+  // One full generate-then-judge pass — Hermes' two calls, safety+taste
+  // running concurrently on the combined candidate set, then the
+  // pairwise final call between the top two by q (see lib/judge.js's
   // judgePairwise). Factored into its own function because regenerate-if-
   // weak (below) can run this exact sequence a second time — never more
   // than once, whatever the second round's own result turns out to be.
@@ -472,21 +459,20 @@ module.exports = async function handler(req, res) {
   // round's numbers — the caller copies whichever round it actually keeps
   // into `stages` once that's decided.
   async function runGenerationRound() {
-    const t = { t_wildcardA: 0, t_wildcardB: 0, t_wildcard: 0, t_primary: 0, t_judge: 0, t_pairwise: 0 };
+    const t = { t_wildcardA: 0, t_wildcardB: 0, t_wildcard: 0, t_judge: 0 };
 
     // Each call's own slot, plus whether it's settled yet — the soft
     // deadline below needs to inspect exactly which calls are already
-    // done at the 4500ms mark, not just "some subset finished." The
-    // promise itself is untouched either way: a call past the deadline
-    // isn't cancelled, it just isn't awaited for this response — see the
-    // soft-deadline branch below for what happens to it instead. Three
-    // slots now, not two — wildcardA/wildcardB are the two halves of the
-    // Hermes room (see this file's own header comment for why one big
-    // call became two smaller parallel ones).
+    // done at the deadline, not just "some subset finished." The promise
+    // itself is untouched either way: a call past the deadline isn't
+    // cancelled, it just isn't awaited for this response — see the
+    // soft-deadline branch below for what happens to it instead.
+    // wildcardA/wildcardB are the two halves of the Hermes room (see this
+    // file's own header comment for why one big call became two smaller
+    // parallel ones) — the only two calls this function ever makes now.
     const slots = {
       wildcardA: { settled: false, result: null },
-      wildcardB: { settled: false, result: null },
-      primary: { settled: false, result: null }
+      wildcardB: { settled: false, result: null }
     };
     const wildcardAStarted = Date.now();
     const wildcardAPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts))
@@ -494,25 +480,11 @@ module.exports = async function handler(req, res) {
     const wildcardBStarted = Date.now();
     const wildcardBPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
       .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
-    // GENERATOR_MODEL only ever runs on an escalation refetch now — the
-    // first-show room is entirely Hermes (see this file's own header
-    // comment and lib/prompt.js's). A first-show request never pays for or
-    // waits on this call at all: it resolves immediately with zero
-    // candidates, same shape a real call's result would have, so nothing
-    // downstream (soft deadline, safety/taste, `why`) needs to know the
-    // difference.
-    const primaryStarted = Date.now();
-    const primaryPromise = (escalate
-      ? runGenerator(key, GENERATOR_MODEL, sent, "primary", Object.assign({ lanes: primaryLanePlan(genOpts) }, genOpts))
-      : Promise.resolve({ lines: [], why: "skipped — first-show room is Hermes only (shock/raunchy/deranged/gross), confession/dark/absurd are escalation-only", provider: null, premises: null }))
-      .then(function (r) { t.t_primary = Date.now() - primaryStarted; slots.primary.settled = true; slots.primary.result = r; return r; });
-    const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise, primary: primaryPromise };
+    const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise };
 
-    // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for all three
-    // calls. If all are done by then (the common case — this is a race
-    // against a timer, not a fixed delay, and splitting Hermes into two
-    // smaller calls makes this the common case far more often than the
-    // old single six-candidate call did), this behaves exactly like the
+    // Soft deadline: wait up to GENERATION_SOFT_DEADLINE_MS for both
+    // calls. If both are done by then (the common case — this is a race
+    // against a timer, not a fixed delay), this behaves exactly like the
     // plain Promise.all it replaces. If the deadline wins instead, check
     // what's actually in hand: MIN_CANDIDATES_FOR_SOFT_DEADLINE or more
     // real candidates already resolved is enough to start judging now
@@ -527,12 +499,10 @@ module.exports = async function handler(req, res) {
     // sooner," never "wait less when everything's already fast."
     //
     // MIN_CANDIDATES_FOR_SOFT_DEADLINE tracks whatever one Hermes half's
-    // own count is (WILDCARD_LANE_PLAN_A/_B's length) — a first-show
-    // request's primary is always the zero-candidate stub, so the
-    // threshold has to be clearable by ONE half landing alone, or it's
-    // not really a soft deadline firing, just Promise.all resolving early
-    // once BOTH halves happen to finish. Was 4 when each half wrote four
-    // candidates; now 3, matching each half's own three.
+    // own count is (WILDCARD_LANE_PLAN_A/_B's length) — the threshold has
+    // to be clearable by ONE half landing alone, or it's not really a
+    // soft deadline firing, just Promise.all resolving early once BOTH
+    // halves happen to finish.
     const GENERATION_SOFT_DEADLINE_MS = 3500;
     const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 3;
     let lateGroupCount = 0;
@@ -542,14 +512,13 @@ module.exports = async function handler(req, res) {
     // still a call in flight worth waiting a little longer for, on the
     // rare request where everything else got eliminated.
     let pendingPromisesInFlight = [];
-    await Promise.race([Promise.all([wildcardAPromise, wildcardBPromise, primaryPromise]), sleep(GENERATION_SOFT_DEADLINE_MS)]);
+    await Promise.race([Promise.all([wildcardAPromise, wildcardBPromise]), sleep(GENERATION_SOFT_DEADLINE_MS)]);
 
     const pendingKeys = Object.keys(slots).filter(function (k) { return !slots[k].settled; });
-    let wildcardA, wildcardB, primaryResult;
+    let wildcardA, wildcardB;
     if (!pendingKeys.length) {
       wildcardA = slots.wildcardA.result;
       wildcardB = slots.wildcardB.result;
-      primaryResult = slots.primary.result;
     } else {
       const inHandCount = Object.keys(slots).reduce(function (sum, k) { return sum + (slots[k].settled ? (slots[k].result.lines || []).length : 0); }, 0);
       if (inHandCount >= MIN_CANDIDATES_FOR_SOFT_DEADLINE) {
@@ -557,7 +526,6 @@ module.exports = async function handler(req, res) {
         const pendingFallback = { lines: [], why: "pending past " + GENERATION_SOFT_DEADLINE_MS + "ms soft deadline", provider: null, premises: null };
         wildcardA = slots.wildcardA.settled ? slots.wildcardA.result : pendingFallback;
         wildcardB = slots.wildcardB.settled ? slots.wildcardB.result : pendingFallback;
-        primaryResult = slots.primary.settled ? slots.primary.result : pendingFallback;
         // The pending call(s) are already running — nothing to cancel,
         // nothing more to await here. waitUntil just keeps the function
         // alive long enough for them to actually finish (rather than the
@@ -582,10 +550,9 @@ module.exports = async function handler(req, res) {
             .catch(function () {})
         );
       } else {
-        const all = await Promise.all([wildcardAPromise, wildcardBPromise, primaryPromise]);
+        const all = await Promise.all([wildcardAPromise, wildcardBPromise]);
         wildcardA = all[0];
         wildcardB = all[1];
-        primaryResult = all[2];
       }
     }
 
@@ -593,9 +560,7 @@ module.exports = async function handler(req, res) {
     // shape every downstream consumer already expects (lines/why/
     // provider/premises/debugLines/t_gen/skip) — nothing past this point
     // in the function, or in the outer handler, needs to know there were
-    // two calls instead of one. `skip` is true if EITHER half refused,
-    // same "either refusal is a full refusal" reasoning the wildcard/
-    // primary check just below already applies.
+    // two calls instead of one. `skip` is true if EITHER half refused.
     const wildcard = {
       skip: !!(wildcardA.skip || wildcardB.skip),
       lines: (wildcardA.lines || []).concat(wildcardB.lines || []),
@@ -607,16 +572,9 @@ module.exports = async function handler(req, res) {
     };
     t.t_wildcard = Math.max(t.t_wildcardA || 0, t.t_wildcardB || 0);
 
-    // Either generator declining outright is a full refusal. v3 only gave
-    // this treatment to the (several) primary calls, since a lone
-    // wildcard refusal was two lanes' worth of "no" next to eight lanes
-    // of real output — that asymmetry doesn't hold in v4: wildcard/Hermes
-    // is now the bulk call (seven of nine-or-ten candidates), and both
-    // prompts share the exact same "abusive, sexual toward a minor, or a
-    // threat" skip instruction, so a refusal from either side carries the
-    // same signal.
-    if (wildcard.skip || primaryResult.skip) {
-      return { refuse: true, wildcard: wildcard, primaryResult: primaryResult, t: t };
+    // Hermes is the only generator — declining outright is a full refusal.
+    if (wildcard.skip) {
+      return { refuse: true, wildcard: wildcard, t: t };
     }
 
     // On an escalation request specifically, pick up any stragglers an
@@ -626,17 +584,16 @@ module.exports = async function handler(req, res) {
     // is the ordinary case — most escalation requests won't have a
     // straggler waiting for them.
     const stragglers = escalate ? takeStragglers(sent) : [];
-    const freshCandidates = (wildcard.lines || []).concat(primaryResult.lines || []);
+    const freshCandidates = wildcard.lines || [];
     // Judged pool cap — relevant on an escalation refetch specifically;
     // first-show's own fresh candidates never get close to this on their
-    // own (six candidates from Hermes, primary stubbed to zero — see this
-    // file's own header comment). On escalation, primary contributes up
-    // to three more and a large straggler cache could otherwise pile on
-    // top of a full fresh batch, taking safety+taste's own latency well
-    // past what a "make it worse" tap should cost. Stragglers only
-    // BACKFILL — they fill the gap when this round's own fresh generation
-    // came back short of the cap, never just get appended on top of a
-    // full one.
+    // own (six candidates from Hermes — see this file's own header
+    // comment). On escalation, a large straggler cache could otherwise
+    // pile on top of a full fresh batch, taking safety+taste's own
+    // latency well past what a "make it worse" tap should cost.
+    // Stragglers only BACKFILL — they fill the gap when this round's own
+    // fresh generation came back short of the cap, never just get
+    // appended on top of a full one.
     const JUDGED_POOL_CAP = 8;
     const backfillRoom = Math.max(0, JUDGED_POOL_CAP - freshCandidates.length);
     const stragglersUsed = stragglers.slice(0, backfillRoom);
@@ -820,12 +777,12 @@ module.exports = async function handler(req, res) {
     // this existed.
     //
     // Known gap: a successful rescue swaps in the rescued survivors but
-    // doesn't retroactively update `wildcard`/`primaryResult` (still
-    // whichever placeholder they got at the soft deadline) — the actual
-    // response ships the rescued draft correctly, `?debug=1`'s per-
-    // generator panel just won't show where it came from. Not worth the
-    // extra bookkeeping for a rescue that, by definition, only fires when
-    // the ordinary path already came back with nothing to show.
+    // doesn't retroactively update `wildcard` (still whichever
+    // placeholder it got at the soft deadline) — the actual response
+    // ships the rescued draft correctly, `?debug=1`'s own generator panel
+    // just won't show where it came from. Not worth the extra bookkeeping
+    // for a rescue that, by definition, only fires when the ordinary path
+    // already came back with nothing to show.
     let stallRescueNote = "";
     if (!judged.survivors.length && pendingPromisesInFlight.length) {
       const STALL_RESCUE_DEADLINE_MS = 2000;
@@ -858,7 +815,7 @@ module.exports = async function handler(req, res) {
     }
 
     return {
-      refuse: false, wildcard: wildcard, primaryResult: primaryResult, taste: judged.taste,
+      refuse: false, wildcard: wildcard, taste: judged.taste,
       safetyNote: judged.safetyNote, tasteNote: judged.tasteNote, pairwiseNote: judged.pairwiseNote,
       survivors: judged.survivors, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
       stallRescueNote: stallRescueNote
@@ -941,11 +898,9 @@ module.exports = async function handler(req, res) {
   stages.t_wildcardA = round.t.t_wildcardA;
   stages.t_wildcardB = round.t.t_wildcardB;
   stages.t_wildcard = round.t.t_wildcard;
-  stages.t_primary = round.t.t_primary;
   stages.t_judge = round.t.t_judge;
   stages.t_pairwise = round.t.t_pairwise;
   const wildcard = round.wildcard;
-  const primaryResult = round.primaryResult;
   const taste = round.taste;
   const safetyNote = round.safetyNote;
   const tasteNote = round.tasteNote;
@@ -1032,7 +987,6 @@ module.exports = async function handler(req, res) {
 
   stages.t_response = Date.now() - responseStarted;
   const why = "wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
-    " · primary: " + (primaryResult.skip ? "skipped" : (primaryResult.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
     (pairwiseNote ? " · " + pairwiseNote : "") +
     (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + ", best reaction " + firstRoundBestReaction + ")" : "") +
@@ -1042,16 +996,15 @@ module.exports = async function handler(req, res) {
     (stallRescueNote ? " · " + stallRescueNote : "") +
     " · stages: " + formatStages(stages);
 
-  const genTGen = Math.max(wildcard.t_gen || 0, primaryResult.t_gen || 0) || null;
-  const genProvider = primaryResult.provider || wildcard.provider || null;
-  // Two entries — one per generator call — each carrying whichever three
-  // premises that call worked out about the sent text before writing its
-  // own lanes (see lib/prompt.js's buildWildcardPrompt/buildPrimaryPrompt).
-  // Never returned to the client's own display, only into `debug` for
-  // ?debug=1 to read. A call that never got that far (parse failure,
-  // refusal, timeout) just carries null premises here, same as
-  // debugLines does for its own "nothing to show" case.
-  const premises = { wildcard: wildcard.premises || null, primary: primaryResult.premises || null };
+  const genTGen = wildcard.t_gen || null;
+  const genProvider = wildcard.provider || null;
+  // Hermes' own three premises about the sent text, worked out before it
+  // wrote its own lanes (see lib/prompt.js's buildWildcardPrompt). Never
+  // returned to the client's own display, only into `debug` for ?debug=1
+  // to read. A call that never got that far (parse failure, refusal,
+  // timeout) just carries null premises here, same as debugLines does for
+  // its own "nothing to show" case.
+  const premises = { wildcard: wildcard.premises || null };
 
   const t_total = Date.now() - requestStarted;
   // Escalation latency specifically — this whole round of changes exists
@@ -1074,7 +1027,6 @@ module.exports = async function handler(req, res) {
     logged: logged,
     weak_lead: weakLead,
     debug: {
-      primary: primaryResult.debugLines || null,
       wildcard: wildcard.debugLines || null,
       judge: taste.ok ? taste.details : null,
       premises: premises
