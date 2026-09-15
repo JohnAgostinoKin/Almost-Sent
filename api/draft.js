@@ -62,15 +62,15 @@
 //
 // v4 adds one more hard gate past taste's own five (see the v4 addendum,
 // section F): position 1 must score reaction >= REACTION_LEAD_GATE. A
-// weak first round (either this gate or the pre-existing q-based
-// REGEN_THRESHOLD) triggers the same one-extra-round regenerate-if-weak
-// v3 already had; if the second round STILL doesn't clear the reaction
-// gate, this ships the best available anyway rather than failing a
-// request that already succeeded once — but logs weak_lead:true rather
-// than shipping silently, per the addendum's own instruction. Never on
-// an escalation refetch, though — see needsRegen's own comment for the
-// real production hang (45s, no client-side timeout to ever give up on
-// it) that fix traces back to.
+// weak first round triggers the same one-extra-round regenerate-if-weak
+// v3 already had — reaction alone now (the old q-based REGEN_THRESHOLD
+// is gone; see needsRegen's own comment for why); if the second round
+// STILL doesn't clear the reaction gate, this ships the best available
+// anyway rather than failing a request that already succeeded once —
+// but logs weak_lead:true rather than shipping silently, per the
+// addendum's own instruction. Never on an escalation refetch, though —
+// see needsRegen's own comment for the real production hang (45s, no
+// client-side timeout to ever give up on it) that fix traces back to.
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
@@ -987,32 +987,24 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Regenerate-if-weak, v4: two separate triggers, either one is enough to
-  // spend one extra round. v3 only had the q-based one (REGEN_THRESHOLD,
-  // re-tuned here for v4's new q range — see this file's own comment on
-  // the constant); the addendum (section F) adds a hard floor on top:
-  // position 1 must score reaction >= REACTION_LEAD_GATE, since a
-  // technically-decent q with no actual reaction is exactly the BORED
-  // failure mode lib/judge.js's calibration block is built to name. Capped
-  // at exactly one extra round no matter how the second round itself
-  // scores — this is a retry, not a search for perfect. A second round
-  // that comes back an outright refusal just keeps the first round's
-  // (already-known-good) result rather than failing a request that had
-  // already succeeded once.
-  //
-  // REGEN_THRESHOLD's default changed from v3's 30 — that was calibrated
-  // against a formula whose max was roughly 80; v4's formula
-  // (2*reaction + specificity - interchangeable) maxes out at 30, so a
-  // literal 30 threshold would now mean "regenerate unless it's perfect,"
-  // never actually clearing. 11 is a provisional rescale (roughly the same
-  // fraction of the new max v3's 30 was of the old one) — the v4 brief
-  // (section 6) calls for running the full corpus once real traffic exists
-  // and setting this at the 30th percentile of real top scores instead;
-  // that's an operational step this commit can't responsibly fake a number
-  // for without actually running it.
-  const REGEN_THRESHOLD = Number(process.env.REGEN_THRESHOLD) || 11;
+  // Regenerate-if-weak, on the reaction gate alone now. v4 originally had
+  // two separate triggers — a q-based REGEN_THRESHOLD (carried over from
+  // v3, re-tuned for v4's new formula) plus this reaction floor — but
+  // REGEN_THRESHOLD was calibrated against a q range that's since moved
+  // out from under it (lib/prompt.js's own lane cuts and judge rewrites
+  // changed what a "good" q even looks like) and was firing on almost
+  // every request, not just the weak ones it was meant to catch. Gone
+  // entirely rather than re-calibrated again — REACTION_LEAD_GATE is the
+  // one number that's actually meant something consistent across every
+  // rewrite: does position 1 clear reaction >= 6, the same floor the v4
+  // addendum (section F) added to name the BORED failure mode (a
+  // technically-decent q with no actual reaction) lib/judge.js's
+  // calibration block exists to catch. Capped at exactly one extra round
+  // no matter how the second round itself scores — this is a retry, not
+  // a search for perfect. A second round that comes back an outright
+  // refusal just keeps the first round's (already-known-good) result
+  // rather than failing a request that had already succeeded once.
   const REACTION_LEAD_GATE = 6;
-  function bestQOf(r) { return r.survivors.length && r.survivors[0].q != null ? r.survivors[0].q : null; }
   function bestReactionOf(r) { return r.survivors.length && r.survivors[0].reaction != null ? r.survivors[0].reaction : null; }
 
   // Never on an escalation refetch — a real production hang (45s in an
@@ -1025,10 +1017,8 @@ module.exports = async function handler(req, res) {
   // exists to keep an escalation round itself cheap; this is what
   // actually keeps the ROUND COUNT from doubling on top of that.
   let regenerated = false;
-  const firstRoundBestQ = bestQOf(round);
   const firstRoundBestReaction = bestReactionOf(round);
-  const needsRegen = !escalate && ((firstRoundBestQ != null && firstRoundBestQ < REGEN_THRESHOLD) ||
-    (firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE));
+  const needsRegen = !escalate && firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE;
   if (needsRegen) {
     const regenRound = await runGenerationRound();
     if (!regenRound.refuse) {
@@ -1136,7 +1126,7 @@ module.exports = async function handler(req, res) {
   stages.t_response = Date.now() - responseStarted;
   const why = "wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
-    (regenerated ? " · regen: true (first round best q " + firstRoundBestQ + ", best reaction " + firstRoundBestReaction + ")" : "") +
+    (regenerated ? " · regen: true (first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
