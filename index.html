@@ -104,15 +104,20 @@
     .crisis-msg a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
     /* Everything below the message is joke-app chrome — reactions, share,
        reroll, the contest pitch — none of it belongs next to a crisis
-       response. See index.html's submit handler for when this gets set. */
-    #out.crisis-mode #out-draft,
-    #out.crisis-mode .react,
-    #out.crisis-mode #share-icons,
-    #out.crisis-mode #card-controls,
-    #out.crisis-mode #save-image-fallback,
-    #out.crisis-mode #social-download-feedback,
-    #out.crisis-mode .worse,
-    #out.crisis-mode #contest { display:none; }
+       response, and none of it belongs next to a stall either (a stall
+       is never a draft — see #stall-msg/#stall-retry below and
+       showStall() in the script). :is() shares one selector list across
+       both modes rather than writing every line out twice. */
+    #out:is(.crisis-mode, .stall-mode) #out-draft,
+    #out:is(.crisis-mode, .stall-mode) .react,
+    #out:is(.crisis-mode, .stall-mode) #share-icons,
+    #out:is(.crisis-mode, .stall-mode) #card-controls,
+    #out:is(.crisis-mode, .stall-mode) #save-image-fallback,
+    #out:is(.crisis-mode, .stall-mode) #social-download-feedback,
+    #out:is(.crisis-mode, .stall-mode) .worse,
+    #out:is(.crisis-mode, .stall-mode) #contest { display:none; }
+    #out.crisis-mode #stall-row, #out.stall-mode #crisis-msg { display:none; }
+    #stall-row button { margin-top:14px; }
     .react { display:flex; gap:8px; margin-top:16px; }
     .react button { width:auto; padding:8px 13px; font-size:20px; line-height:1; background:transparent; border:1px solid #2a2a2a; color:var(--fg); }
     .react button:hover:not(:disabled) { border-color:#3d3d3d; }
@@ -203,6 +208,18 @@
            crisis pre-check (lib/crisis.js) flags the pasted text — a
            plain, serious line, not a joke that just failed to generate. -->
       <p class="crisis-msg hidden" id="crisis-msg"></p>
+      <!-- Shown instead of #out-draft, everything else in this section
+           hidden the same way crisis-mode hides it (see #out.stall-mode
+           above), when the server comes back source:"stall" — a stall
+           is a failure, never a draft, and it never used to read as one
+           on screen even though the server's own stallLine() text (or
+           the "no api key"/refusal fallback) got rendered straight into
+           .draft like a real joke. showStall() in the script is what
+           sets this. -->
+      <div class="hidden" id="stall-row">
+        <p class="crisis-msg" id="stall-msg">couldn't write that one — try again</p>
+        <button type="button" id="stall-retry">try again</button>
+      </div>
       <!-- Reactions sit directly under the draft now — a small inline
            row, left-aligned (.react's own flex default), before
            escalation rather than after it. -->
@@ -365,6 +382,8 @@
     var sentEl = document.getElementById("sent");
     var draftEl = document.getElementById("out-draft");
     var crisisMsgEl = document.getElementById("crisis-msg");
+    var stallRowEl = document.getElementById("stall-row");
+    var stallRetryEl = document.getElementById("stall-retry");
     var outEl = document.getElementById("out");
     // One share row now (#share-icons) — see this file's own git history
     // for the second copy that used to live under the collapsed "beat
@@ -841,9 +860,13 @@
     function reset() {
       outEl.classList.add("hidden");
       outEl.classList.remove("crisis-mode");
+      outEl.classList.remove("stall-mode");
       exampleEl.classList.remove("hidden");
       crisisMsgEl.classList.add("hidden");
       crisisMsgEl.textContent = "";
+      stallRowEl.classList.add("hidden");
+      stallRetryEl.disabled = false;
+      stallRetryEl.textContent = "try again";
       sentEl.value = "";
       sentEl.readOnly = false;
       setShareDisabled(true);
@@ -942,7 +965,17 @@
         // this and it resolving — `current` would have moved on by then.
         // Don't splice an escalation result for an old result onto a new one.
         if (sent !== current) return;
-        if (data.drafts && data.drafts.length) pool = pool.concat(data.drafts);
+        // Same "never a draft" rule as submitDraft's own stall check —
+        // an escalation stall has nothing worth splicing into `pool`, so
+        // the caller's own `cursor + 1 < pool.length` check below just
+        // finds nothing new and leaves the button spent, same as a
+        // network failure already does. Logged here rather than left
+        // silent, same as any other stall.
+        if (data.source === "stall") {
+          logEvent("stall", { reason: data.stall_reason || null });
+        } else if (data.drafts && data.drafts.length) {
+          pool = pool.concat(data.drafts);
+        }
         if (DEBUG) renderDebug("escalation " + fetchNum, data);
       } catch (err) {
         // pool unchanged this attempt — still counted against the fetch cap above.
@@ -960,13 +993,46 @@
       "<a href=\"sms:988\">text</a> 988 — the Suicide &amp; Crisis Lifeline (US), " +
       "free and available any time.";
 
-    document.getElementById("form").addEventListener("submit", async function (e) {
-      e.preventDefault();
-      var sent = sentEl.value.trim();
-      if (!sent || go.disabled) return;
-      logEvent("paste");
-      go.disabled = true;
-      startLoadingLines();
+    // A stall is a failure, never a draft — see this file's own git
+    // history for the version that rendered stallLine()'s text straight
+    // into .draft like a real joke. Everything else in #out hides itself
+    // via #out.stall-mode's own CSS; this just sets the mode, shows the
+    // fixed message, and logs why (data.stall_reason — see
+    // api/draft.js's classifyStallReason and api/event.js's own header
+    // for what each value means). #stall-retry (see its own click
+    // handler below) is what actually tries again, not a plain "new
+    // text" — this keeps `sent` current so retrying doesn't need the
+    // visitor to type anything back in.
+    function showStall(sent, stallReason) {
+      current = sent;
+      pool = [];
+      cursor = 0;
+      currentSource = "stall";
+      currentProvider = null;
+      currentLane = null;
+      alternatesAllowed = false;
+      escalateFetches = 0;
+      tapCount = 0;
+      resetContest();
+      resetReact();
+      outEl.classList.remove("crisis-mode");
+      outEl.classList.add("stall-mode");
+      stallRowEl.classList.remove("hidden");
+      logEvent("stall", { reason: stallReason || null });
+      sentEl.readOnly = true;
+      setShareDisabled(true);
+      whewEl.classList.add("hidden");
+      exampleEl.classList.add("hidden");
+      outEl.classList.remove("hidden");
+    }
+
+    // Shared by a real form submit and #stall-retry's own click handler
+    // below — a retry is "run this again for the same sent text," not a
+    // second code path that could quietly drift from the original.
+    // Returns nothing; every outcome (crisis, stall, a real result, or a
+    // network failure) is handled here, on the DOM, same as before this
+    // was split out of the submit listener.
+    async function submitDraft(sent) {
       var gotResult = false;
       try {
         // One request now — both generator calls (primary and wildcard,
@@ -1005,6 +1071,7 @@
           tapCount = 0;
           resetContest();
           resetReact();
+          outEl.classList.remove("stall-mode");
           outEl.classList.add("crisis-mode");
           crisisMsgEl.innerHTML = CRISIS_MESSAGE_HTML;
           crisisMsgEl.classList.remove("hidden");
@@ -1018,10 +1085,19 @@
           return;
         }
 
-        // This bypasses the server's filterLines the same way lib/fallback.js's
-        // STALL_LINES do — it's a fixed client-side string, never model
-        // output — so it needs its own leading connector written in here
-        // rather than relying on a fix that only ever runs server-side.
+        if (data.source === "stall") {
+          showStall(sent, data.stall_reason);
+          if (DEBUG) renderDebug("result", data);
+          return;
+        }
+
+        // A refusal (abusive/blocked input, not a stall) still gets a
+        // fixed client-only line — never lib/fallback.js's own stallLine()
+        // text, and never rendered if data.drafts came back genuinely
+        // empty for some other reason. This bypasses the server's
+        // filterLines the same way that line always did — it needs its
+        // own leading connector written in here rather than relying on a
+        // fix that only ever runs server-side.
         pool = (data.refuse || !data.drafts || !data.drafts.length)
           ? [{ lane: "stall", text: ". even the draft wouldn't send that" }]
           : data.drafts;
@@ -1037,6 +1113,7 @@
         resetContest();
         primeContestLine(current);
         resetReact();
+        outEl.classList.remove("stall-mode");
         renderDraft(sent, pool[0].text);
         // Unlike v2, the rest of this batch (up to two more drafts) is
         // already sitting in `pool` — no second call to wait on, so
@@ -1065,12 +1142,41 @@
         outEl.classList.remove("hidden");
       } catch (err) {
         if (!gotResult) alert("the draft didn't come through. try again.");
+      }
+    }
+
+    document.getElementById("form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var sent = sentEl.value.trim();
+      if (!sent || go.disabled) return;
+      logEvent("paste");
+      go.disabled = true;
+      startLoadingLines();
+      try {
+        await submitDraft(sent);
       } finally {
         // The request answered (or failed) either way — this is the
         // moment #go stops looking busy.
         stopLoadingLines();
         go.disabled = false;
         go.textContent = "here's what they almost sent";
+      }
+    });
+
+    // Retries the exact same sent text — see submitDraft's own comment
+    // for why this shares that function rather than duplicating it.
+    // Never logs "paste" (nothing new was pasted) and has its own small
+    // loading label rather than #go's rotating LOADING_LINES, which
+    // belongs to the main form specifically.
+    stallRetryEl.addEventListener("click", async function () {
+      if (stallRetryEl.disabled) return;
+      stallRetryEl.disabled = true;
+      stallRetryEl.textContent = "trying again…";
+      try {
+        await submitDraft(current);
+      } finally {
+        stallRetryEl.disabled = false;
+        stallRetryEl.textContent = "try again";
       }
     });
 

@@ -249,6 +249,52 @@ function tagModel(result, model, note) {
   return result;
 }
 
+// Best-effort classification of WHY a request stalled (survivors.length
+// === 0 after the full generate-then-judge round) — logged in `why` and
+// returned as its own `stall_reason` field so index.html can log it as a
+// "stall" event (see api/event.js's own header) without ever having to
+// parse `why`'s own free text itself. Six named reasons, checked in the
+// order that actually explains "why zero candidates survived":
+//   - "rate limit" / "parse" / "fallback timeout" / "primary timeout" —
+//     generation itself produced nothing (wildcard.lines is empty).
+//     Distinguished by scanning wildcard.why (the merged A+B string —
+//     see runGenerationRound) for the signal each failure mode leaves:
+//     an HTTP 429 from the upstream LLM, an unparsable/token-limit
+//     response, or a timeout. A timeout tagged "(fallback)" (see
+//     tagModel/runGenerator — FALLBACK_MODEL was tried and ALSO timed
+//     out) reports as "fallback timeout"; anything else timeout-shaped
+//     (untagged, or "(retry)" — same model, a second attempt) reports as
+//     "primary timeout". This is a best-effort read of a string built
+//     from two parallel calls' own outcomes, not a precise trace — good
+//     enough to point at the right log line, not a substitute for
+//     reading wildcard.why itself in Vercel's own logs.
+//   - "judge-eliminated-all" — real candidates existed, but not one of
+//     them cleared the taste judge's own gates (continues/anchor/turn/
+//     clear).
+//   - "safety-eliminated-all" — real candidates existed and at least one
+//     cleared the gates, but every one of those got flagged by the
+//     safety judge instead (or the taste call itself failed and the
+//     fixed-lane-order fallback still came back empty, which can only
+//     happen the same way: safety flagged everything).
+// Only ever called when survivors.length is already known to be 0 —
+// this doesn't re-check that itself.
+function classifyStallReason(wildcard, taste) {
+  const why = String(wildcard.why || "");
+  if (!wildcard.lines || !wildcard.lines.length) {
+    if (/\brate.?limit\b|\bhttp 429\b/i.test(why)) return "rate limit";
+    if (/no json in output|hit token limit|unparsable/i.test(why)) return "parse";
+    if (/timed out/i.test(why)) {
+      return /\(fallback\)/i.test(why) ? "fallback timeout" : "primary timeout";
+    }
+    return "primary timeout";
+  }
+  if (taste.ok) {
+    const gateSurvivors = taste.details.filter(function (d) { return !d.eliminated; });
+    if (!gateSurvivors.length) return "judge-eliminated-all";
+  }
+  return "safety-eliminated-all";
+}
+
 // Same retry-then-fallback shape as v3's own: every line filtered gets one
 // retry on the SAME model (temperature is 1.0, so a second draw is often
 // clean even when the first wasn't); an outright refusal, parse failure,
@@ -522,6 +568,7 @@ module.exports = async function handler(req, res) {
       sent: sent,
       drafts: [{ lane: "stall", text: stallLine(), q: null, reaction: null, position: 1 }],
       source: "stall",
+      stall_reason: "no api key",
       why: "no api key",
       provider: null,
       logged: logged,
@@ -1039,6 +1086,7 @@ module.exports = async function handler(req, res) {
     return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, reaction: p.reaction, position: i + 1 };
   });
   const source = drafts.length ? "model" : "stall";
+  const stallReason = drafts.length ? null : classifyStallReason(wildcard, taste);
   if (!drafts.length) drafts.push({ lane: "stall", text: stallLine(), q: null, reaction: null, position: 1 });
 
   stages.t_response = Date.now() - responseStarted;
@@ -1049,6 +1097,7 @@ module.exports = async function handler(req, res) {
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
     (stallRescueNote ? " · " + stallRescueNote : "") +
+    (stallReason ? " · stall_reason: " + stallReason : "") +
     " · stages: " + formatStages(stages);
 
   const genTGen = wildcard.t_gen || null;
@@ -1094,6 +1143,7 @@ module.exports = async function handler(req, res) {
     sent: sent,
     drafts: drafts,
     source: source,
+    stall_reason: stallReason,
     why: why || null,
     provider: genProvider,
     logged: logged,

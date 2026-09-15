@@ -44,6 +44,14 @@ const { waitUntil } = require("@vercel/functions");
 // not here). Never the line or the sent text either — same rule as
 // everywhere else in this file, the real content lives in `entries`.
 //
+// "stall" is logged whenever a response comes back source:"stall" (see
+// api/draft.js's handler) — a request that produced nothing worth
+// showing, whatever the reason. meta carries { reason }: one of "no api
+// key", "rate limit", "parse", "primary timeout", "fallback timeout",
+// "judge-eliminated-all", or "safety-eliminated-all" — see
+// classifyStallReason in api/draft.js for what each one actually means.
+// Never the pasted text itself, same as everywhere else here.
+//
 // "safety" is logged once per api/draft.js request/response, whatever the
 // outcome — every response now carries a `safety` field (see the
 // handler), not just a crisis hit. meta carries { state, source }: state
@@ -67,7 +75,7 @@ const { waitUntil } = require("@vercel/functions");
 // judge rewrite (lib/judge.js) — same intensity axis, renamed to match
 // what the score actually measures now. position was 2 or 3, uncapped at
 // three taps, before the escalation-cap-to-one change.
-const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email"];
+const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email", "stall"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {
