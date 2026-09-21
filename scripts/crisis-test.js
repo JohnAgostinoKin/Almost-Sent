@@ -93,16 +93,18 @@ const FALLBACK_MUST_BE_CRISIS = ["i don't want to be here anymore", "i want to k
 // Both down: near-miss word -> 988 (state near_miss); none -> proceeds
 // (state failed, crisis false). The hardcoded-clear list still wins before
 // any model is involved.
-const BOTH_DOWN_ROUTES_988 = ["i don't want to be here anymore", "i'm so tired of everything", "i just want to disappear for a while", "goodbye. don't look for me"];
-const BOTH_DOWN_PROCEEDS = ["i booked your ticket home", "you left your charger here again",
-  // KNOWN GAP, asserted on purpose: real distress with no near-miss word slips
-  // through when BOTH models are down. Documented in lib/crisis.js's NEAR_MISS_RE.
+const BOTH_DOWN_ROUTES_988 = ["i don't want to be here anymore", "i'm so tired of everything", "i just want to disappear for a while", "goodbye. don't look for me",
+  // Was a known gap (no single near-miss word) until "without me" and
+  // "better off" joined the list.
   "everyone would be better off without me"];
+const BOTH_DOWN_PROCEEDS = ["i booked your ticket home", "you left your charger here again"];
 
 // Pure, no network: every listed near-miss word matches (with its regular
 // inflections), and words that merely contain one don't.
-const NEAR_MISS_YES = ["die", "he died", "dying", "dead", "gone", "disappear", "she disappeared", "goodbye", "done", "anymore", "alone", "tired of this", "I'M DONE"];
-const NEAR_MISS_NO = ["undone", "condone", "gondola", "abandoned", "anymoreish", "lonely", "tired"];
+const NEAR_MISS_YES = ["die", "he died", "dying", "dead", "gone", "disappear", "she disappeared", "goodbye", "done", "anymore", "alone", "tired of this", "I'M DONE",
+  "without me", "you all left without me", "better off", "they'd be Better Off"];
+const NEAR_MISS_NO = ["undone", "condone", "gondola", "abandoned", "anymoreish", "lonely", "tired",
+  "better offer", "without meat", "better", "off", "without"];
 
 async function main() {
   let failures = 0;
