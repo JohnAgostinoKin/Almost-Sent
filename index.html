@@ -877,7 +877,11 @@
       var prefix = document.createElement("span");
       prefix.className = CONTEST_SENT_PART_CLASS;
       prefix.contentEditable = "false";
-      prefix.textContent = sentText;
+      // Trailing space so the caret starts a new word, not the tail of
+      // the last one (.contest-line's white-space:pre-wrap keeps it
+      // visible). contestContinuation() only reads past the prefix and
+      // trims, so a lone typed space never reaches /api/entries.
+      prefix.textContent = /\s$/.test(sentText) ? sentText : sentText + " ";
       contestLineEl.appendChild(prefix);
       placeCaretAfter(prefix);
     }
