@@ -78,7 +78,7 @@ const { WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, ALL_LANES, n
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
-const { judgeOneLine, judgeCandidates } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates, demoteUnjudged } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { classifyBlock } = require("../lib/block");
@@ -888,12 +888,17 @@ async function handle(req, res, internal) {
       // the fallback ordering below, regardless of what taste made of
       // the same candidate.
       const flagged = new Set();
+      // Candidates whose safety check failed OPEN (verdict null: both the
+      // primary and the fallback model failed) — they're never removed, but
+      // they never got a real verdict either, so `survivors` below demotes
+      // them behind every line that did (see lib/judge.js's demoteUnjudged).
+      const unjudged = new Set();
       candidates.forEach(function (item, i) {
         const result = safetyVerdicts[i];
         safetyLatencyTotal += result.latencyMs || 0;
         if (result.latencyMs != null && result.latencyMs > safetyMaxLatency) safetyMaxLatency = result.latencyMs;
         if (result.model && safetyModelsSeen.indexOf(result.model) === -1) safetyModelsSeen.push(result.model);
-        if (result.verdict === null) safetyFailedCount++;
+        if (result.verdict === null) { safetyFailedCount++; unjudged.add(item); }
         // Every call's own latency, always — not just failures — so a
         // slow stretch (queueing, an upstream having a bad day) is
         // visible in the logs without a failure to trigger it.
@@ -914,7 +919,7 @@ async function handle(req, res, internal) {
         if (result.verdict === true) { droppedSafetyCount++; flagged.add(item); }
       });
       const safetyNote = "safety: " + droppedSafetyCount + " dropped" +
-        (safetyFailedCount ? " (" + safetyFailedCount + " failed open)" : "") +
+        (safetyFailedCount ? " (" + safetyFailedCount + " failed open, demoted behind judged lines)" : "") +
         (safetyRateLimitedCount ? " (" + safetyRateLimitedCount + " rate-limited)" : "") +
         (safetyModelsSeen.length
           ? " · safety model: " + safetyModelsSeen.join("+") + " (wall " + safetyMaxLatency + "ms, sum " + safetyLatencyTotal + "ms across " + candidates.length + " calls)"
@@ -943,7 +948,10 @@ async function handle(req, res, internal) {
       // instead of a value deliberately held out of q.
       let survivors, tasteNote;
       if (taste.ok) {
-        survivors = taste.ranked.filter(function (r) { return !flagged.has(r.candidate); });
+        // Ranked by q, safety-flagged removed, then any line safety never
+        // actually judged (failed open) moved behind every line it did —
+        // so position 1 is a judged line whenever one exists.
+        survivors = demoteUnjudged(taste.ranked.filter(function (r) { return !flagged.has(r.candidate); }), unjudged);
         // Every candidate's q/reaction, and the gate that killed each
         // eliminated one — exactly what ?debug=1 needs to see the
         // judge's actual reasoning, not just its final picks. A safety-
@@ -951,7 +959,7 @@ async function handle(req, res, internal) {
         // it, since that's exactly why it's missing from `survivors`
         // above.
         const totalsNote = taste.details.map(function (d) {
-          const flag = flagged.has(d.candidate) ? " [safety-flagged]" : "";
+          const flag = flagged.has(d.candidate) ? " [safety-flagged]" : (unjudged.has(d.candidate) ? " [safety failed open]" : "");
           return "[" + d.lane + "] " + (d.eliminated ? "elim:" + d.killedBy : "q:" + d.q + " reaction:" + d.reaction) + flag;
         }).join(", ");
         tasteNote = "taste: " + taste.model + " (" + (taste.latencyMs || 0) + "ms) — " + totalsNote;
@@ -961,10 +969,10 @@ async function handle(req, res, internal) {
         // intensity one. There's no real q/reaction to gate escalation
         // on here, so every position below just takes the next lane-
         // ordered survivor.
-        survivors = candidates
+        survivors = demoteUnjudged(candidates
           .filter(function (item) { return !flagged.has(item); })
           .sort(function (a, b) { return ALL_LANES.indexOf(a.lane) - ALL_LANES.indexOf(b.lane); })
-          .map(function (item) { return { candidate: item, q: null, reaction: null }; });
+          .map(function (item) { return { candidate: item, q: null, reaction: null }; }), unjudged);
         tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
       }
 
