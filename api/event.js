@@ -66,7 +66,9 @@ const { waitUntil } = require("@vercel/functions");
 // "safety" is logged once per api/draft.js request/response, whatever the
 // outcome — every response now carries a `safety` field (see the
 // handler), not just a crisis hit. meta carries { state, source }: state
-// is "clear" | "ambiguous_distress" | "explicit_crisis" | "block" |
+// is "clear" | "ambiguous_distress" | "explicit_crisis" | "near_miss" (both
+// crisis models failed and the text had a near-miss word — routed to 988
+// without a verdict, see lib/crisis.js's failover) | "block" |
 // "crisis" | "skipped" | "failed" (see lib/crisis.js's checkCrisis and
 // lib/block.js's classifyBlock for what each means); source is which
 // layer produced it — "keyword" (lib/block.js's synchronous regex),

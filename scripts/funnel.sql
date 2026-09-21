@@ -156,13 +156,17 @@ select
 -- fraction routed to the 988 screen, broken out by which layer caught
 -- it — "keyword" (lib/block.js's synchronous regex, state "crisis") or
 -- "classifier" (lib/crisis.js's model pre-check, state "explicit_crisis"
--- or "ambiguous_distress"). "curated" never reaches either check, so it
--- never contributes a crisis hit here.
+-- or "ambiguous_distress"; "near_miss" too — both models down, a near-miss
+-- word routed it to 988 without a verdict). "curated" never reaches either
+-- check, so it never contributes a crisis hit here. A high near_miss share
+-- means the classifier models are failing: check the function logs.
 select
   meta->>'source' as source,
   count(*) as total_checks,
-  count(*) filter (where meta->>'state' in ('crisis', 'explicit_crisis', 'ambiguous_distress')) as crisis_hits,
-  round(100.0 * count(*) filter (where meta->>'state' in ('crisis', 'explicit_crisis', 'ambiguous_distress')) / nullif(count(*), 0), 2) as crisis_rate_pct
+  count(*) filter (where meta->>'state' in ('crisis', 'explicit_crisis', 'ambiguous_distress', 'near_miss')) as crisis_hits,
+  count(*) filter (where meta->>'state' = 'near_miss') as near_miss_hits,
+  count(*) filter (where meta->>'state' = 'failed') as failed_open,
+  round(100.0 * count(*) filter (where meta->>'state' in ('crisis', 'explicit_crisis', 'ambiguous_distress', 'near_miss')) / nullif(count(*), 0), 2) as crisis_rate_pct
 from events
 where event = 'safety' and created_at > now() - interval '7 days'
 group by meta->>'source'
