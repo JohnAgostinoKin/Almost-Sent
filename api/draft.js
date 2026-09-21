@@ -698,7 +698,10 @@ async function handle(req, res, internal) {
   // so running this twice doesn't leave `stages` reporting a discarded
   // round's numbers — the caller copies whichever round it actually keeps
   // into `stages` once that's decided.
-  async function runGenerationRound() {
+  // `extraGenOpts` (optional) is merged over genOpts for both generator
+  // calls — today only { gate1Retry: true } (see lib/prompt.js's
+  // buildGate1RetryBlock), for the regen round after a gate-1 wipeout.
+  async function runGenerationRound(extraGenOpts) {
     const t = { t_wildcardA: 0, t_wildcardB: 0, t_wildcard: 0, t_judge: 0 };
 
     // Each call's own slot, plus whether it's settled yet — the soft
@@ -715,10 +718,10 @@ async function handle(req, res, internal) {
       wildcardB: { settled: false, result: null }
     };
     const wildcardAStarted = Date.now();
-    const wildcardAPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts))
+    const wildcardAPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts, extraGenOpts))
       .then(function (r) { t.t_wildcardA = Date.now() - wildcardAStarted; slots.wildcardA.settled = true; slots.wildcardA.result = r; return r; });
     const wildcardBStarted = Date.now();
-    const wildcardBPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
+    const wildcardBPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts, extraGenOpts))
       .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
     const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise };
 
@@ -1096,9 +1099,21 @@ async function handle(req, res, internal) {
   // actually keeps the ROUND COUNT from doubling on top of that.
   let regenerated = false;
   const firstRoundBestReaction = bestReactionOf(round);
-  const needsRegen = !escalate && firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE;
+  // A gate-1 wipeout — the taste judge ran and eliminated EVERY candidate at
+  // gate 1 (`continues`: the recipient replying, not the sender continuing).
+  // Survivors are empty, so firstRoundBestReaction is null and the weak-lead
+  // check below can't see it; without this the request would just stall. One
+  // retry, told exactly what went wrong (lib/prompt.js's
+  // buildGate1RetryBlock). Same first-show-only, one-extra-round cap as the
+  // weak-lead regen.
+  function eliminatedEverythingAtGate1(r) {
+    const d = r.taste && r.taste.ok ? r.taste.details : null;
+    return !!d && d.length > 0 && d.every(function (x) { return x.eliminated && x.killedBy === "continues"; });
+  }
+  const gate1Wipeout = !escalate && eliminatedEverythingAtGate1(round);
+  const needsRegen = gate1Wipeout || (!escalate && firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE);
   if (needsRegen) {
-    const regenRound = await runGenerationRound();
+    const regenRound = await runGenerationRound(gate1Wipeout ? { gate1Retry: true } : null);
     if (!regenRound.refuse) {
       round = regenRound;
       regenerated = true;
@@ -1204,7 +1219,9 @@ async function handle(req, res, internal) {
   stages.t_response = Date.now() - responseStarted;
   const why = "wildcard: " + (wildcard.skip ? "skipped" : (wildcard.why || "?")) +
     " · " + safetyNote + " · " + tasteNote +
-    (regenerated ? " · regen: true (first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
+    (regenerated
+      ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
+      : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
