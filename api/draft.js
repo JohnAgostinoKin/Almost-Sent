@@ -86,7 +86,8 @@ const { checkCrisis } = require("../lib/crisis");
 const { curatedLeadFor } = require("../lib/curated");
 const { createLimiter } = require("../lib/rateLimit");
 const { maskPII } = require("../lib/mask");
-const { waitUntil } = require("@vercel/functions");
+const { getPrecomputed } = require("../lib/precomputed");
+const { waitUntil: waitUntilImpl } = require("@vercel/functions");
 
 // Captured once, the instant this module is first loaded into a container
 // (a cold start, or a deploy) — never again after that on a warm container,
@@ -179,6 +180,17 @@ function getCachedResult(sent) {
     return null;
   }
   return entry.payload;
+}
+
+// Persistent pre-warm store (lib/precomputed.js, written by api/cron/
+// precompute.js), consulted only on an in-memory miss. A hit is copied into
+// the in-memory cache too, so this container doesn't ask Supabase again for
+// the same text. Same isCacheableResult gate as every other cache path.
+async function fromPrecomputed(sent) {
+  const p = await getPrecomputed(sent);
+  if (!p || !isCacheableResult(p.source, p.drafts)) return null;
+  cacheResult(sent, p);
+  return p;
 }
 
 function newStages() {
@@ -323,6 +335,15 @@ function classifyStallReason(wildcard, taste) {
 // different provider entirely from WILDCARD_MODEL, so a bad day for one
 // upstream doesn't take out both attempts.
 const FALLBACK_MODEL = "mistralai/mistral-large-2512";
+
+// Short label for which model actually wrote a response's drafts, carried
+// as `gen_model` on the response (and inside a cached payload) so
+// index.html can log it in draft_shown's meta.
+function modelTag(model) {
+  if (/astra/i.test(model)) return "astra";
+  if (/hermes/i.test(model)) return "hermes";
+  return model;
+}
 async function runGenerator(key, model, sent, kind, genOpts) {
   const first = await callOneGenerator(key, model, sent, kind, genOpts);
   if (!first.skip && !first.lines.length && first.reason === "filtered") {
@@ -346,9 +367,19 @@ function dedupeKey(sent) {
   return { masked: masked, key: norm(masked) || masked.trim() };
 }
 
+// Set once bump_inbox comes back 404 (scripts/precompute-schema.sql not run
+// yet), so the plain upsert below is used directly for a few minutes instead
+// of paying a doomed extra round trip on every request.
+let bumpMissingUntil = 0;
+
 // Fires via waitUntil (see the handler below), not awaited before
 // responding. See lib/legacy/ commit history for the fuller "why waitUntil"
 // story — unchanged from v2/v3.
+//
+// Prefers the bump_inbox SQL function (upsert that also counts repeat
+// pastes in inbox.hits — what api/cron/precompute.js ranks by); falls back
+// to the original plain upsert if that function isn't installed yet, so
+// inbox logging never depends on the SQL having been run.
 async function remember(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -356,16 +387,25 @@ async function remember(sent) {
   const started = Date.now();
   try {
     const d = dedupeKey(sent);
-    const res = await fetch(url.replace(/\/+$/, "") + "/rest/v1/inbox?on_conflict=key", {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: "Bearer " + key,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal,resolution=merge-duplicates"
-      },
-      body: JSON.stringify({ key: d.key, sent: d.masked.trim().slice(0, 500) })
-    });
+    const row = { key: d.key, sent: d.masked.trim().slice(0, 500) };
+    const headers = { apikey: key, Authorization: "Bearer " + key, "Content-Type": "application/json" };
+    const base = url.replace(/\/+$/, "") + "/rest/v1/";
+    let res = null;
+    if (Date.now() >= bumpMissingUntil) {
+      res = await fetch(base + "rpc/bump_inbox", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ p_key: row.key, p_sent: row.sent })
+      });
+      if (res.status === 404) { bumpMissingUntil = Date.now() + 5 * 60 * 1000; res = null; }
+    }
+    if (!res) {
+      res = await fetch(base + "inbox?on_conflict=key", {
+        method: "POST",
+        headers: Object.assign({ Prefer: "return=minimal,resolution=merge-duplicates" }, headers),
+        body: JSON.stringify(row)
+      });
+    }
     if (!res.ok) {
       const body = await res.text().catch(function () { return ""; });
       console.error("supabase inbox insert failed: " + res.status + " " + body.slice(0, 500));
@@ -383,7 +423,7 @@ async function remember(sent) {
 // Deletes any stored inbox row for `sent`'s dedupe key. Used for both
 // refusal paths — a BLOCK match and the model's own skip — so refused input
 // is never retained.
-async function forget(sent) {
+async function forgetImpl(sent) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
@@ -417,7 +457,23 @@ async function forget(sent) {
 
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
 
-module.exports = async function handler(req, res) {
+// `internal` is null for every real request (the exported handler below).
+// It's only ever set by runPrecompute, in-process, from api/cron/
+// precompute.js — never derived from anything in the request, so no public
+// caller can reach it. When set ({model, costSink}): the generator is
+// `internal.model` (not WILDCARD_MODEL) with a long per-call timeout and
+// cost accounting; the rate limiter, the inbox write/forget (a nightly
+// re-run of texts already in the inbox must not inflate their hit counts),
+// every cache read, and the in-memory cache write are skipped; and the
+// response carries `fell_back`/`safety_failed_open` so the cron can refuse
+// to store a result it shouldn't trust. Everything else — keyword block,
+// crisis pre-check, curated bank, generation, safety, taste, regen, position
+// selection — is the exact same code the live path runs.
+async function handle(req, res, internal) {
+  // Inside this function only: no-ops in internal mode (nothing here should
+  // outlive the cron's own request, or delete the inbox row it's reading).
+  const waitUntil = internal ? function () {} : waitUntilImpl;
+  const forget = internal ? async function () { return null; } : forgetImpl;
   const stages = newStages();
   stages.t_cold = Date.now() - MODULE_LOADED_AT;
   // Unconditional, before any branch (block/curated/crisis/refuse/model) —
@@ -460,7 +516,7 @@ module.exports = async function handler(req, res) {
   // an actual refused input. index.html now checks res.status === 429
   // before ever parsing the body, for both a first-show submit and an
   // escalation fetch, and shows this message specifically.
-  if (limited(ip)) { res.status(429).json({ error: "slow down — too many requests. wait a moment and try again." }); return; }
+  if (!internal && limited(ip)) { res.status(429).json({ error: "slow down — too many requests. wait a moment and try again." }); return; }
 
   const parseStarted = Date.now();
   const body = readBody(req);
@@ -501,7 +557,7 @@ module.exports = async function handler(req, res) {
   }
 
   const requestStarted = Date.now();
-  const rememberPromise = remember(sent);
+  const rememberPromise = internal ? Promise.resolve(null) : remember(sent);
   waitUntil(rememberPromise);
 
   const logged = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "deferred" : null;
@@ -548,7 +604,7 @@ module.exports = async function handler(req, res) {
     // model call either way) and before the crisis pre-check and
     // generation below — a cache hit means neither of those needs to run
     // again for text that already cleared them once.
-    const cached = getCachedResult(sent);
+    const cached = internal ? null : (getCachedResult(sent) || await fromPrecomputed(sent));
     if (cached) {
       // This request was already counted against `ip`'s quota at the top
       // of the handler, before it was known this would turn out to be
@@ -564,6 +620,7 @@ module.exports = async function handler(req, res) {
         provider: cached.provider,
         logged: logged,
         weak_lead: cached.weak_lead,
+        gen_model: cached.gen_model || null,
         debug: cached.debug,
         t_gen: null,
         t_judge: null,
@@ -617,7 +674,20 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const genOpts = { escalate: escalate, shown: shown };
+  // Internal (pre-warm) only: nobody is waiting, so gate generation on the
+  // crisis pre-check instead of racing it — a text whose check didn't come
+  // back "clear" (crisis, or the classifier itself failed open) can't be
+  // stored anyway, so don't pay for generating it. Live requests keep the
+  // concurrent race described above.
+  if (internal) {
+    const pre = await crisisPromise;
+    const preSafety = { state: pre.state, source: "classifier" };
+    if (pre.crisis) { res.status(200).json({ crisis: true, source: "model", drafts: [], safety: preSafety }); return; }
+    if (pre.state !== "clear") { res.status(200).json({ source: "stall", drafts: [], stall_reason: "crisis check " + pre.state, safety: preSafety }); return; }
+  }
+
+  const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
+  const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
 
   // One full generate-then-judge pass — Hermes' two calls, safety+taste
   // running concurrently on the combined candidate set. Factored into its
@@ -645,10 +715,10 @@ module.exports = async function handler(req, res) {
       wildcardB: { settled: false, result: null }
     };
     const wildcardAStarted = Date.now();
-    const wildcardAPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts))
+    const wildcardAPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts))
       .then(function (r) { t.t_wildcardA = Date.now() - wildcardAStarted; slots.wildcardA.settled = true; slots.wildcardA.result = r; return r; });
     const wildcardBStarted = Date.now();
-    const wildcardBPromise = runGenerator(key, WILDCARD_MODEL, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
+    const wildcardBPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts))
       .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
     const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise };
 
@@ -673,7 +743,7 @@ module.exports = async function handler(req, res) {
     // to be clearable by ONE half landing alone, or it's not really a
     // soft deadline firing, just Promise.all resolving early once BOTH
     // halves happen to finish.
-    const GENERATION_SOFT_DEADLINE_MS = 3500;
+    const GENERATION_SOFT_DEADLINE_MS = internal ? 90000 : 3500;
     const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 3;
     let lateGroupCount = 0;
     // Kept in scope past the soft-deadline dance below (not just inside
@@ -898,7 +968,7 @@ module.exports = async function handler(req, res) {
         tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
       }
 
-      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, tJudge: tJudge };
+      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, tJudge: tJudge, safetyFailedCount: safetyFailedCount };
     }
 
     let judged = await judgeAndRank(allCandidates);
@@ -957,7 +1027,7 @@ module.exports = async function handler(req, res) {
     return {
       refuse: false, wildcard: wildcard, taste: judged.taste,
       safetyNote: judged.safetyNote, tasteNote: judged.tasteNote,
-      survivors: judged.survivors, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
+      survivors: judged.survivors, safetyFailedCount: judged.safetyFailedCount, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
       stallRescueNote: stallRescueNote
     };
   }
@@ -1134,6 +1204,12 @@ module.exports = async function handler(req, res) {
     (stallReason ? " · stall_reason: " + stallReason : "") +
     " · stages: " + formatStages(stages);
 
+  // Which model actually wrote these drafts: genModel normally, but the
+  // mistral fallback (see runGenerator) if either call had to fall back —
+  // and internal callers are told so, to refuse to store that as an
+  // Astra result.
+  const fellBack = /\(fallback\)/i.test(String(wildcard.why || ""));
+  const genTag = modelTag(fellBack ? FALLBACK_MODEL : genModel);
   const genTGen = wildcard.t_gen || null;
   const genProvider = wildcard.provider || null;
   // Hermes' own premises — always null now that the wildcard prompt
@@ -1170,10 +1246,10 @@ module.exports = async function handler(req, res) {
   // key, or every candidate eliminated) — a transient failure shouldn't
   // become a sticky one for 24 hours.
   if (!escalate) {
-    cacheResult(sent, { drafts: drafts, source: source, why: why, provider: genProvider, weak_lead: weakLead, debug: debug, safety: safetyField });
+    if (!internal) cacheResult(sent, { drafts: drafts, source: source, why: why, provider: genProvider, weak_lead: weakLead, debug: debug, safety: safetyField, gen_model: genTag });
   }
 
-  res.status(200).json({
+  res.status(200).json(Object.assign({
     sent: sent,
     drafts: drafts,
     source: source,
@@ -1182,11 +1258,29 @@ module.exports = async function handler(req, res) {
     provider: genProvider,
     logged: logged,
     weak_lead: weakLead,
+    gen_model: source === "model" ? genTag : null,
     debug: debug,
     t_gen: genTGen,
     t_judge: stages.t_judge,
     t_cold: stages.t_cold,
     t_total: t_total,
     safety: safetyField
-  });
+  }, internal ? { fell_back: fellBack, safety_failed_open: round.safetyFailedCount || 0 } : {}));
+}
+
+module.exports = function handler(req, res) { return handle(req, res, null); };
+
+// In-process only — api/cron/precompute.js. Runs one text through the full
+// pipeline as `internal.model` and returns { code, body } instead of
+// writing to a real response object.
+module.exports.runPrecompute = async function runPrecompute(sent, internal) {
+  const out = { code: 200, body: null };
+  const res = {
+    setHeader: function () {},
+    status: function (c) { out.code = c; return res; },
+    json: function (b) { out.body = b; return res; },
+    end: function () { return res; }
+  };
+  await handle({ method: "POST", headers: {}, body: { sent: sent } }, res, internal);
+  return out;
 };

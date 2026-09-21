@@ -6,7 +6,11 @@
     { "source": "/wall", "destination": "/wall.html" },
     { "source": "/admin/entries", "destination": "/admin-entries.html" }
   ],
+  "functions": {
+    "api/cron/precompute.js": { "maxDuration": 300 }
+  },
   "crons": [
+    { "path": "/api/cron/precompute", "schedule": "0 8 * * *" },
     { "path": "/api/cron/cleanup", "schedule": "0 9 * * *" },
     { "path": "/api/draft?ping=1", "schedule": "*/5 * * * *" }
   ]

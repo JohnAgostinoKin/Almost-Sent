@@ -12,6 +12,8 @@
 // calling the path directly. With no CRON_SECRET configured, the guard is
 // skipped entirely (matches Vercel's own docs — useful for local/dev
 // testing, but set it in production).
+const { purgeExpired } = require("../../lib/precomputed");
+
 const RETENTION_DAYS = 30;
 
 function isAuthorized(req) {
@@ -50,7 +52,10 @@ module.exports = async function handler(req, res) {
       res.status(502).json({ ok: false, status: del.status });
       return;
     }
-    res.status(200).json({ ok: true, cutoff: cutoff });
+    // Expired pre-warmed results (api/cron/precompute.js) — best-effort; a
+    // missing table (scripts/precompute-schema.sql not run) is not an error here.
+    const purged = await purgeExpired().catch(function () { return { ok: false }; });
+    res.status(200).json({ ok: true, cutoff: cutoff, precomputed_purged: purged.ok });
   } catch (err) {
     console.error("supabase inbox cleanup threw: " + (err && err.message));
     res.status(500).json({ ok: false, reason: "error" });

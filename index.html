@@ -685,6 +685,7 @@
     var current = "";    // the input this result belongs to
     var currentSource = null;   // this result's data.source, reused in later draft_shown/another logs
     var currentProvider = null; // this result's data.provider, same reuse
+    var currentGenModel = null; // this result's data.gen_model ("hermes" | "astra" | ...), logged in draft_shown so pre-warmed results are separable in the funnel
     var currentLane = null;     // pool[cursor]'s lane, read by the reaction buttons below
     var alternatesAllowed = false; // false for a refusal — never fetch an escalation for one (set
                                     // alongside currentSource/currentProvider below)
@@ -892,6 +893,7 @@
       cursor = 0;
       currentSource = null;
       currentProvider = null;
+      currentGenModel = null;
       currentLane = null;
       alternatesAllowed = false;
       escalateFetches = 0;
@@ -1038,6 +1040,7 @@
       cursor = 0;
       currentSource = "stall";
       currentProvider = null;
+      currentGenModel = null;
       currentLane = null;
       alternatesAllowed = false;
       escalateFetches = 0;
@@ -1104,6 +1107,7 @@
           cursor = 0;
           currentSource = null;
           currentProvider = null;
+          currentGenModel = null;
           currentLane = null;
           alternatesAllowed = false;
           escalateFetches = 0;
@@ -1145,6 +1149,7 @@
         cursor = 0;
         currentSource = data.source || null;
         currentProvider = data.provider || null;
+        currentGenModel = data.gen_model || null;
         currentLane = pool[0].lane || null;
         alternatesAllowed = !data.refuse;
         escalateFetches = 0;
@@ -1168,7 +1173,7 @@
         // container's own module load and this request (see api/draft.js's
         // MODULE_LOADED_AT) is what tells scripts/funnel.sql's own t_cold
         // query whether a slow paste actually was a cold one.
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
         if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
         // Enabled the moment the draft is up, not gated on the visitor
@@ -1240,7 +1245,7 @@
         renderDraft(current, pool[cursor].text);
         refreshAnotherState();
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor });
         // "stored" — this draft (position 2, per api/draft.js's own
         // intensity-gated selection) was already sitting in the pool from
         // the request that produced it, no fetch needed for this tap.
@@ -1282,7 +1287,7 @@
         resetReact();
         renderDraft(current, pool[cursor].text);
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, revealIndex: cursor });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor });
         // "fetched" — this tap's own stored positions were exhausted, so
         // fetchEscalation() above had to ask the model for a fresh,
         // more-intense batch; this is that batch's own position 1 (or
