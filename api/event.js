@@ -86,7 +86,11 @@ const { waitUntil } = require("@vercel/functions");
 // judge rewrite (lib/judge.js) — same intensity axis, renamed to match
 // what the score actually measures now. position was 2 or 3, uncapped at
 // three taps, before the escalation-cap-to-one change.
-const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email", "stall"];
+// "age_gate" is the 18+ overlay on first visit (index.html's #age-gate).
+// meta carries { choice: "accept" | "leave" }: "accept" is remembered on the
+// device and the gate never shows again; "leave" sends them to google.com and
+// isn't remembered. Never the pasted text, same as everywhere else here.
+const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email", "stall", "age_gate"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {

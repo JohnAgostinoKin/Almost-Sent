@@ -8,6 +8,12 @@
   <link rel="apple-touch-icon" href="/icons/icon-180.png">
   <meta name="theme-color" content="#070707">
   <meta name="apple-mobile-web-app-title" content="almost sent.">
+  <!-- Age gate, step 1 of 2: a device that already accepted (see #age-gate
+       below) never sees the overlay, not even for a frame — this runs
+       before first paint, so the CSS below can hide the gate up front
+       instead of the script hiding it after it flashed. Storage blocked
+       (private mode) just means the gate shows every load. -->
+  <script>try { if (localStorage.getItem("age_ok") === "1") document.documentElement.classList.add("age-ok"); } catch (e) {}</script>
   <meta property="og:title" content="almost sent.">
   <meta property="og:description" content="paste what they sent. see what they almost sent.">
   <!-- ?v=2 — the file itself is already the current "sorry, i fell
@@ -18,17 +24,35 @@
        the image file's own Cache-Control or even whether it changed —
        a stale preview scraped before that commit keeps showing until
        the URL itself changes, no matter how long the correct file has
-       been sitting at /og.png. Bump this again (v=3, v=4, ...) if
-       og.png ever changes again and previews still lag. -->
-  <meta property="og:image" content="https://almostsent.app/og.png?v=2">
+       been sitting at /og.png. Bump this again (v=4, v=5, ...) if
+       og.png ever changes again and previews still lag.
+       ?v=3 — og.png gained the small red "18+" pill next to the wordmark
+       (the age gate commit); same reasoning, new URL so cached previews
+       refresh. -->
+  <meta property="og:image" content="https://almostsent.app/og.png?v=3">
   <meta property="og:url" content="https://almostsent.app/">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="almost sent.">
   <meta name="twitter:description" content="paste what they sent. see what they almost sent.">
-  <meta name="twitter:image" content="https://almostsent.app/og.png?v=2">
+  <meta name="twitter:image" content="https://almostsent.app/og.png?v=3">
   <style>
     :root { --bg:#070707; --fg:#f4f1ea; --mute:#b3ada2; --line:#242424; --red:#e23b2f; }
     .dot { color:var(--red); }
+    /* "18+" pill next to the wordmark — header (and mirrored on the share
+       card, see drawShareCanvas, and og.png). Sized off the wordmark's own
+       font-size so it tracks h1's clamp()/desktop bump, floored so it stays
+       readable on the smallest phones. */
+    .age-pill { display:inline-block; margin-left:0.3em; padding:0.28em 0.65em; border-radius:999px; background:var(--red); color:#fff; font-family:ui-sans-serif,system-ui,sans-serif; font-size:max(11px, 0.2em); font-weight:700; letter-spacing:0.06em; line-height:1; vertical-align:middle; }
+    /* Age gate: opaque, full-screen, above everything. Hidden up front for
+       a device that already accepted (html.age-ok, set by the head script). */
+    #age-gate { position:fixed; inset:0; z-index:1000; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; overflow-y:auto; }
+    html.age-ok #age-gate { display:none; }
+    html:not(.age-ok) body { overflow:hidden; }
+    .age-gate-inner { width:100%; max-width:440px; margin:auto; }
+    .age-gate-mark { font-weight:400; font-size:clamp(42px,10vw,64px); letter-spacing:-0.02em; line-height:0.95; }
+    .age-gate-line { margin-top:24px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:17px; line-height:1.55; }
+    .age-gate-inner button { margin-top:12px; }
+    .age-gate-inner button:first-of-type { margin-top:28px; }
     * { box-sizing:border-box; margin:0; padding:0; }
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
@@ -177,8 +201,20 @@
   </style>
 </head>
 <body>
+  <!-- Age gate, step 2 of 2 (behavior is in the script, right after
+       DEVICE_ID is set): shown until this device accepts once. While it's
+       up, <main> and <footer> are inert so nothing behind it can be tabbed
+       to or read out. -->
+  <div id="age-gate" role="dialog" aria-modal="true" aria-labelledby="age-gate-line">
+    <div class="age-gate-inner">
+      <div class="age-gate-mark">almost sent<span class="dot">.</span></div>
+      <p class="age-gate-line" id="age-gate-line">18+ only. this app is explicit — sex, profanity, and worse. if that's a problem, leave now.</p>
+      <button type="button" id="age-yes">i'm 18+, show me</button>
+      <button type="button" id="age-no" class="ghost">get me out of here</button>
+    </div>
+  </div>
   <main>
-    <h1>almost sent<span class="dot">.</span></h1>
+    <h1>almost sent<span class="dot">.</span><span class="age-pill">18+</span></h1>
     <p class="tag">you think you know them.</p>
 
     <!-- Proof-first: one finished example, unconditional for every visitor
@@ -632,6 +668,9 @@
         fetch("/api/event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          // keepalive so an event fired right before a navigation (the age
+          // gate's "get me out of here") still reaches the server.
+          keepalive: true,
           body: JSON.stringify({ device_id: id, event: event, meta: meta || {} })
         }).catch(function () {});
       } catch (err) {}
@@ -675,6 +714,39 @@
       return id;
     }
     var DEVICE_ID = getDeviceId();
+
+    // Age gate behavior (markup/CSS: #age-gate; the head script already hid
+    // it for a device that accepted before). "accept" is remembered in
+    // localStorage so it's never shown again on this device; "leave" is not
+    // remembered — they get the gate again if they come back. Both log
+    // age_gate with meta.choice ("accept" | "leave"). Leaving replaces the
+    // history entry so Back doesn't return to the site behind the gate.
+    (function () {
+      var root = document.documentElement;
+      var behind = document.querySelectorAll("main, footer");
+      var yes = document.getElementById("age-yes");
+      var no = document.getElementById("age-no");
+      function setInert(on) {
+        for (var i = 0; i < behind.length; i++) {
+          if (on) behind[i].setAttribute("inert", ""); else behind[i].removeAttribute("inert");
+        }
+      }
+      if (!root.classList.contains("age-ok")) {
+        setInert(true);
+        yes.focus();
+      }
+      yes.addEventListener("click", function () {
+        try { localStorage.setItem("age_ok", "1"); } catch (err) {}
+        root.classList.add("age-ok");
+        setInert(false);
+        logEvent("age_gate", { choice: "accept" });
+        sentEl.focus();
+      });
+      no.addEventListener("click", function () {
+        logEvent("age_gate", { choice: "leave" });
+        location.replace("https://www.google.com");
+      });
+    })();
 
     var pool = [];       // the {lane, text} drafts for this result: up to three from the
                           // initial request, then more appended per escalation fetch (see
@@ -1470,6 +1542,30 @@
       var wordmarkWidth = ctx.measureText("almost sent").width;
       ctx.fillStyle = SHARE_IMG_RED;
       ctx.fillText(".", SHARE_IMG_MARGIN + wordmarkWidth, wordmarkY);
+      var dotWidth = ctx.measureText(".").width;
+
+      // Small red "18+" pill after the wordmark, same idea as the page
+      // header's .age-pill. Drawn as an arc path (ctx.roundRect isn't in
+      // every Safari the card gets made on), text centered in it.
+      ctx.font = "bold 30px " + SHARE_IMG_SANS;
+      var pillW = ctx.measureText("18+").width + 32;
+      var pillH = 46;
+      var pillX = SHARE_IMG_MARGIN + wordmarkWidth + dotWidth + 20;
+      var pillY = wordmarkY - 24 - pillH / 2;
+      var pillR = pillH / 2;
+      ctx.beginPath();
+      ctx.moveTo(pillX + pillR, pillY);
+      ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, pillR);
+      ctx.arcTo(pillX + pillW, pillY + pillH, pillX, pillY + pillH, pillR);
+      ctx.arcTo(pillX, pillY + pillH, pillX, pillY, pillR);
+      ctx.arcTo(pillX, pillY, pillX + pillW, pillY, pillR);
+      ctx.closePath();
+      ctx.fillStyle = SHARE_IMG_RED;
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.textBaseline = "middle";
+      ctx.fillText("18+", pillX + 16, pillY + pillH / 2 + 1);
+      ctx.textBaseline = "alphabetic";
 
       // Masked here, not just in storage — this text never round-trips
       // through the server's own masked copy, so a phone number or email
