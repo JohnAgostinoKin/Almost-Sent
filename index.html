@@ -1757,7 +1757,7 @@
       var mine = contestContinuation();
       var text = "they sent: " + current + "\n" +
         "they almost sent: " + draftEl.textContent + "\n";
-      if (mine) text += "i almost sent: " + current + mine + "\n";
+      if (mine) text += "i almost sent: " + current + (/\s$/.test(current) ? "" : " ") + mine + "\n";
       return text + "\n" + buildReferralUrl();
     }
 
