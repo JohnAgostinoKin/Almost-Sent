@@ -53,6 +53,9 @@
     .age-gate-line { margin-top:24px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:17px; line-height:1.55; }
     .age-gate-inner button { margin-top:12px; }
     .age-gate-inner button:first-of-type { margin-top:28px; }
+    /* The leave control is an <a> (see #age-no) styled to match the ghost
+       button above it. */
+    .age-gate-leave { display:block; width:100%; margin-top:12px; padding:15px; font-family:ui-sans-serif,system-ui,sans-serif; font-size:16px; text-align:center; text-decoration:none; cursor:pointer; }
     * { box-sizing:border-box; margin:0; padding:0; }
     html, body { background:var(--bg); color:var(--fg); }
     body { font-family:Georgia,"Times New Roman",serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:12vh 24px 64px; }
@@ -210,7 +213,10 @@
       <div class="age-gate-mark">almost sent<span class="dot">.</span></div>
       <p class="age-gate-line" id="age-gate-line">18+ only. this app is explicit — sex, profanity, and worse. if that's a problem, leave now.</p>
       <button type="button" id="age-yes">i'm 18+, show me</button>
-      <button type="button" id="age-no" class="ghost">get me out of here</button>
+      <!-- A real link, not a button: navigation to google.com works with
+           the script broken or blocked. The click handler (below) only adds
+           the log and swaps in location.replace so Back doesn't return here. -->
+      <a id="age-no" class="ghost age-gate-leave" href="https://www.google.com" rel="noopener">get me out of here</a>
     </div>
   </div>
   <main>
@@ -740,11 +746,19 @@
         root.classList.add("age-ok");
         setInert(false);
         logEvent("age_gate", { choice: "accept" });
+        // The page behind the gate is already rendered (example included) —
+        // nothing reloads here. Just make sure the viewport is at the top,
+        // where the example is, rather than wherever the overlay left it.
+        window.scrollTo(0, 0);
         sentEl.focus();
       });
-      no.addEventListener("click", function () {
+      no.addEventListener("click", function (e) {
+        // Log first (keepalive — see logEvent), then replace the history
+        // entry so Back doesn't land on the site behind the gate. If this
+        // handler never runs, the <a href> navigates on its own.
+        e.preventDefault();
         logEvent("age_gate", { choice: "leave" });
-        location.replace("https://www.google.com");
+        location.replace(no.href);
       });
     })();
 
