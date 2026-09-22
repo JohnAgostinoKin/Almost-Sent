@@ -1217,12 +1217,18 @@ async function handle(req, res, internal) {
   const firstRoundCostMs = (round.t.t_wildcard || 0) + (round.t.t_judge || 0);
   function retryFits() { return (Date.now() - requestStarted) + firstRoundCostMs <= REQUEST_BUDGET_MS; }
   let regenSkippedNote = "";
+  // One extra generation round per request, whichever fires first: a weak
+  // lead, a gate-1 wipeout, and a short pool are the same problem, and one
+  // more round addresses all of them. The regen below claims it if it runs;
+  // the fill round further down only runs if it's still free.
+  let extraRoundUsed = false;
 
   const gate1Wipeout = !escalate && eliminatedEverythingAtGate1(round);
   const needsRegen = gate1Wipeout || (!escalate && firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE);
   if (needsRegen && !retryFits()) {
     regenSkippedNote = " · regen skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
   } else if (needsRegen) {
+    extraRoundUsed = true;
     const regenRound = await runGenerationRound(gate1Wipeout ? { gate1Retry: true } : null);
     if (!regenRound.refuse) {
       // The first round's survivors aren't thrown away: they're merged in
@@ -1296,20 +1302,22 @@ async function handle(req, res, internal) {
   // First show always ships three. Fewer than three positions after the
   // round(s) above → one more generation round, its survivors merged with
   // this round's (q-ordered, safety demotion re-applied — see
-  // mergeSurvivors), then positions are re-selected. Subject to the same
-  // REQUEST_BUDGET_MS as every other retry — that budget, not a round count,
-  // is what bounds this: a regen above already cost a round, so this rarely
-  // still fits after one, and the note says so when it doesn't. Never on
-  // escalation (one tap, one round — see needsRegen).
+  // mergeSurvivors), then positions are re-selected. Only if the one extra
+  // round per request (extraRoundUsed, above) is still free — a regen that
+  // already ran was that round — and only if it fits REQUEST_BUDGET_MS.
+  // Never on escalation (one tap, one round — see needsRegen).
   let fillNote = "";
   // Zero survivors counts too: a round the judge wiped out (at any gate mix
   // that isn't the all-gate-1 case handled above) would otherwise stall on
   // first show without ever trying again — seen live on "you up?".
   if (!escalate && positions.length < 3) {
-    if (!retryFits()) {
+    if (extraRoundUsed) {
+      fillNote = " · fill round skipped: the one extra round went to regen";
+    } else if (!retryFits()) {
       fillNote = " · fill round skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
     } else {
       const had = positions.length;
+      extraRoundUsed = true;
       const fill = await runGenerationRound();
       stages.t_judge += fill.t.t_judge || 0;
       if (!fill.refuse && fill.survivors.length) {
