@@ -1302,7 +1302,10 @@ async function handle(req, res, internal) {
   // still fits after one, and the note says so when it doesn't. Never on
   // escalation (one tap, one round — see needsRegen).
   let fillNote = "";
-  if (!escalate && positions.length < 3 && survivors.length) {
+  // Zero survivors counts too: a round the judge wiped out (at any gate mix
+  // that isn't the all-gate-1 case handled above) would otherwise stall on
+  // first show without ever trying again — seen live on "you up?".
+  if (!escalate && positions.length < 3) {
     if (!retryFits()) {
       fillNote = " · fill round skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
     } else {
