@@ -1249,7 +1249,10 @@
         // container's own module load and this request (see api/draft.js's
         // MODULE_LOADED_AT) is what tells scripts/funnel.sql's own t_cold
         // query whether a slow paste actually was a cold one.
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
+        // lead_lane: the lane of position 1 for this result (pool[0]),
+        // logged on every draft_shown so scripts/funnel.sql's lead-lane
+        // split can watch whether raunchy/gross are winning too often.
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, lead_lane: pool[0] ? pool[0].lane : null, revealIndex: cursor, t_total: data.t_total, t_cold: data.t_cold });
         if (DEBUG) renderDebug("result", data);
         sentEl.readOnly = true;
         // Enabled the moment the draft is up, not gated on the visitor
@@ -1321,7 +1324,7 @@
         renderDraft(current, pool[cursor].text);
         refreshAnotherState();
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, lead_lane: pool[0] ? pool[0].lane : null, revealIndex: cursor });
         // "stored" — this draft (position 2, per api/draft.js's own
         // intensity-gated selection) was already sitting in the pool from
         // the request that produced it, no fetch needed for this tap.
@@ -1363,7 +1366,7 @@
         resetReact();
         renderDraft(current, pool[cursor].text);
         logEvent("another", { source: currentSource, provider: currentProvider, revealIndex: cursor, fetch: escalateFetches });
-        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, revealIndex: cursor });
+        logEvent("draft_shown", { source: currentSource, provider: currentProvider, gen_model: currentGenModel, lead_lane: pool[0] ? pool[0].lane : null, revealIndex: cursor });
         // "fetched" — this tap's own stored positions were exhausted, so
         // fetchEscalation() above had to ask the model for a fresh,
         // more-intense batch; this is that batch's own position 1 (or

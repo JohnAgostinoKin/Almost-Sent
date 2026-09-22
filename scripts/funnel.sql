@@ -172,7 +172,43 @@ where event = 'safety' and created_at > now() - interval '7 days'
 group by meta->>'source'
 order by source;
 
--- No query 8 (A/B variant comparison for the proof-first landing test):
--- that test was cancelled before it shipped — item 5 landed as one
--- unconditional example for every visitor, with no meta.variant logged
--- anywhere. Nothing to compare.
+-- (There was no query 8 for a while: the proof-first A/B test it was
+-- reserved for was cancelled before it shipped, with no meta.variant ever
+-- logged.)
+
+-- 8. Lead-lane distribution, last 7 days: which lane took position 1 on
+-- first results — draft_shown with revealIndex 0 and meta.lead_lane
+-- (logged by index.html since the lead_lane commit; older rows have no
+-- lead_lane and are excluded, not counted as a lane). ALARM: raunchy +
+-- gross over 50% of leads means the room is winning on intensity again —
+-- see lib/judge.js ("intensity earns nothing") and api/draft.js's
+-- selectPositions caps.
+with leads as (
+  select meta->>'lead_lane' as lane
+  from events
+  where event = 'draft_shown'
+    and (meta->>'revealIndex')::int = 0
+    and meta->>'lead_lane' is not null
+    and created_at > now() - interval '7 days'
+)
+select
+  lane,
+  count(*) as leads,
+  round(100.0 * count(*) / nullif((select count(*) from leads), 0), 1) as pct
+from leads
+group by lane
+order by leads desc;
+
+with leads as (
+  select meta->>'lead_lane' as lane
+  from events
+  where event = 'draft_shown'
+    and (meta->>'revealIndex')::int = 0
+    and meta->>'lead_lane' is not null
+    and created_at > now() - interval '7 days'
+)
+select
+  count(*) as leads,
+  round(100.0 * count(*) filter (where lane in ('raunchy', 'gross')) / nullif(count(*), 0), 1) as raunchy_plus_gross_pct,
+  case when 100.0 * count(*) filter (where lane in ('raunchy', 'gross')) / nullif(count(*), 0) > 50 then 'ALARM' else 'ok' end as status
+from leads;
