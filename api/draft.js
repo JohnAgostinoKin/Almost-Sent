@@ -470,7 +470,7 @@ async function forgetImpl(sent) {
 // so a text that invited a proposition doesn't lead with a bodily gag. If
 // nothing but gross survived an invited text, the cap is relaxed rather than
 // stalling a request that has drafts (`relaxed` says so, for `why`).
-function selectPositions(survivors, invited) {
+function selectPositions(survivors, invited, fillEmpty) {
   const tracker = createDiversityTracker();
   const positions = [];
   let raunchyUsed = false;
@@ -504,8 +504,44 @@ function selectPositions(survivors, invited) {
     if (!next) break;
     take(next);
   }
+  // First show always ships three (when three lines exist): if the reaction
+  // chain above left a slot empty, fill it with the highest-q remaining line
+  // that still clears the lane caps and diversity — a less intense second
+  // card beats an empty one on a first show. Never on escalation (fillEmpty
+  // false): a "make it worse" tap that reveals something LESS intense reads
+  // as a reroll, so there the chain stays strict.
+  let chainRelaxed = 0;
+  if (fillEmpty) {
+    while (positions.length < 3) {
+      const next = survivors.filter(function (s) {
+        return positions.indexOf(s) === -1 && eligible(s, positions.length + 1, relaxed) && !tracker.isDuplicate(s.candidate.text);
+      })[0];
+      if (!next) break;
+      take(next);
+      chainRelaxed++;
+    }
+  }
   positions.relaxed = relaxed;
+  positions.chainRelaxed = chainRelaxed;
   return positions;
+}
+
+// Survivors from two rounds as one q-ordered list (each candidate once, by
+// text), with lib/judge.js's demoteUnjudged re-applied across the union so a
+// safety-fail-open line still can't lead while a judged one exists.
+function mergeSurvivors(a, b, unjudged) {
+  const seen = new Set(a.map(function (s) { return s.candidate.text; }));
+  const merged = a.concat(b.filter(function (s) { return !seen.has(s.candidate.text); }));
+  merged.sort(function (x, y) {
+    const qx = x.q == null ? -Infinity : x.q, qy = y.q == null ? -Infinity : y.q;
+    return qx === qy ? 0 : (qy > qx ? 1 : -1);
+  });
+  return demoteUnjudged(merged, unjudged);
+}
+function unionSets(a, b) {
+  const out = new Set(a || []);
+  (b || []).forEach(function (x) { out.add(x); });
+  return out;
 }
 
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
@@ -1040,7 +1076,7 @@ async function handle(req, res, internal) {
         tasteNote = "taste: failed open (" + taste.reason + ") — fell back to fixed lane order";
       }
 
-      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, tJudge: tJudge, safetyFailedCount: safetyFailedCount };
+      return { taste: taste, survivors: survivors, safetyNote: safetyNote, tasteNote: tasteNote, tJudge: tJudge, safetyFailedCount: safetyFailedCount, unjudged: unjudged };
     }
 
     let judged = await judgeAndRank(allCandidates);
@@ -1100,7 +1136,7 @@ async function handle(req, res, internal) {
     return {
       refuse: false, wildcard: wildcard, taste: judged.taste,
       safetyNote: judged.safetyNote, tasteNote: judged.tasteNote,
-      survivors: judged.survivors, safetyFailedCount: judged.safetyFailedCount, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
+      survivors: judged.survivors, safetyFailedCount: judged.safetyFailedCount, unjudged: judged.unjudged, t: t, lateGroupCount: lateGroupCount, stragglerPickupCount: stragglerPickupCount,
       stallRescueNote: stallRescueNote
     };
   }
@@ -1172,12 +1208,30 @@ async function handle(req, res, internal) {
     const d = r.taste && r.taste.ok ? r.taste.details : null;
     return !!d && d.length > 0 && d.every(function (x) { return x.eliminated && x.killedBy === "continues"; });
   }
+  // Hard cap on total request time for any extra round: a retry (weak lead,
+  // gate-1 wipeout, or the fill round below) only runs if the time already
+  // spent plus what the first round cost fits inside REQUEST_BUDGET_MS.
+  // Otherwise ship what survived. No cap in internal (pre-warm) mode —
+  // nobody is waiting, and Astra's rounds never fit 10s anyway.
+  const REQUEST_BUDGET_MS = internal ? Infinity : (Number(process.env.REQUEST_BUDGET_MS) || 10000); // env override is for tests only
+  const firstRoundCostMs = (round.t.t_wildcard || 0) + (round.t.t_judge || 0);
+  function retryFits() { return (Date.now() - requestStarted) + firstRoundCostMs <= REQUEST_BUDGET_MS; }
+  let regenSkippedNote = "";
+
   const gate1Wipeout = !escalate && eliminatedEverythingAtGate1(round);
   const needsRegen = gate1Wipeout || (!escalate && firstRoundBestReaction != null && firstRoundBestReaction < REACTION_LEAD_GATE);
-  if (needsRegen) {
+  if (needsRegen && !retryFits()) {
+    regenSkippedNote = " · regen skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
+  } else if (needsRegen) {
     const regenRound = await runGenerationRound(gate1Wipeout ? { gate1Retry: true } : null);
     if (!regenRound.refuse) {
+      // The first round's survivors aren't thrown away: they're merged in
+      // behind (or ahead of, by q) the regen round's, so a regen that comes
+      // back thin still has round one's lines to fill positions 2 and 3.
+      const firstRound = round;
       round = regenRound;
+      round.survivors = mergeSurvivors(regenRound.survivors, firstRound.survivors, unionSets(regenRound.unjudged, firstRound.unjudged));
+      round.unjudged = unionSets(regenRound.unjudged, firstRound.unjudged);
       regenerated = true;
     }
   }
@@ -1197,7 +1251,7 @@ async function handle(req, res, internal) {
   const taste = round.taste;
   const safetyNote = round.safetyNote;
   const tasteNote = round.tasteNote;
-  const survivors = round.survivors;
+  let survivors = round.survivors;
   const lateGroupCount = round.lateGroupCount;
   const stragglerPickupCount = round.stragglerPickupCount;
   const stallRescueNote = round.stallRescueNote;
@@ -1237,7 +1291,34 @@ async function handle(req, res, internal) {
   // eligible regardless of how its q compares; q still decides which one
   // among the eligible candidates gets picked (`remaining` stays
   // q-descending).
-  const positions = selectPositions(survivors, invited);
+  let positions = selectPositions(survivors, invited, !escalate);
+
+  // First show always ships three. Fewer than three positions after the
+  // round(s) above → one more generation round, its survivors merged with
+  // this round's (q-ordered, safety demotion re-applied — see
+  // mergeSurvivors), then positions are re-selected. Subject to the same
+  // REQUEST_BUDGET_MS as every other retry — that budget, not a round count,
+  // is what bounds this: a regen above already cost a round, so this rarely
+  // still fits after one, and the note says so when it doesn't. Never on
+  // escalation (one tap, one round — see needsRegen).
+  let fillNote = "";
+  if (!escalate && positions.length < 3 && survivors.length) {
+    if (!retryFits()) {
+      fillNote = " · fill round skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
+    } else {
+      const had = positions.length;
+      const fill = await runGenerationRound();
+      stages.t_judge += fill.t.t_judge || 0;
+      if (!fill.refuse && fill.survivors.length) {
+        const before = survivors.length;
+        survivors = mergeSurvivors(survivors, fill.survivors, unionSets(round.unjudged, fill.unjudged));
+        positions = selectPositions(survivors, invited, true);
+        fillNote = " · fill round: had " + had + " shown, +" + (survivors.length - before) + " survivor(s), now " + positions.length + " shown";
+      } else {
+        fillNote = " · fill round: nothing usable (had " + had + " shown)";
+      }
+    }
+  }
 
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
@@ -1253,7 +1334,9 @@ async function handle(req, res, internal) {
     (regenerated
       ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
       : "") +
+    regenSkippedNote + fillNote +
     (positions.relaxed ? " · gross cap relaxed: nothing else survived an invited text" : "") +
+    (positions.chainRelaxed ? " · reaction chain relaxed for " + positions.chainRelaxed + " slot(s) to ship three" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
