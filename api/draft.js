@@ -463,8 +463,9 @@ async function forgetImpl(sent) {
 // per-response diversity (lib/postprocess.js's createDiversityTracker).
 //
 // Lane caps on top of that, enforced here mechanically rather than trusted
-// to the prompt: at most one lane:raunchy line across the shown positions,
-// and — on an INVITED text (lib/prompt.js's invitesRaunchy) — gross never
+// to the prompt: at most one lane:raunchy and at most one lane:gross line
+// across the shown positions, and — on an INVITED text (lib/prompt.js's
+// invitesRaunchy) — gross never
 // wins: it's ineligible for positions 1 and 2 and can only take position 3,
 // so a text that invited a proposition doesn't lead with a bodily gag. If
 // nothing but gross survived an invited text, the cap is relaxed rather than
@@ -473,9 +474,11 @@ function selectPositions(survivors, invited) {
   const tracker = createDiversityTracker();
   const positions = [];
   let raunchyUsed = false;
+  let grossUsed = false;
   function eligible(s, slot, relaxGross) {
     const lane = s.candidate.lane;
     if (lane === "raunchy" && raunchyUsed) return false;
+    if (lane === "gross" && grossUsed) return false;
     if (lane === "gross" && invited && slot < 3 && !relaxGross) return false;
     return true;
   }
@@ -483,6 +486,7 @@ function selectPositions(survivors, invited) {
     positions.push(s);
     tracker.record(s.candidate.text);
     if (s.candidate.lane === "raunchy") raunchyUsed = true;
+    if (s.candidate.lane === "gross") grossUsed = true;
   }
   let relaxed = false;
   let first = survivors.filter(function (s) { return eligible(s, 1, false); })[0];
