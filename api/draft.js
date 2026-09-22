@@ -1360,6 +1360,21 @@ async function handle(req, res, internal) {
     }
   }
 
+  // The reader asked for it: on a text that invites raunchy (lib/prompt.js's
+  // invitesRaunchy), the best raunchy survivor leads if its reaction is
+  // within one point of the top survivor's. q still decides everything else;
+  // this only moves one line to the front, after pairwise has had its say.
+  let raunchyLeadNote = "";
+  if (invited && survivors.length > 1 && survivors[0].candidate.lane !== "raunchy") {
+    const top = survivors[0];
+    const bestRaunchy = survivors.filter(function (s) { return s.candidate.lane === "raunchy" && s.reaction != null; })[0];
+    if (bestRaunchy && top.reaction != null && top.reaction - bestRaunchy.reaction <= 1) {
+      survivors = [bestRaunchy].concat(survivors.filter(function (s) { return s !== bestRaunchy; }));
+      positions = selectPositions(survivors, invited, !escalate);
+      raunchyLeadNote = " · raunchy leads: invited, reaction " + bestRaunchy.reaction + " within 1 of top " + top.reaction;
+    }
+  }
+
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
     return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, reaction: p.reaction, position: i + 1 };
@@ -1374,7 +1389,7 @@ async function handle(req, res, internal) {
     (regenerated
       ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
       : "") +
-    regenSkippedNote + fillNote + pairwiseNote +
+    regenSkippedNote + fillNote + pairwiseNote + raunchyLeadNote +
     (positions.relaxed ? " · gross cap relaxed: nothing else survived an invited text" : "") +
     (positions.chainRelaxed ? " · reaction chain relaxed for " + positions.chainRelaxed + " slot(s) to ship three" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
