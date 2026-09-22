@@ -78,7 +78,7 @@ const { WILDCARD_MODEL, lanePlansFor, ALL_LANES, normalizeBefore } = require("..
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
-const { judgeOneLine, judgeCandidates, demoteUnjudged } = require("../lib/judge");
+const { judgeOneLine, judgeCandidates, demoteUnjudged, judgePairwise } = require("../lib/judge");
 const { composeDraft } = require("../lib/compose");
 const { stallLine } = require("../lib/fallback");
 const { classifyBlock } = require("../lib/block");
@@ -1323,6 +1323,43 @@ async function handle(req, res, internal) {
     }
   }
 
+  // Pairwise final, narrowly: only when the top two survivors are within one
+  // reaction point of each other — q alone can't be trusted to order them
+  // then, and "the strongest candidate didn't appear first" is exactly what
+  // that looks like. One extra judge call (~1s), first show only, and only
+  // if it fits the request budget. A 2 verdict swaps them and re-selects
+  // positions; a 1 keeps the order; a failed call changes nothing.
+  const PAIRWISE_ALLOWANCE_MS = 2000;
+  let pairwiseNote = "";
+  if (!escalate && survivors.length >= 2 && survivors[0].reaction != null && survivors[1].reaction != null &&
+      Math.abs(survivors[0].reaction - survivors[1].reaction) <= 1) {
+    if ((Date.now() - requestStarted) + PAIRWISE_ALLOWANCE_MS > REQUEST_BUDGET_MS) {
+      pairwiseNote = " · pairwise skipped: would exceed " + REQUEST_BUDGET_MS + "ms";
+    } else {
+      // Both orders, in parallel. Measured: gpt-5.4 answered "2" in every
+      // single call regardless of which line was second — a position
+      // bias, not a preference. So the second line only wins if it wins
+      // from BOTH positions; anything else (including a split) keeps q
+      // order. Wall cost is one call, not two.
+      const top = survivors[0].candidate, second = survivors[1].candidate;
+      const both = await Promise.all([judgePairwise(key, sent, top, second), judgePairwise(key, sent, second, top)]);
+      const ab = both[0], ba = both[1];
+      const ms = Math.max(ab.latencyMs || 0, ba.latencyMs || 0);
+      stages.t_judge += ms;
+      if (ab.winner === null || ba.winner === null) {
+        pairwiseNote = " · pairwise failed (" + (ab.reason || ba.reason || "?") + "), q order kept";
+      } else if (ab.winner === 2 && ba.winner === 1) {
+        survivors = [survivors[1], survivors[0]].concat(survivors.slice(2));
+        positions = selectPositions(survivors, invited, true);
+        pairwiseNote = " · pairwise: #2 won from both positions (" + ms + "ms), swapped";
+      } else if (ab.winner === 1 && ba.winner === 2) {
+        pairwiseNote = " · pairwise: #1 won from both positions (" + ms + "ms), held";
+      } else {
+        pairwiseNote = " · pairwise: split verdict (" + ab.winner + "/" + ba.winner + " — position bias), q order kept";
+      }
+    }
+  }
+
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
     return { lane: p.candidate.lane, text: p.candidate.text, q: p.q, reaction: p.reaction, position: i + 1 };
@@ -1337,7 +1374,7 @@ async function handle(req, res, internal) {
     (regenerated
       ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
       : "") +
-    regenSkippedNote + fillNote +
+    regenSkippedNote + fillNote + pairwiseNote +
     (positions.relaxed ? " · gross cap relaxed: nothing else survived an invited text" : "") +
     (positions.chainRelaxed ? " · reaction chain relaxed for " + positions.chainRelaxed + " slot(s) to ship three" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
