@@ -15,7 +15,7 @@
 // single request left nothing partial for the soft deadline (below) to
 // fall back to; it was one slow call or nothing. runGenerationRound fires
 // Hermes as TWO parallel calls instead (wildcardA/wildcardB, see lib/
-// prompt.js's WILDCARD_LANE_PLAN_A/_B — the same three lanes in each now,
+// prompt.js's lanePlansFor — the same three lanes in each now,
 // not a split lane set), each faster than one big call would be, merged
 // back into a single `wildcard` result before safety/taste ever sees it.
 //
@@ -74,7 +74,7 @@
 
 const { norm } = require("../lib/normalize");
 const { callLLM } = require("../lib/llm");
-const { WILDCARD_MODEL, WILDCARD_LANE_PLAN_A, WILDCARD_LANE_PLAN_B, ALL_LANES, normalizeBefore } = require("../lib/prompt");
+const { WILDCARD_MODEL, lanePlansFor, ALL_LANES, normalizeBefore } = require("../lib/prompt");
 const {
   extractPremiseCandidates, normalizeItem, isRefusal, filterLines, describeDrops, createDiversityTracker
 } = require("../lib/postprocess");
@@ -455,6 +455,55 @@ async function forgetImpl(sent) {
   }
 }
 
+// Which of the judged survivors (q-descending, safety-flagged already gone)
+// a visitor actually sees, in order — the position-selection loop the
+// handler's own comment above describes: position 1 is the highest-q
+// eligible survivor, positions 2 and 3 have to be at least as intense
+// (reaction) as the position right before them, and every pick has to clear
+// per-response diversity (lib/postprocess.js's createDiversityTracker).
+//
+// Lane caps on top of that, enforced here mechanically rather than trusted
+// to the prompt: at most one lane:raunchy line across the shown positions,
+// and — on an INVITED text (lib/prompt.js's invitesRaunchy) — gross never
+// wins: it's ineligible for positions 1 and 2 and can only take position 3,
+// so a text that invited a proposition doesn't lead with a bodily gag. If
+// nothing but gross survived an invited text, the cap is relaxed rather than
+// stalling a request that has drafts (`relaxed` says so, for `why`).
+function selectPositions(survivors, invited) {
+  const tracker = createDiversityTracker();
+  const positions = [];
+  let raunchyUsed = false;
+  function eligible(s, slot, relaxGross) {
+    const lane = s.candidate.lane;
+    if (lane === "raunchy" && raunchyUsed) return false;
+    if (lane === "gross" && invited && slot < 3 && !relaxGross) return false;
+    return true;
+  }
+  function take(s) {
+    positions.push(s);
+    tracker.record(s.candidate.text);
+    if (s.candidate.lane === "raunchy") raunchyUsed = true;
+  }
+  let relaxed = false;
+  let first = survivors.filter(function (s) { return eligible(s, 1, false); })[0];
+  if (!first && survivors.length) { first = survivors[0]; relaxed = true; }
+  if (first) take(first);
+  for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
+    const prev = positions[need - 2];
+    // survivors is q-descending, so the first one clearing the reaction
+    // bar is the highest-q qualifier — no separate re-sort needed.
+    const next = survivors.filter(function (s) {
+      return positions.indexOf(s) === -1 && eligible(s, need, relaxed) &&
+        (prev.reaction == null || s.reaction >= prev.reaction) &&
+        !tracker.isDuplicate(s.candidate.text);
+    })[0];
+    if (!next) break;
+    take(next);
+  }
+  positions.relaxed = relaxed;
+  return positions;
+}
+
 const ORIGINS = ["https://almostsent.app", "https://www.almostsent.app", "http://localhost:3000"];
 
 // `internal` is null for every real request (the exported handler below).
@@ -686,6 +735,12 @@ async function handle(req, res, internal) {
     if (pre.state !== "clear") { res.status(200).json({ source: "stall", drafts: [], stall_reason: "crisis check " + pre.state, safety: preSafety }); return; }
   }
 
+  // Whether the sent text invites a raunchy line — decided here, in code
+  // (lib/prompt.js's invitesRaunchy), never left to the model. Sets both
+  // calls' lane plans, and gates what selectPositions lets gross do.
+  const lanePlans = lanePlansFor(sent);
+  const invited = lanePlans.invited;
+
   const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
   const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
 
@@ -718,10 +773,10 @@ async function handle(req, res, internal) {
       wildcardB: { settled: false, result: null }
     };
     const wildcardAStarted = Date.now();
-    const wildcardAPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_A }, genOpts, extraGenOpts))
+    const wildcardAPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: lanePlans.A }, genOpts, extraGenOpts))
       .then(function (r) { t.t_wildcardA = Date.now() - wildcardAStarted; slots.wildcardA.settled = true; slots.wildcardA.result = r; return r; });
     const wildcardBStarted = Date.now();
-    const wildcardBPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: WILDCARD_LANE_PLAN_B }, genOpts, extraGenOpts))
+    const wildcardBPromise = runGenerator(key, genModel, sent, "wildcard", Object.assign({ lanes: lanePlans.B }, genOpts, extraGenOpts))
       .then(function (r) { t.t_wildcardB = Date.now() - wildcardBStarted; slots.wildcardB.settled = true; slots.wildcardB.result = r; return r; });
     const allPromises = { wildcardA: wildcardAPromise, wildcardB: wildcardBPromise };
 
@@ -742,7 +797,7 @@ async function handle(req, res, internal) {
     // sooner," never "wait less when everything's already fast."
     //
     // MIN_CANDIDATES_FOR_SOFT_DEADLINE tracks whatever one Hermes half's
-    // own count is (WILDCARD_LANE_PLAN_A/_B's length) — the threshold has
+    // own count is (lanePlansFor's A/B length) — the threshold has
     // to be clearable by ONE half landing alone, or it's not really a
     // soft deadline firing, just Promise.all resolving early once BOTH
     // halves happen to finish.
@@ -826,8 +881,10 @@ async function handle(req, res, internal) {
     // above. A no-op (empty array) whenever there's nothing cached, which
     // is the ordinary case — most escalation requests won't have a
     // straggler waiting for them.
-    const stragglers = escalate ? takeStragglers(sent) : [];
-    const freshCandidates = wildcard.lines || [];
+    const stragglers = (escalate ? takeStragglers(sent) : []).filter(function (c) { return invited || c.lane !== "raunchy"; });
+    // A text with no invitation token never gets a raunchy candidate, even
+    // if the model wrote one anyway (its slot was deranged — see lanePlansFor).
+    const freshCandidates = (wildcard.lines || []).filter(function (c) { return invited || c.lane !== "raunchy"; });
     // Judged pool cap — relevant on an escalation refetch specifically;
     // first-show's own fresh candidates never get close to this on their
     // own (six candidates from Hermes — see this file's own header
@@ -1017,7 +1074,8 @@ async function handle(req, res, internal) {
       if (!rescue.landed) {
         stallRescueNote = "stall rescue: still pending after " + STALL_RESCUE_DEADLINE_MS + "ms — stalling";
       } else {
-        const rescueCandidates = rescue.results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, []);
+        const rescueCandidates = rescue.results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
+          .filter(function (c) { return invited || c.lane !== "raunchy"; });
         if (!rescueCandidates.length) {
           stallRescueNote = "stall rescue: pending call(s) landed after " + rescueWaitMs + "ms with nothing usable — stalling";
         } else {
@@ -1150,7 +1208,6 @@ async function handle(req, res, internal) {
   // specifically whether every generation path runs the full postprocess
   // pipeline; this was the one real gap found, not bible-prep.js or the
   // word cap/crutch filters, which were already applied everywhere).
-  const diversityTracker = createDiversityTracker();
   // "Escalation must escalate" fix: the previous rule (within
   // REACTION_CLOSE_ENOUGH=2 of position 1's own reaction, either
   // direction) let a "take it further" tap reveal something LESS intense
@@ -1176,37 +1233,7 @@ async function handle(req, res, internal) {
   // eligible regardless of how its q compares; q still decides which one
   // among the eligible candidates gets picked (`remaining` stays
   // q-descending).
-  let raunchyUsed = false;
-  // Mechanical backstop for the lane-mix restore's RAUNCHY_INVITATION_RULE
-  // (lib/prompt.js) — at most one proposition-shaped (lane:raunchy) line
-  // across the whole pool a visitor sees, whatever the model made of the
-  // prompt's own gating. A candidate is only ever tagged raunchy when the
-  // model actually wrote a real proposition (a dry text is told to write
-  // shock/deranged/gross in that slot instead — see that file's own rule),
-  // so "at most one raunchy position" and "at most one proposition-shaped
-  // line" are the same rule here, not two separate checks.
-  const positions = [];
-  if (survivors.length) {
-    positions.push(survivors[0]);
-    diversityTracker.record(survivors[0].candidate.text);
-    if (survivors[0].candidate.lane === "raunchy") raunchyUsed = true;
-  }
-  for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
-    const prev = positions[need - 2];
-    const remaining = survivors.slice(1).filter(function (s) {
-      return positions.indexOf(s) === -1 && !(raunchyUsed && s.candidate.lane === "raunchy");
-    });
-    // remaining is still q-descending (inherited from `survivors`'
-    // own order), so the first one clearing the reaction bar is the
-    // highest-q qualifier — no separate re-sort needed.
-    const next = prev.reaction == null
-      ? remaining.filter(function (s) { return !diversityTracker.isDuplicate(s.candidate.text); })[0]
-      : remaining.filter(function (s) { return s.reaction >= prev.reaction && !diversityTracker.isDuplicate(s.candidate.text); })[0];
-    if (!next) break;
-    positions.push(next);
-    diversityTracker.record(next.candidate.text);
-    if (next.candidate.lane === "raunchy") raunchyUsed = true;
-  }
+  const positions = selectPositions(survivors, invited);
 
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
@@ -1222,6 +1249,7 @@ async function handle(req, res, internal) {
     (regenerated
       ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
       : "") +
+    (positions.relaxed ? " · gross cap relaxed: nothing else survived an invited text" : "") +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +
@@ -1309,3 +1337,6 @@ module.exports.runPrecompute = async function runPrecompute(sent, internal) {
   await handle({ method: "POST", headers: {}, body: { sent: sent } }, res, internal);
   return out;
 };
+
+// Exported for scripts/ and tests only.
+module.exports.selectPositions = selectPositions;
