@@ -68,7 +68,12 @@ const MUST_BE_CLEAR = [
   "call me",
   "can we meet",
   "i just want to breathe",
-  "i can't do this anymore"
+  "i can't do this anymore",
+  // Hardcoded CLEAR additions — these never reach the model.
+  "wish you were here",
+  "miss you",
+  "wish you were still here",
+  "there are leftovers in the fridge"
 ];
 
 // Must still route to 988 — real explicit crisis language. If a fix to
