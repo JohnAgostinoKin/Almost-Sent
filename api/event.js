@@ -63,6 +63,14 @@ const { waitUntil } = require("@vercel/functions");
 // for what each one actually means.
 // Never the pasted text itself, same as everywhere else here.
 //
+// "client_timeout" is logged when a first-show /api/draft request is
+// aborted client-side (index.html's FIRST_SHOW_TIMEOUT_MS, 15s) before
+// the server answered at all — the visitor sees the same "couldn't write
+// that one — try again" state as a stall, but the server never got to
+// say why. meta carries { t_elapsed }: ms from the request firing to the
+// abort. Separate from "stall" so a function that hung is countable apart
+// from one that answered with nothing.
+//
 // "safety" is logged once per api/draft.js request/response, whatever the
 // outcome — every response now carries a `safety` field (see the
 // handler), not just a crisis hit. meta carries { state, source }: state
@@ -92,7 +100,7 @@ const { waitUntil } = require("@vercel/functions");
 // meta carries { choice: "accept" | "leave" }: "accept" is remembered on the
 // device and the gate never shows again; "leave" sends them to google.com and
 // isn't remembered. Never the pasted text, same as everywhere else here.
-const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email", "stall", "age_gate"];
+const EVENTS = ["paste", "draft_shown", "another", "share", "arrival", "rate", "safety", "escalation", "entry", "entry_email", "stall", "client_timeout", "age_gate"];
 const META_LIMIT = 2000; // bytes, generous for {source, provider, revealIndex} — just a guard against abuse
 
 function readBody(req) {

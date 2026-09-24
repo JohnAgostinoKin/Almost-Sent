@@ -1125,6 +1125,13 @@
     // text" — this keeps `sent` current so retrying doesn't need the
     // visitor to type anything back in.
     function showStall(sent, stallReason) {
+      showStallState(sent);
+      logEvent("stall", { reason: stallReason || null });
+    }
+    // The DOM half of showStall, on its own so the client-side timeout in
+    // submitDraft below can put up the exact same "couldn't write that one
+    // — try again" state while logging client_timeout instead of stall.
+    function showStallState(sent) {
       current = sent;
       pool = [];
       cursor = 0;
@@ -1140,7 +1147,6 @@
       outEl.classList.remove("crisis-mode");
       outEl.classList.add("stall-mode");
       stallRowEl.classList.remove("hidden");
-      logEvent("stall", { reason: stallReason || null });
       sentEl.readOnly = true;
       setShareDisabled(true);
       whewEl.classList.add("hidden");
@@ -1154,8 +1160,22 @@
     // Returns nothing; every outcome (crisis, stall, a real result, or a
     // network failure) is handled here, on the DOM, same as before this
     // was split out of the submit listener.
+    //
+    // Client-side timeout: an outside test sat on the rotating loading
+    // lines for 30+ seconds with nothing to tell the visitor it had
+    // failed — fetch() has no timeout of its own, and the server's 10s
+    // request budget (api/draft.js's REQUEST_BUDGET_MS) only gates the
+    // extra rounds, not the whole function. FIRST_SHOW_TIMEOUT_MS aborts
+    // here regardless, same AbortController pattern as fetchEscalation
+    // above, and shows the stall state; logged as its own client_timeout
+    // event (meta.t_elapsed) rather than a stall, so a server that never
+    // answered is separable from one that answered with nothing.
+    var FIRST_SHOW_TIMEOUT_MS = 15000;
     async function submitDraft(sent) {
       var gotResult = false;
+      var startedAt = Date.now();
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); }, FIRST_SHOW_TIMEOUT_MS);
       try {
         // One request now — both generator calls (primary and wildcard,
         // see api/draft.js's handler) fire server-side in parallel, judged
@@ -1165,7 +1185,8 @@
         var res = await fetch("/api/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sent: sent })
+          body: JSON.stringify({ sent: sent }),
+          signal: controller.signal
         });
         // Checked before the body is even parsed — a 429 used to fall
         // through to the generic {error:...} shape below with no
@@ -1278,7 +1299,14 @@
         exampleEl.classList.add("hidden");
         outEl.classList.remove("hidden");
       } catch (err) {
+        if (err && err.name === "AbortError") {
+          showStallState(sent);
+          logEvent("client_timeout", { t_elapsed: Date.now() - startedAt });
+          return;
+        }
         if (!gotResult) alert("the draft didn't come through. try again.");
+      } finally {
+        clearTimeout(timer);
       }
     }
 
@@ -1288,6 +1316,11 @@
       if (!sent || go.disabled) return;
       logEvent("paste");
       go.disabled = true;
+      // Whatever result was on screen goes the moment submit fires — an
+      // outside test saw the loading lines rotating above the previous
+      // draft, which reads as if that stale line were the answer. The
+      // new result (or stall/crisis state) unhides #out itself.
+      outEl.classList.add("hidden");
       startLoadingLines();
       try {
         await submitDraft(sent);

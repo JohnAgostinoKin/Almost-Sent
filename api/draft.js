@@ -1422,16 +1422,14 @@ async function handle(req, res, internal) {
   const premises = { wildcard: wildcard.premises || null };
 
   const t_total = Date.now() - requestStarted;
-  // Escalation latency specifically — this whole round of changes exists
-  // because "make it worse" taps were slow, so this is the number that
-  // actually says whether they still are, without having to go dig
-  // t_total back out of a client-side network log. First-show requests
-  // don't get this same console.log: their latency is already visible in
-  // `why`'s own `stages` breakdown above, logged on every response either
-  // way.
-  if (escalate) {
-    console.log("escalation t_total=" + t_total + "ms (fetch this text has asked for since the original request)");
-  }
+  // Logged on EVERY request now, first-show included, with the full `why`
+  // (generator outcome, judge notes, stall reason, stages). `why` used to
+  // ride only in the JSON response and the in-memory result cache — never
+  // console.log'd — so when an outside test sat on the loader for 30+
+  // seconds, the Vercel logs had no t_total and no stage breakdown for
+  // the request, and a generator call that timed out left no line at all
+  // (callOneGenerator swallows it into `why`). Never the pasted text.
+  console.log((escalate ? "escalation " : "first-show ") + "t_total=" + t_total + "ms · " + why);
 
   const debug = {
     wildcard: wildcard.debugLines || null,
