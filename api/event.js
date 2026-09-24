@@ -58,9 +58,10 @@ const { waitUntil } = require("@vercel/functions");
 // showing, whatever the reason. meta carries { reason }: one of "no api
 // key", "credits" (OpenRouter itself is out of credits — HTTP 402, also
 // console.error'd server-side the moment it's seen), "rate limit",
-// "parse", "primary timeout", "fallback timeout", "judge-eliminated-all",
-// or "safety-eliminated-all" — see classifyStallReason in api/draft.js
-// for what each one actually means.
+// "parse", "primary timeout", "fallback timeout", "budget" (the generator
+// calls were still in flight when the 10s request budget ran out),
+// "judge-eliminated-all", or "safety-eliminated-all" — see
+// classifyStallReason in api/draft.js for what each one actually means.
 // Never the pasted text itself, same as everywhere else here.
 //
 // "client_timeout" is logged when a first-show /api/draft request is

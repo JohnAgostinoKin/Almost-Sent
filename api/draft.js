@@ -316,6 +316,11 @@ function classifyStallReason(wildcard, taste) {
     }
     if (/\brate.?limit\b|\bhttp 429\b/i.test(why)) return "rate limit";
     if (/no json in output|hit token limit|unparsable/i.test(why)) return "parse";
+    // "budget" — the calls were still in flight when REQUEST_BUDGET_MS ran
+    // out (see runGenerationRound's no-candidates wait). Checked ahead of
+    // the timeout reads below because a budget stall is exactly the case
+    // where the call's own timeout hadn't fired yet.
+    if (/request budget/i.test(why)) return "budget";
     if (/timed out/i.test(why)) {
       return /\(fallback\)/i.test(why) ? "fallback timeout" : "primary timeout";
     }
@@ -783,6 +788,16 @@ async function handle(req, res, internal) {
 
   const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
   const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
+  // Hard cap on total request time. Gates every extra round below (regen,
+  // fill, pairwise — see retryFits) AND, inside runGenerationRound, the
+  // first round's own wait for slow generator calls: before this covered
+  // that wait too, a first round with nothing in hand at the soft deadline
+  // fell into an uncapped Promise.all — up to 8s per call plus an 8s
+  // fallback call (see runGenerator), then judge and safety on top — and a
+  // 30-second first show reached an outside tester with every timing
+  // gate here looking like it had held. No cap in internal (pre-warm)
+  // mode — nobody is waiting, and Astra's rounds never fit 10s anyway.
+  const REQUEST_BUDGET_MS = internal ? Infinity : (Number(process.env.REQUEST_BUDGET_MS) || 10000); // env override is for tests only
 
   // One full generate-then-judge pass — Hermes' two calls, safety+taste
   // running concurrently on the combined candidate set. Factored into its
@@ -888,9 +903,40 @@ async function handle(req, res, internal) {
             .catch(function () {})
         );
       } else {
-        const all = await Promise.all([wildcardAPromise, wildcardBPromise]);
-        wildcardA = all[0];
-        wildcardB = all[1];
+        // Too little in hand to proceed, so wait for everything — but only
+        // up to what's left of REQUEST_BUDGET_MS. If the budget runs out
+        // first, this round stalls honestly (placeholders whose `why`
+        // classifyStallReason reads as "budget") rather than sitting on a
+        // call that may still have a fallback attempt ahead of it. The
+        // calls keep running in the background purely so cacheStragglers
+        // gets their candidates for a follow-up escalation, same as the
+        // soft-deadline branch above; pendingPromisesInFlight is left
+        // empty on purpose, so the stall-rescue wait further down doesn't
+        // spend 2s more on top of a budget that's already gone.
+        const remainingMs = REQUEST_BUDGET_MS - (Date.now() - requestStarted);
+        const everything = Promise.all([wildcardAPromise, wildcardBPromise]);
+        const all = Number.isFinite(remainingMs)
+          ? await Promise.race([everything, sleep(Math.max(0, remainingMs)).then(function () { return null; })])
+          : await everything;
+        if (all) {
+          wildcardA = all[0];
+          wildcardB = all[1];
+        } else {
+          const budgetFallback = { lines: [], why: "still pending at " + REQUEST_BUDGET_MS + "ms request budget", provider: null, premises: null };
+          wildcardA = slots.wildcardA.settled ? slots.wildcardA.result : budgetFallback;
+          wildcardB = slots.wildcardB.settled ? slots.wildcardB.result : budgetFallback;
+          waitUntil(
+            everything
+              .then(function (results) {
+                const stragglerCandidates = results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, []);
+                if (stragglerCandidates.length) {
+                  console.log("stragglers landed: " + stragglerCandidates.length + " candidate(s) past request budget, cached for escalation");
+                  cacheStragglers(sent, stragglerCandidates);
+                }
+              })
+              .catch(function () {})
+          );
+        }
       }
     }
 
@@ -1213,7 +1259,8 @@ async function handle(req, res, internal) {
   // spent plus what the first round cost fits inside REQUEST_BUDGET_MS.
   // Otherwise ship what survived. No cap in internal (pre-warm) mode —
   // nobody is waiting, and Astra's rounds never fit 10s anyway.
-  const REQUEST_BUDGET_MS = internal ? Infinity : (Number(process.env.REQUEST_BUDGET_MS) || 10000); // env override is for tests only
+  // REQUEST_BUDGET_MS itself is defined up by genOpts now, since
+  // runGenerationRound's own no-candidates wait is capped by it too.
   const firstRoundCostMs = (round.t.t_wildcard || 0) + (round.t.t_judge || 0);
   function retryFits() { return (Date.now() - requestStarted) + firstRoundCostMs <= REQUEST_BUDGET_MS; }
   let regenSkippedNote = "";
