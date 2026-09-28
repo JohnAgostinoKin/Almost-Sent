@@ -280,10 +280,70 @@
         <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
         <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
       </div>
-      <!-- Escalation comes next — after reactions now, still ahead of
-           share and the contest pitch. Red/primary again (no more
-           .ghost) — the icon row below is the share now, there's no
-           "share this" button left to be the one red button instead.
+      <!-- The one share row on the page now, directly under the
+           reactions — ahead of escalation and the contest, which used to
+           bury it as the fifth thing below the draft (see this file's
+           own git history — a second copy also used to live under a
+           collapsed "beat the ai" box; that box is gone, replaced by the
+           always-visible #contest below, which doesn't get its own share
+           row).
+           It always acts on whatever's currently on screen (renderDraft's
+           latest call), never what was there when the page first
+           rendered: buildShareText() reads draftEl.textContent live and
+           attemptNativeImageShare/buildShareImageBlob read pool[cursor]
+           live, both at share time, not render time — and now also folds
+           in #contest-line's value as "i almost sent: ..." when it has
+           something in it (see buildShareText's own comment).
+           Destinations only (see #card-controls further
+           down for "save image"/"hide their text" — options for the
+           card, not places to send it, so they don't belong in this
+           row): text/email/copy/link-share-icon/social-app-icon are each
+           wired to exactly one button now (shared click
+           handlers, see the script — no more per-row duplication to
+           match up); whatsapp, facebook, x, and copy
+           carry buildShareText()'s block (which already ends in the
+           referral URL) — facebook actually just wants that URL, not the
+           whole block, so its own click handler pulls that back out via
+           buildReferralUrl(). Instagram/snapchat/tiktok (.social-app-icon)
+           don't have a share URL to link to at all — no web intent for
+           any of the three. On mobile each triggers the native share
+           sheet (attemptNativeImageShare below, the same PNG-attached
+           flow "share this" used to run); on desktop, where there's no
+           sheet to hand off to, each downloads the PNG instead and shows
+           "saved. post it from the [app] app or site." under this row
+           (#social-download-feedback) — see their own click handler for
+           the isDesktopLayout() branch. Both paths are individually
+           labeled and logged (meta.via) so which app someone was headed
+           for is still visible either way; the desktop path also logs
+           meta.mode: "download". -->
+      <div class="share-icons" id="share-icons">
+        <button class="ghost link-share-icon" type="button" data-via="facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
+        <button class="ghost link-share-icon" type="button" data-via="x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
+        <button class="ghost link-share-icon" type="button" data-via="whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
+        <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
+        <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
+        <button class="ghost social-app-icon" type="button" data-via="tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
+        <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
+      </div>
+      <!-- Feedback for the desktop path of the three .social-app-icon
+           buttons above — "saved. post it from the instagram/snapchat/
+           tiktok app or site." Empty and hidden until one of them
+           actually downloads (see showSocialDownloadFeedback). -->
+      <p class="hint hidden download-feedback" id="social-download-feedback"></p>
+      <!-- "whew." — shown after any share tap (see the share handlers'
+           own logEvent calls). Used to live inside the collapsed .turn
+           box, back when there were two share rows; one row now, one
+           whew. -->
+      <p class="whew hidden" id="whew">whew.</p>
+
+      <!-- Escalation comes after the share row now — sharing the line
+           someone just laughed at is the very next thing under it, not
+           the fifth; escalation and the contest pitch follow. Red/primary
+           again (no more .ghost) — the icon row above is the share now,
+           there's no "share this" button left to be the one red button
+           instead.
            Capped to a single tap now — "one more," then disabled for
            good, not a three-tap progression (see this file's own git
            history for the old ESCALATE_LABELS ladder). Reveals whatever's
@@ -336,60 +396,6 @@
         <p class="hint contest-legal">by entering you agree to the <a href="/rules">rules</a> and authorize us to show and use your line.</p>
       </div>
 
-      <!-- The one share row on the page now (see this file's own git
-           history — a second copy used to live under a collapsed
-           "beat the ai" box; that box is gone, replaced by the always-
-           visible #contest above, which doesn't get its own share row).
-           It always acts on whatever's currently on screen (renderDraft's
-           latest call), never what was there when the page first
-           rendered: buildShareText() reads draftEl.textContent live and
-           attemptNativeImageShare/buildShareImageBlob read pool[cursor]
-           live, both at share time, not render time — and now also folds
-           in #contest-line's value as "i almost sent: ..." when it has
-           something in it (see buildShareText's own comment).
-           Destinations only (see #card-controls further
-           down for "save image"/"hide their text" — options for the
-           card, not places to send it, so they don't belong in this
-           row): text/email/copy/link-share-icon/social-app-icon are each
-           wired to exactly one button now (shared click
-           handlers, see the script — no more per-row duplication to
-           match up); whatsapp, facebook, x, and copy
-           carry buildShareText()'s block (which already ends in the
-           referral URL) — facebook actually just wants that URL, not the
-           whole block, so its own click handler pulls that back out via
-           buildReferralUrl(). Instagram/snapchat/tiktok (.social-app-icon)
-           don't have a share URL to link to at all — no web intent for
-           any of the three. On mobile each triggers the native share
-           sheet (attemptNativeImageShare below, the same PNG-attached
-           flow "share this" used to run); on desktop, where there's no
-           sheet to hand off to, each downloads the PNG instead and shows
-           "saved. post it from the [app] app or site." under this row
-           (#social-download-feedback) — see their own click handler for
-           the isDesktopLayout() branch. Both paths are individually
-           labeled and logged (meta.via) so which app someone was headed
-           for is still visible either way; the desktop path also logs
-           meta.mode: "download". -->
-      <div class="share-icons" id="share-icons">
-        <button class="ghost link-share-icon" type="button" data-via="facebook" disabled><span class="icon" aria-hidden="true">f</span><span class="label">facebook</span></button>
-        <button class="ghost link-share-icon" type="button" data-via="x" disabled><span class="icon" aria-hidden="true">✖️</span><span class="label">x</span></button>
-        <button class="ghost link-share-icon" type="button" data-via="whatsapp" disabled><span class="icon" aria-hidden="true">💚</span><span class="label">whatsapp</span></button>
-        <button class="ghost text-share" type="button" disabled><span class="icon" aria-hidden="true">💬</span><span class="label">text</span></button>
-        <button class="ghost email-share" type="button" disabled><span class="icon" aria-hidden="true">✉️</span><span class="label">email</span></button>
-        <button class="ghost social-app-icon" type="button" data-via="instagram" disabled><span class="icon" aria-hidden="true">📷</span><span class="label">instagram</span></button>
-        <button class="ghost social-app-icon" type="button" data-via="snapchat" disabled><span class="icon" aria-hidden="true">👻</span><span class="label">snapchat</span></button>
-        <button class="ghost social-app-icon" type="button" data-via="tiktok" disabled><span class="icon" aria-hidden="true">🎵</span><span class="label">tiktok</span></button>
-        <button class="ghost copy-share" type="button" disabled><span class="icon" aria-hidden="true">📋</span><span class="label">copy</span></button>
-      </div>
-      <!-- Feedback for the desktop path of the three .social-app-icon
-           buttons above — "saved. post it from the instagram/snapchat/
-           tiktok app or site." Empty and hidden until one of them
-           actually downloads (see showSocialDownloadFeedback). -->
-      <p class="hint hidden download-feedback" id="social-download-feedback"></p>
-      <!-- "whew." — shown after any share tap (see the share handlers'
-           own logEvent calls). Used to live inside the collapsed .turn
-           box, back when there were two share rows; one row now, one
-           whew. -->
-      <p class="whew hidden" id="whew">whew.</p>
       <!-- Card controls, not destinations — "save image" and "hide their
            text" both describe or produce the card, they don't send it
            anywhere, so they sit on their own line beneath the row above,
