@@ -58,6 +58,18 @@ with this candidate, hides the labels, randomizes the order, and downloads
 ratings locally. These checked-in samples are hand-written demo results,
 not AI output. Two unchanged leads serve as controls.
 
+For the recorded live model comparison, open
+`/scripts/bake-rate.html?review=comedy-model-v8&systems=BEFORE,AFTER,GPT54`.
+It contains all 20 held-out inputs, one first reveal per system and input,
+including failed attempts. On October 29, 2026, the original Hermes setup
+returned 19/20 reveals, revised Hermes returned 19/20, and revised GPT-5.4
+returned 20/20. Median client round trips were 9.7, 9.9, and 10.2 seconds,
+respectively. This small, unreplicated run has no human ratings yet and does
+not establish a comedy winner. `bake/reviews/comedy-model-v8/run.json` records
+the method and the rejected slower writer experiments; each snapshot records
+its source commit and model. The preview branch uses GPT-5.4 experimentally;
+production and the code default retain Hermes.
+
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
 

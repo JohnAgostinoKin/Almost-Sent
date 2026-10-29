@@ -1,0 +1,330 @@
+{
+  "system": "GPT54",
+  "label": "Revised writing and judging, GPT-5.4 writer",
+  "commit": "67868aec3b3658ec98416776f4975093db90139a",
+  "model": "openai/gpt-5.4",
+  "deployment": "https://almost-sent-met2qtlhb-agostino-technology-group.vercel.app",
+  "generatedAt": "2026-10-29",
+  "results": [
+    {
+      "input": "Your presentation had a lot of slides.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Your presentation had a lot of slides. i numbered them weird on purpose so you'd think your headache was personal"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13584,
+      "serverMs": 11083,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Could you send me the meeting notes?",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Could you send me the meeting notes? i need proof my idea only sounded stupid after brian said it confidently"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 7089,
+      "serverMs": 4628,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I added you to the team photo.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I added you to the team photo. the original crop made it look like we arrived together again"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 11382,
+      "serverMs": 9003,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "The expense report needs one more receipt.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "The expense report needs one more receipt. i may have filed the apology flowers under team morale"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8050,
+      "serverMs": 5813,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I left my umbrella at your place yesterday.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I left my umbrella at your place yesterday. i only remembered because my alibi for your place yesterday needed one less hole"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13715,
+      "serverMs": 11105,
+      "weakLead": true,
+      "scored": true
+    },
+    {
+      "input": "Are we calling this a date?",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Are we calling this a date? or am i just dressing this up so my friends stop calling it a relapse?"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8986,
+      "serverMs": 5867,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "You can stay the night if you want.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "You can stay the night if you want. i already set out the good towel like this is court-ordered romance"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9526,
+      "serverMs": 7424,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I wore that shirt you like.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I wore that shirt you like. mostly because it still smells like someone believing me"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 7186,
+      "serverMs": 4695,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I put your name on the guest list.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I put your name on the guest list. i needed at least one person there who'd recognize the lie in my toast"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8786,
+      "serverMs": 6036,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Please don't tag me in that video.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Please don't tag me in that video. my boss follows you, and i've lied about why i limp on mondays"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 14490,
+      "serverMs": 11078,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Can you pretend we arrived together?",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Can you pretend we arrived together?? the bartender cuts me off less when i look consensual"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 11013,
+      "serverMs": 8524,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I saved the last slice for you.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I saved the last slice for you. mostly so i could watch you thank me for your own pizza"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8226,
+      "serverMs": 4603,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Everyone is asking what time you'll be here.",
+      "category": "family",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Everyone is asking what time you'll be here. i need a believable hour before they realize i only invited you as a decoy"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 11176,
+      "serverMs": 8205,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I sent the holiday photos to everyone.",
+      "category": "family",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "I sent the holiday photos to everyone. i cropped myself happier in each one like a hostage proof-of-life"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 10826,
+      "serverMs": 8348,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Interesting.",
+      "category": "short",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Interesting. i practiced that face in the microwave reflection"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 7461,
+      "serverMs": 4523,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Good to know.",
+      "category": "short",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Good to know. i only asked so i'd know which lie to keep using"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8745,
+      "serverMs": 6632,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I booked the room under your name.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I booked the room under your name. mine gets flagged after the incident with the decorative swan"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8528,
+      "serverMs": 6272,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "The delivery driver left it with the neighbor.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "The delivery driver left it with the neighbor. good, now i can ask for it back without admitting i used her address on purpose"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13373,
+      "serverMs": 11032,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "We said we were keeping this casual.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "We said we were keeping this casual. i practiced \"we said\" in the mirror so it sounded mutual"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13431,
+      "serverMs": 11083,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Your earrings are still on my nightstand.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Your earrings are still on my nightstand. i moved them when my date asked whose they were"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 10843,
+      "serverMs": 8191,
+      "weakLead": false,
+      "scored": true
+    }
+  ]
+}

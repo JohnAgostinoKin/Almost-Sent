@@ -1,0 +1,43 @@
+{
+  "method": "One first-reveal request per held-out input per preview, no production database access. Small unreplicated sample; no human ratings yet. Failures remain in the review.",
+  "systems": [
+    {
+      "system": "BEFORE",
+      "requests": 20,
+      "reveals": 19,
+      "stalls": 1,
+      "medianElapsedMs": 9701.5
+    },
+    {
+      "system": "AFTER",
+      "requests": 20,
+      "reveals": 19,
+      "stalls": 1,
+      "medianElapsedMs": 9865
+    },
+    {
+      "system": "GPT54",
+      "requests": 20,
+      "reveals": 20,
+      "stalls": 0,
+      "medianElapsedMs": 10176
+    }
+  ],
+  "exploratoryModelTests": [
+    {
+      "model": "openai/gpt-6.1-sol",
+      "reasoning": "default medium",
+      "requests": 3,
+      "reveals": 0,
+      "note": "All three reached the request budget before a usable result."
+    },
+    {
+      "model": "openai/gpt-6.1-sol",
+      "reasoning": "low",
+      "requests": 3,
+      "reveals": 2,
+      "note": "Better first example, but one stall and 14.4–16.3 second round trips; not selected for live use."
+    }
+  ],
+  "previewWriter": "GPT-5.4 is an experimental branch-only preview setting. Production and the code default still use Hermes. These results do not establish a comedy winner."
+}
