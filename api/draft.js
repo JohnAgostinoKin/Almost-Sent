@@ -733,6 +733,7 @@ async function handle(req, res, internal) {
   // (lib/prompt.js's invitesRaunchy), never left to the model. Sets both
   // calls' lane plans. Ranking remains independent of the lane.
   const lanePlans = lanePlansFor(sent);
+  const invited = lanePlans.invited;
 
   const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
   const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
