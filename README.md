@@ -81,9 +81,20 @@ All twenty v8 inputs are now calibration material. Use the fresh
 `bake/comedy-inputs-v10.json` corpus for future comparisons. Testing models
 must use the same prompt, selection rules and inputs; do not count another
 model's fallback response as a successful output from the requested model.
-Hermes is a control, not a launch-quality conclusion. The next challengers
-are `anthropic/claude-sonnet-5.5` and `x-ai/grok-4.7`, each using its supported
-low reasoning setting for short generation calls. Production is unchanged.
+Hermes is a control, not a launch-quality conclusion. A six-input comparison
+of `anthropic/claude-sonnet-5.5` and `x-ai/grok-4.7`, using their supported low
+reasoning setting, is recorded in `bake/reviews/comedy-model-v10/`. All three
+configurations used the same source commit and fresh inputs. Claude returned
+6/6 own-model reveals (8.25s median client round trip), Hermes 5/6 (9.63s), and
+Grok 0/6 (five stalls and one Mistral fallback, excluded from Grok's results).
+These measurements establish runtime behavior, not a human-rated comedy win.
+Claude is the next experimental preview writer; production retains Hermes.
+
+Open `/scripts/bake-rate.html?review=comedy-model-v10&systems=HERMES,CLAUDE`
+for the six-input blind review. The full failed Grok run remains in the files
+and can also be included with `systems=HERMES,CLAUDE,GROK`. No new human
+ratings are recorded yet. The first test's owner ratings are not reused as
+scores for these new outputs.
 
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
