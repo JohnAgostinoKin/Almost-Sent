@@ -1,0 +1,22 @@
+[
+  { "category": "friends", "sent": "Your dog likes me more than you." },
+  { "category": "dating", "sent": "Let's not tell anyone about last night." },
+  { "category": "friends", "sent": "I brought dessert." },
+  { "category": "dating", "sent": "Thanks for inviting my ex." },
+  { "category": "logistics", "sent": "Can you pick me up from the airport?" },
+  { "category": "work", "sent": "Please stop replying all." },
+  { "category": "dating", "sent": "I deleted the dating apps." },
+  { "category": "work", "sent": "Your microphone is still on." },
+  { "category": "family", "sent": "I made your favorite casserole." },
+  { "category": "friends", "sent": "You can borrow my suitcase." },
+  { "category": "work", "sent": "We should carpool to the conference." },
+  { "category": "dating", "sent": "You left your charger here." },
+  { "category": "short", "sent": "Absolutely." },
+  { "category": "short", "sent": "Noted." },
+  { "category": "logistics", "sent": "I gave the plumber your number." },
+  { "category": "friends", "sent": "I kept your seat warm." },
+  { "category": "dating", "sent": "I told my friends about us." },
+  { "category": "work", "sent": "I'm taking a personal day." },
+  { "category": "family", "sent": "We found your old yearbook." },
+  { "category": "friends", "sent": "You made quite an impression at karaoke." }
+]

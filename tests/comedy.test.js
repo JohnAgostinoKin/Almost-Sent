@@ -16,9 +16,11 @@ const { buildWildcardRequest } = require('../lib/prompt');
 const { buildTasteJudgeRequest } = require('../lib/judge');
 
 test('the newer writer uses supported low reasoning without consuming compact judges\' token budget', async () => {
-  const request = await buildWildcardRequest('openai/gpt-6.1-sol', 'an unseen rehearsal message', { lanes: ['confession'] });
-  assert.deepEqual(request.reasoning, { effort: 'low' });
-  assert.equal(request.model, 'openai/gpt-6.1-sol');
+  for (const model of ['openai/gpt-6.1-sol', 'anthropic/claude-sonnet-5.5', 'x-ai/grok-4.7']) {
+    const request = await buildWildcardRequest(model, 'an unseen rehearsal message', { lanes: ['confession'] });
+    assert.deepEqual(request.reasoning, { effort: 'low' });
+    assert.equal(request.model, model);
+  }
   const taste = buildTasteJudgeRequest('an unseen rehearsal message', [], 'openai/gpt-5.4');
   assert.equal(taste.reasoning, undefined);
 });

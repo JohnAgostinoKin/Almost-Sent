@@ -58,24 +58,32 @@ with this candidate, hides the labels, randomizes the order, and downloads
 ratings locally. These checked-in samples are hand-written demo results,
 not AI output. Two unchanged leads serve as controls.
 
-For the recorded live model comparison, open
+The recorded v8 comparison remains available at
 `/scripts/bake-rate.html?review=comedy-model-v8&systems=BEFORE,AFTER,GPT54`.
-It contains all 20 held-out inputs, one first reveal per system and input,
-including failed attempts. On October 29, 2026, the original Hermes setup
-returned 19/20 reveals, revised Hermes returned 19/20, and revised GPT-5.4
-returned 20/20. Median client round trips were 9.7, 9.9, and 10.2 seconds,
-respectively. This small, unreplicated run has no human ratings yet and does
-not establish a comedy winner. `bake/reviews/comedy-model-v8/run.json` records
-the method and the rejected slower writer experiments; each snapshot records
-its source commit and model. The preview branch uses GPT-5.4 experimentally;
-production and the code default retain Hermes.
+The owner's uploaded blind ratings are saved with the outputs as
+`owner-ratings.csv`; `owner-feedback.json` joins all 58 ratings to the exact
+jokes and records the summary. The two unrated cards were failed generations.
 
-The next calibration incorporates John's edit to the meeting-notes joke:
-"Could you send me the meeting notes? Just the parts where you said something
-stupid." The writer and judge now allow a precise cut at the recipient without
-forcing self-deprecation, and stop before an explanatory tag. This advances the
-cache to `comedy-v9`. The recorded v8 outputs remain historical; the meeting-notes
-input is now a calibration example and is no longer held out for future tests.
+| Configuration | Laughs / 20 attempts | Smirks | Screenshot picks | Stalls |
+| --- | --- | --- | --- | --- |
+| Original Hermes | 7 | 3 | 3 | 1 |
+| Revised Hermes | 3 | 5 | 0 | 1 |
+| Revised GPT-5.4 | 2 | 7 | 0 | 0 |
+
+This is one rater and one unreplicated sample, but it rejects the claim that
+our v8 rewrite improved comedy. The new v10 candidate restores the original
+writer examples, tone and lane mix, adds the three screenshot picks and the
+owner's meeting-notes edit, and calibrates the judge against actual LOL/BAD
+ratings. Selection, invitation filtering, punctuation fixes and safety checks
+remain in place. The v10 candidate has not yet earned a human-rated win.
+
+All twenty v8 inputs are now calibration material. Use the fresh
+`bake/comedy-inputs-v10.json` corpus for future comparisons. Testing models
+must use the same prompt, selection rules and inputs; do not count another
+model's fallback response as a successful output from the requested model.
+Hermes is a control, not a launch-quality conclusion. The next challengers
+are `anthropic/claude-sonnet-5.5` and `x-ai/grok-4.7`, each using its supported
+low reasoning setting for short generation calls. Production is unchanged.
 
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:

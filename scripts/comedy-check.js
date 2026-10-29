@@ -37,7 +37,8 @@ const handler = require(path.join(root, 'api/draft'));
 const { CURATED_LEADS } = require(path.join(root, 'lib/curated'));
 const { composeDraft } = require(path.join(root, 'lib/compose'));
 const { WILDCARD_MODEL, normalizeBefore } = require(path.join(root, 'lib/prompt'));
-const corpus = JSON.parse(fs.readFileSync(path.join(outputRoot, 'bake/comedy-inputs.json'), 'utf8'));
+const corpusPath = path.resolve(outputRoot, value('--inputs', 'bake/comedy-inputs-v10.json'));
+const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8'));
 const inputs = (demo ? Object.keys(CURATED_LEADS) : corpus.map(row => row.sent)).slice(0, limit);
 if (!demo && inputs.some(sent => CURATED_LEADS[normalizeBefore(sent)])) {
   throw new Error('Model corpus contains a curated shortcut; use an unseen input.');
