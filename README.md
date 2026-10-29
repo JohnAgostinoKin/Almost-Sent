@@ -70,6 +70,13 @@ the method and the rejected slower writer experiments; each snapshot records
 its source commit and model. The preview branch uses GPT-5.4 experimentally;
 production and the code default retain Hermes.
 
+The next calibration incorporates John's edit to the meeting-notes joke:
+"Could you send me the meeting notes? Just the parts where you said something
+stupid." The writer and judge now allow a precise cut at the recipient without
+forcing self-deprecation, and stop before an explanatory tag. This advances the
+cache to `comedy-v9`. The recorded v8 outputs remain historical; the meeting-notes
+input is now a calibration example and is no longer held out for future tests.
+
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
 
