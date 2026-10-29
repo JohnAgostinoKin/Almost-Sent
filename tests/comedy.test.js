@@ -12,6 +12,16 @@ const { composeDraft } = require('../lib/compose');
 const { CURATED_LEADS } = require('../lib/curated');
 const { LANES, WORD_CAP, lanePlansFor, normalizeBefore } = require('../lib/prompt');
 const { precomputedKey, putPrecomputed } = require('../lib/precomputed');
+const { buildWildcardRequest } = require('../lib/prompt');
+const { buildTasteJudgeRequest } = require('../lib/judge');
+
+test('the newer writer uses supported low reasoning without consuming compact judges\' token budget', async () => {
+  const request = await buildWildcardRequest('openai/gpt-6.1-sol', 'an unseen rehearsal message', { lanes: ['confession'] });
+  assert.deepEqual(request.reasoning, { effort: 'low' });
+  assert.equal(request.model, 'openai/gpt-6.1-sol');
+  const taste = buildTasteJudgeRequest('an unseen rehearsal message', [], 'openai/gpt-5.4');
+  assert.equal(taste.reasoning, undefined);
+});
 
 function candidate(lane, text, reaction, q) {
   return { candidate: { lane, text }, reaction, q };

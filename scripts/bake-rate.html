@@ -293,7 +293,10 @@
       .map(function (sys) {
         var found = (RESULTS[sys.key] || []).filter(function (r) { return r.input === input; })[0];
         var lead = found && found.top3 && found.top3[0];
-        return lead ? { system: sys.key, text: lead.text } : null;
+        // A failed attempt still belongs in the comparison denominator.
+        // Keep it visible without pretending the placeholder is a joke.
+        return lead ? { system: sys.key, text: lead.text }
+          : found ? { system: sys.key, text: "[no reveal on this attempt]" } : null;
       })
       .filter(Boolean);
     if (!inputRows.length) {
