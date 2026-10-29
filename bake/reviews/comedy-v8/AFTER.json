@@ -1,0 +1,166 @@
+{
+  "system": "AFTER",
+  "label": "Fixed demo jokes; not a model evaluation",
+  "commit": "0fddc35c8dd14e98a839dad29e8b9787203b6b57",
+  "dirty": true,
+  "model": null,
+  "generatedAt": "2026-10-29T22:42:13.262Z",
+  "results": [
+    {
+      "input": "sorry, i fell asleep",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "sorry, i fell asleep. my phone lit up and even the other guy said don't answer"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 3,
+      "note": ""
+    },
+    {
+      "input": "we should hang out sometime",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "we should hang out sometime. i'm free whenever the person i actually asked cancels"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 1,
+      "note": ""
+    },
+    {
+      "input": "i'm fine",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "i'm fine. i only checked your location from one device today"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "who is she",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "who is she. i need a name for the group chat poll"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "we need to talk",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "we need to talk. i accidentally sent you the version the group chat approved"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "k",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "k. fuck you too but shorter"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "no worries",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "no worries. i already told everyone this was your idea"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "on my way",
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "on my way. i'm still naked. interpret that as an apology or an offer"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "haha yeah",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "haha yeah. i laughed harder at the version you didn't mean to send"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "call me",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "call me. i need to know which lie i told you"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "miss you",
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "miss you. mostly when the batteries die, but still"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    },
+    {
+      "input": "wish me luck tomorrow",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "wish me luck tomorrow. i listed you as a reference and us as a success story"
+        }
+      ],
+      "source": "curated",
+      "weakLead": false,
+      "elapsedMs": 0,
+      "note": ""
+    }
+  ]
+}
