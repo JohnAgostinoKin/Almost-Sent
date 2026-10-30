@@ -364,13 +364,17 @@ normalization fixes and strongest-first selection behavior are retained.
 Preview-only branch settings: `WILDCARD_MODEL=nousresearch/hermes-4-405b` and
 `LIVE_DEMOS=1`. The latter makes every homepage chip use real generation rather
 than the fixed demo bank. No production database credentials are added. Cache
-version: `original-roast-v14`. Main, production and the original reference
+version: `original-roast-v14b`. Main, production and the original reference
 preview are unchanged.
 
-Validation: 19 automated tests pass, including the full handler's uncued raunchy
+Validation: 20 automated tests pass, including the full handler's uncued raunchy
 path and live-demo path, vocabulary filtering, short-tail regression and existing
 safety behavior. All five example banks were compared with the original commit;
 the safety implementation was checked unchanged from the preceding branch.
+The first live smoke run exposed numeric taste scores being parsed as rejection
+reasons when the judge omitted a separator. Explicit output examples and a
+bounded parser now handle the observed numeric formats; malformed data does not
+become a fabricated rejection. The cache version was bumped for the repair.
 `bake/original-roast-smoke-v14.json` freezes four functional-check inputs before
 deployment. These are smoke checks, not a blind quality benchmark; no improvement
 claim or owner rating is implied.

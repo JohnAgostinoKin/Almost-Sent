@@ -165,3 +165,16 @@ test('ordinary creative vocabulary is judged instead of mechanically discarded',
   assert.equal(result.kept.length, 2);
   assert.equal(result.all[2].filter, 'crutch');
 });
+
+
+test('judge score-format variations cannot silently become rejection reasons', () => {
+  const {parseCompactJudgeLines} = require('../lib/judge');
+  const rows = parseCompactJudgeLines('1|0|8,7,4\n2|8,7,4\n3|8|7|4\n4|continues\n5|clear\n6|8\n7|0|99,7,4\n8|anchor_present');
+  for (const index of [1,2,3]) {
+    assert.equal(rows[index].eliminated, false);
+    assert.deepEqual(rows[index].scores, {reaction:8,specificity:7,interchangeable:4});
+  }
+  assert.equal(rows[4].killedBy, 'continues');
+  assert.equal(rows[5].killedBy, 'clear');
+  for (const index of [6,7,8]) assert.equal(rows[index], undefined);
+});
