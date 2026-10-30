@@ -1,0 +1,85 @@
+{
+  "name": "initial",
+  "commit": "3adaede8e8606ac62ad159bfd13fddcc1099ad0a",
+  "deployment": "https://almost-sent-ijsdtxcvu-agostino-technology-group.vercel.app",
+  "method": "One first-reveal request per fixed functional input. No substitutions or selected later reveals. This is not a blind quality benchmark.",
+  "results": [
+    {
+      "input": "He says he's great in bed.",
+      "category": "adult boast",
+      "status": 200,
+      "source": "stall",
+      "actualModel": null,
+      "elapsedMs": 9870,
+      "firstReveal": null,
+      "continuation": null,
+      "automaticFirstReveal": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": "judge-eliminated-all",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: pending past 3500ms soft deadline · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 380ms, sum 1027ms across 3 calls) · taste: openai/gpt-5.4 (1444ms) — [shock] elim:8 [safety-flagged], [deranged] elim:7 [safety-flagged], [gross] elim:8 · fill round skipped: would exceed 10000ms · late: 1 (proceeded past soft deadline, call(s) finishing in background) · stall rescue: 3 straggler(s) landed after 0ms, none survived — stalling · stall_reason: judge-eliminated-all · stages: t_cold=70015ms t_parse=1ms t_block=0ms t_wildcardA=2858ms t_wildcardB=3655ms t_wildcard=2858ms t_judge=2854ms t_response=1ms"
+    },
+    {
+      "input": "Your brother is coming with us.",
+      "category": "family roast",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 6477,
+      "firstReveal": "Your brother is coming with us. i already told him you're paying for everything",
+      "continuation": ". i already told him you're paying for everything",
+      "automaticFirstReveal": {
+        "q": 6,
+        "reaction": 6
+      },
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 428ms, sum 2230ms across 6 calls) · taste: openai/gpt-5.4 (1299ms) — [shock] elim:8,7,4, [deranged] elim:9,7,3 [safety-flagged], [gross] elim:5,6,7, [shock] q:-4 reaction:2 [safety-flagged], [raunchy] q:7 reaction:7 [safety-flagged], [confession] q:6 reaction:6 · stages: t_cold=79243ms t_parse=0ms t_block=0ms t_wildcardA=2274ms t_wildcardB=2191ms t_wildcard=2274ms t_judge=1302ms t_response=0ms"
+    },
+    {
+      "input": "That outfit is a choice.",
+      "category": "looks roast",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 12128,
+      "firstReveal": "That outfit is a choice. just like your face. i hope you didn't fucking pay for it",
+      "continuation": ". just like your face. i hope you didn't fucking pay for it",
+      "automaticFirstReveal": {
+        "q": 6,
+        "reaction": 7
+      },
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 520ms, sum 2117ms across 6 calls) · taste: openai/gpt-5.4 (1413ms) — [shock] elim:8,8,4, [deranged] elim:7,7,5, [gross] elim:9,8,3 [safety-flagged], [shock] elim:9,8,3 [safety-flagged], [raunchy] elim:7,7,5, [confession] elim:8,6,4 [safety-flagged] · fill round: had 0 shown, +2 survivor(s), now 1 shown · pairwise skipped: would exceed 10000ms · stages: t_cold=85544ms t_parse=0ms t_block=0ms t_wildcardA=3095ms t_wildcardB=3500ms t_wildcard=3500ms t_judge=2893ms t_response=0ms"
+    },
+    {
+      "input": "k",
+      "category": "live demo chip",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 8714,
+      "firstReveal": "k. why's your face always look like my ass after taco bell?",
+      "continuation": ". why's your face always look like my ass after taco bell?",
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 8
+      },
+      "inputSafety": {
+        "state": "skipped",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 695ms, sum 2672ms across 6 calls) · taste: openai/gpt-5.4 (1355ms) — [shock] q:9 reaction:8, [deranged] q:12 reaction:9 [safety-flagged], [gross] q:6 reaction:7, [shock] q:-4 reaction:2, [raunchy] q:1 reaction:6 [safety-flagged], [confession] q:2 reaction:5 · pairwise: #1 won from both positions (519ms), held · stages: t_cold=97997ms t_parse=0ms t_block=0ms t_wildcardA=3112ms t_wildcardB=2764ms t_wildcard=3112ms t_judge=1876ms t_response=0ms"
+    }
+  ]
+}

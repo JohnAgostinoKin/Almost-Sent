@@ -379,6 +379,14 @@ become a fabricated rejection. The cache version was bumped for the repair.
 deployment. These are smoke checks, not a blind quality benchmark; no improvement
 claim or owner rating is implied.
 
+The corrected live preview returned four of four own-model Hermes first reveals,
+including the uncued family/looks inputs and `k` through live generation. Every
+lead stayed within the 18-word ceiling. One family input needed the normal fill
+round and took 12.65 seconds. Both the initial run (three reveals, one stall) and
+the corrected run are saved in `bake/reviews/original-roast-v14/`; regenerated
+outputs are not presented as a controlled quality improvement. No owner ratings
+have been collected for this experiment.
+
 ## Do not add yet
 
 Accounts, a feed, a chatbot, analytics that store pastes.

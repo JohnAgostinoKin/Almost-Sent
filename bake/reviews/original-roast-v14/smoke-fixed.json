@@ -1,0 +1,88 @@
+{
+  "name": "fixed",
+  "commit": "48c96558de12700ad612c38812f49886d2853bea",
+  "deployment": "https://almost-sent-avyldtu7v-agostino-technology-group.vercel.app",
+  "method": "One first-reveal request per fixed functional input. No substitutions or selected later reveals. This is not a blind quality benchmark.",
+  "results": [
+    {
+      "input": "He says he's great in bed.",
+      "category": "adult boast",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 8654,
+      "firstReveal": "He says he's great in bed. which is weird because he sleeps on a bare mattress",
+      "continuation": ". which is weird because he sleeps on a bare mattress",
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 8
+      },
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 674ms, sum 2894ms across 6 calls) · taste: openai/gpt-5.4 (1545ms) — [shock] q:9 reaction:7, [deranged] q:7 reaction:6 [safety-flagged], [gross] q:13 reaction:8, [shock] q:13 reaction:9, [raunchy] q:12 reaction:8, [confession] q:11 reaction:7 · pairwise: split verdict (1/1 — position bias), q order kept · stages: t_cold=37918ms t_parse=1ms t_block=0ms t_wildcardA=2439ms t_wildcardB=2344ms t_wildcard=2439ms t_judge=2160ms t_response=0ms"
+    },
+    {
+      "input": "Your brother is coming with us.",
+      "category": "family roast",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 12650,
+      "firstReveal": "Your brother is coming with us. does he still leave those greasy fucking hair clumps in the shower drain?",
+      "continuation": ". does he still leave those greasy fucking hair clumps in the shower drain?",
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 519ms, sum 2422ms across 6 calls) · taste: openai/gpt-5.4 (1451ms) — [shock] q:10 reaction:7 [safety-flagged], [deranged] q:13 reaction:8 [safety-flagged], [gross] q:12 reaction:8 [safety-flagged], [shock] q:6 reaction:6 [safety-flagged], [raunchy] q:11 reaction:8 [safety-flagged], [confession] q:11 reaction:7 [safety-flagged] · fill round: had 0 shown, +3 survivor(s), now 2 shown · pairwise skipped: would exceed 10000ms · stages: t_cold=47343ms t_parse=0ms t_block=1ms t_wildcardA=2898ms t_wildcardB=2918ms t_wildcard=2918ms t_judge=2901ms t_response=0ms"
+    },
+    {
+      "input": "That outfit is a choice.",
+      "category": "looks roast",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 7590,
+      "firstReveal": "That outfit is a choice. looks like you got it out of a dumpster. a medical waste one.",
+      "continuation": ". looks like you got it out of a dumpster. a medical waste one.",
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 8
+      },
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 838ms, sum 3406ms across 6 calls) · taste: openai/gpt-5.4 (1796ms) — [shock] q:2 reaction:6, [deranged] q:11 reaction:8 [safety-flagged], [gross] q:9 reaction:8, [shock] q:14 reaction:9 [safety-flagged], [raunchy] q:13 reaction:8 [safety-flagged], [confession] q:11 reaction:7 [safety-flagged] · stages: t_cold=59071ms t_parse=0ms t_block=0ms t_wildcardA=2510ms t_wildcardB=2595ms t_wildcard=2595ms t_judge=1798ms t_response=0ms"
+    },
+    {
+      "input": "k",
+      "category": "live demo chip",
+      "status": 200,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "elapsedMs": 8302,
+      "firstReveal": "k i'll just take that as the 11th 'no' this month",
+      "continuation": " i'll just take that as the 11th 'no' this month",
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "inputSafety": {
+        "state": "skipped",
+        "source": "classifier"
+      },
+      "stallReason": null,
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: pending past 3500ms soft deadline · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 458ms, sum 1124ms across 3 calls) · taste: openai/gpt-5.4 (1245ms) — [shock] q:3 reaction:7 [safety-flagged], [deranged] q:12 reaction:8, [gross] q:9 reaction:7 [safety-flagged] · late: 1 (proceeded past soft deadline, call(s) finishing in background) · stages: t_cold=67062ms t_parse=0ms t_block=0ms t_wildcardA=3376ms t_wildcardB=3581ms t_wildcard=3376ms t_judge=1246ms t_response=0ms"
+    }
+  ]
+}
