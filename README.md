@@ -110,6 +110,23 @@ pools against selected leads before another model switch or broader rewrite.
 These ratings are evaluation evidence, not new runtime calibration. The first
 test's owner ratings are not reused as scores for these new outputs.
 
+The owner subsequently clarified the goal: "I can't believe they almost sent
+that" — shock, embarrassment, disgust or a brutal cut; laughter is optional.
+The historical tables above measure the old laughter rubric and cannot establish
+success or failure on these other reactions. The reaction-v11 writer, taste
+judge and pairwise final now accept a concrete revelation without a comic
+punchline. Same-sender, anchor, clarity and safety checks remain in place.
+This aligns the objective; it is not evidence of improved live output.
+
+New reviews use STRONG / MILD / NONE for reaction strength, with optional
+shock, embarrassment, disgust, brutal and laugh tags. Screenshot intent and
+failure reasons remain separate: a strong reaction can still miss the owner's
+taste. To reconsider the existing samples, use
+`/scripts/bake-rate.html?review=comedy-model-v10&systems=HERMES,CLAUDE&rubric=impact-v1`.
+Old comedy review URLs retain their original labels and saved ratings. The new
+rubric uses separate browser storage and an explicit CSV schema; the tally
+prints each rubric separately and never converts old ratings into new ones.
+
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
 
@@ -126,9 +143,9 @@ disables database reads/writes, and saves failed requests too. It refuses
 to substitute demo results when model credentials are missing. Model tests
 incur normal provider costs (up to 20 requests per run, plus judging/retries).
 
-Before promoting a comedy revision, have adults rate the blinded outputs.
-Compare laughs and screenshot intent, with stalls included in the request
-count. Check wrong-speaker errors and slow requests separately. Judge scores
+Before promoting a revision, have adults rate the blinded outputs for reaction
+strength, type, unwanted reactions and screenshot intent, with stalls included
+in the request count. Laughter is optional. Check wrong-speaker errors and slow requests separately. Judge scores
 alone are not a launch gate. Bump `COMEDY_CACHE_VERSION` when the writing or
 selection changes so persisted results cannot hide the new behavior.
 

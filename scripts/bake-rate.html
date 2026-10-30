@@ -27,6 +27,13 @@
   .rate-row button.selected.smirk { background:#4a7a6f; border-color:#4a7a6f; color:#fff; }
   .rate-row button.selected.nothing { background:#4a4742; border-color:#4a4742; color:#fff; }
   .rate-row button.selected.bad { background:var(--red); border-color:var(--red); color:#fff; }
+  .rate-row button.selected.strong { background:#95342d; border-color:#d45c48; color:#fff; }
+  .rate-row button.selected.mild { background:#4a7a6f; border-color:#4a7a6f; color:#fff; }
+  .rate-row button.selected.none { background:#4a4742; border-color:#4a4742; color:#fff; }
+  .reaction-row { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 14px; }
+  .reaction-row button { border:1px solid var(--line); border-radius:6px; padding:8px; background:transparent; color:var(--fg); cursor:pointer; }
+  .reaction-row button[aria-pressed="true"] { border-color:var(--red); background:#48201d; }
+  .reaction-label { font-size:12px; color:var(--mute); margin:10px 0 6px; }
   .toggle-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:var(--fg); }
   .toggle-row input { width:16px; height:16px; }
   .card select { width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--line); padding:6px 8px; font-size:12px; border-radius:4px; }
@@ -44,7 +51,7 @@
 <body>
 <main>
   <h1>bake-off rating<span style="color:var(--red)">.</span></h1>
-  <p class="hint">One input at a time. The lines below are in random order and unlabeled — you're not told which system wrote which. React to each line, toggle "would you screenshot this?" if it applies, and optionally pick a failure reason. Tap "next" when you're done with this one. Nothing is uploaded — your ratings live in a CSV you download from the bottom of this page.</p>
+  <p class="hint" id="reviewHint">One input at a time. The lines below are in random order and unlabeled — you're not told which system wrote which. React to each line, toggle "would you screenshot this?" if it applies, and optionally pick a failure reason. Tap "next" when you're done with this one. Nothing is uploaded — your ratings live in a CSV you download from the bottom of this page.</p>
 
   <div class="rater-row">
     <input type="text" id="rater" placeholder="your name or initials, so we can tell raters apart" />
@@ -64,15 +71,9 @@
 </main>
 
 <script>
-  // Reaction vocabulary, v4 addendum section I ("replace the four" —
-  // brief sections 5 and 7 both specced laughed/nothing/hated/winced for
-  // this exact page and for bible-rate.html; the addendum overrides both
-  // with this same set instead, for one consistent vocabulary across
-  // every rating tool in the repo). RATINGS is exclusive per card (one
-  // reaction, not the old TAGS multi-select); screenshot and failure ride
-  // alongside it. "too far" and "bad" are independent per the addendum's
-  // own instruction — a line can be shocking and excellent, or offensive
-  // and unfunny.
+  // Old comedy review URLs retain their original vocabulary. Use
+  // rubric=impact-v1 to review any dataset under the clarified objective.
+  // Different rubrics have separate browser storage and explicit CSV tags.
   var params = new URLSearchParams(location.search);
   var reviewName = params.get("review") || "";
   if (!/^[a-z0-9-]{1,40}$/.test(reviewName)) reviewName = "";
@@ -80,8 +81,16 @@
     .filter(function (key) { return /^[A-Z][A-Z0-9_-]{0,31}$/.test(key); }).slice(0, 8);
   var storagePrefix = reviewName || requestedSystems.length
     ? "bake_" + (reviewName || requestedSystems.join("_")) + "_" : "bake_";
-  var RATINGS = ["lol", "smirk", "nothing", "bad"];
-  var FAILURE_REASONS = ["", "too tame", "generic", "random", "answers the text", "too long", "too far"];
+  var impactMode = params.get("rubric") === "impact-v1" ||
+    (!params.has("rubric") && !/^comedy-/.test(reviewName));
+  var ratingSchema = impactMode ? "impact-v1" : "comedy-v4";
+  if (impactMode) storagePrefix += "impact-v1_" + requestedSystems.join("_") + "_";
+  var RATINGS = impactMode ? ["strong", "mild", "none"] : ["lol", "smirk", "nothing", "bad"];
+  var REACTIONS = ["shock", "embarrassment", "disgust", "brutal", "laugh"];
+  var REACTION_LABELS = { shock: "shocked", embarrassment: "secondhand embarrassment", disgust: "grossed out", brutal: "that's brutal", laugh: "laughed" };
+  var FAILURE_REASONS = ["", "too tame", "generic", "random", "answers the text", "too long", "too far", "not my taste"];
+  if (impactMode) document.getElementById("reviewHint").textContent =
+    "Did it make you think 'I can't believe they almost sent that'? Rate the reaction STRONG, MILD or NONE, then optionally mark what you felt. Shock, secondhand embarrassment, disgust and a brutal cut all count. Laughter is optional. A strong reaction can still miss your taste: use the failure reason. Writers are hidden. Ratings stay in this browser until you download the CSV.";
 
   var raterEl = document.getElementById("rater");
   var roundEl = document.getElementById("round");
@@ -115,16 +124,16 @@
   }
   function refreshDownload() {
     rowCountEl.textContent = rows.length + " rating" + (rows.length === 1 ? "" : "s") + " recorded";
-    var header = "rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure\n";
+    var header = "rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure,schema,reactions\n";
     var body = rows.map(function (r) {
-      return [r.rater, r.timestamp, r.input_index, r.input, r.system, r.position_shown, r.rating, r.screenshot ? "yes" : "no", r.failure || ""].map(csvEscape).join(",");
+      return [r.rater, r.timestamp, r.input_index, r.input, r.system, r.position_shown, r.rating, r.screenshot ? "yes" : "no", r.failure || "", r.schema || ratingSchema, (r.reactions || []).join("|")].map(csvEscape).join(",");
     }).join("\n");
     var blob = new Blob([header + body + "\n"], { type: "text/csv" });
     var url = URL.createObjectURL(blob);
     if (downloadLinkEl.dataset.url) URL.revokeObjectURL(downloadLinkEl.dataset.url);
     downloadLinkEl.href = url;
     downloadLinkEl.dataset.url = url;
-    downloadLinkEl.download = "bake-ratings" + (raterEl.value ? "-" + raterEl.value.replace(/[^a-z0-9]+/gi, "-") : "") + ".csv";
+    downloadLinkEl.download = (impactMode ? "impact-ratings" : "bake-ratings") + (raterEl.value ? "-" + raterEl.value.replace(/[^a-z0-9]+/gi, "-") : "") + ".csv";
   }
 
   // Round index persists per browser (not per rater — this is a shared
@@ -159,11 +168,12 @@
 
   function upsertRow(position, item) {
     var state = cardStates[position];
-    var existingIdx = rows.findIndex(function (r) { return r.input_index === roundIndex && r.position_shown === position; });
+    var rater = raterEl.value.trim() || "anonymous";
+    var existingIdx = rows.findIndex(function (r) { return r.input_index === roundIndex && r.system === item.system && r.rater === rater; });
     if (existingIdx !== -1) rows.splice(existingIdx, 1);
     if (state.rating) {
       rows.push({
-        rater: raterEl.value.trim() || "anonymous",
+        rater: rater,
         timestamp: new Date().toISOString(),
         input_index: roundIndex,
         input: INPUTS[roundIndex],
@@ -171,7 +181,9 @@
         position_shown: position,
         rating: state.rating,
         screenshot: state.screenshot,
-        failure: state.failure
+        failure: state.failure,
+        schema: ratingSchema,
+        reactions: state.reactions.slice()
       });
     }
     persistRows();
@@ -202,7 +214,10 @@
     roundEl.appendChild(sent);
 
     shown.forEach(function (item, position) {
-      cardStates[position] = { rating: null, screenshot: false, failure: "" };
+      var saved = rows.find(function (r) { return r.input_index === roundIndex && r.system === item.system && r.rater === (raterEl.value.trim() || "anonymous"); });
+      cardStates[position] = saved
+        ? { rating: saved.rating, screenshot: saved.screenshot, failure: saved.failure || "", reactions: (saved.reactions || []).slice() }
+        : { rating: null, screenshot: false, failure: "", reactions: [] };
 
       var card = document.createElement("div");
       card.className = "card";
@@ -218,6 +233,7 @@
         btn.type = "button";
         btn.className = rating;
         btn.textContent = rating.toUpperCase();
+        btn.classList.toggle("selected", cardStates[position].rating === rating);
         btn.addEventListener("click", function () {
           cardStates[position].rating = rating;
           RATINGS.forEach(function (r) { ratingBtns[r].classList.toggle("selected", r === rating); });
@@ -228,10 +244,35 @@
       });
       card.appendChild(rateRow);
 
+      if (impactMode) {
+        var reactionLabel = document.createElement("div");
+        reactionLabel.className = "reaction-label";
+        reactionLabel.textContent = "What did you feel? (optional; choose any)";
+        card.appendChild(reactionLabel);
+        var reactionRow = document.createElement("div");
+        reactionRow.className = "reaction-row";
+        REACTIONS.forEach(function (reaction) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.textContent = REACTION_LABELS[reaction];
+          button.setAttribute("aria-pressed", String(cardStates[position].reactions.indexOf(reaction) !== -1));
+          button.addEventListener("click", function () {
+            var picked = cardStates[position].reactions;
+            var at = picked.indexOf(reaction);
+            if (at === -1) picked.push(reaction); else picked.splice(at, 1);
+            button.setAttribute("aria-pressed", String(picked.indexOf(reaction) !== -1));
+            upsertRow(position, item);
+          });
+          reactionRow.appendChild(button);
+        });
+        card.appendChild(reactionRow);
+      }
+
       var toggleRow = document.createElement("label");
       toggleRow.className = "toggle-row";
       var checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.checked = cardStates[position].screenshot;
       checkbox.addEventListener("change", function () {
         cardStates[position].screenshot = checkbox.checked;
         upsertRow(position, item);
@@ -247,6 +288,7 @@
         opt.textContent = reason || "— failure reason (optional) —";
         select.appendChild(opt);
       });
+      select.value = cardStates[position].failure;
       select.addEventListener("change", function () {
         cardStates[position].failure = select.value;
         upsertRow(position, item);
