@@ -1,0 +1,122 @@
+[
+  {
+    "category": "food",
+    "sent": "I ate the last of your leftovers."
+  },
+  {
+    "category": "food",
+    "sent": "The waiter said he remembers us."
+  },
+  {
+    "category": "flirting",
+    "sent": "I think you left your underwear here."
+  },
+  {
+    "category": "family",
+    "sent": "My sister thinks you're hilarious."
+  },
+  {
+    "category": "friends",
+    "sent": "Nobody has heard from him since Saturday."
+  },
+  {
+    "category": "family",
+    "sent": "Dad wants to give everyone a speech."
+  },
+  {
+    "category": "ego",
+    "sent": "He says nobody understands his sense of humor."
+  },
+  {
+    "category": "dating",
+    "sent": "I think the waiter was flirting with me."
+  },
+  {
+    "category": "ego",
+    "sent": "I've been told I'm a great listener."
+  },
+  {
+    "category": "party",
+    "sent": "He's already on his fourth drink."
+  },
+  {
+    "category": "home",
+    "sent": "The upstairs neighbors are quiet tonight."
+  },
+  {
+    "category": "friends",
+    "sent": "He said he can keep a secret."
+  },
+  {
+    "category": "party",
+    "sent": "Someone left a bra on the couch."
+  },
+  {
+    "category": "looks",
+    "sent": "That spray tan really suits you."
+  },
+  {
+    "category": "work",
+    "sent": "She thinks she's getting promoted."
+  },
+  {
+    "category": "looks",
+    "sent": "Your gym photos are getting attention."
+  },
+  {
+    "category": "home",
+    "sent": "Your laundry is still in the dryer."
+  },
+  {
+    "category": "ego",
+    "sent": "She says she's an old soul."
+  },
+  {
+    "category": "friends",
+    "sent": "Please don't tell anyone I said that."
+  },
+  {
+    "category": "flirting",
+    "sent": "We have the place to ourselves."
+  },
+  {
+    "category": "work",
+    "sent": "I volunteered you for the presentation."
+  },
+  {
+    "category": "dating",
+    "sent": "She said her ex is still her best friend."
+  },
+  {
+    "category": "food",
+    "sent": "I made this from scratch."
+  },
+  {
+    "category": "party",
+    "sent": "She took control of the music."
+  },
+  {
+    "category": "looks",
+    "sent": "I bought the same shirt as you."
+  },
+  {
+    "category": "dating",
+    "sent": "He wants to meet your friends."
+  },
+  {
+    "category": "family",
+    "sent": "He's bringing his parents to dinner."
+  },
+  {
+    "category": "work",
+    "sent": "I told them you know what you're doing."
+  },
+  {
+    "category": "home",
+    "sent": "He offered to clean the kitchen."
+  },
+  {
+    "category": "flirting",
+    "sent": "That hotel room has a huge mirror."
+  }
+]

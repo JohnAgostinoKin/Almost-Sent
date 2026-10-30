@@ -1,0 +1,96 @@
+{
+  "createdAt": "2026-10-30T03:13:21.062140+00:00",
+  "clientDate": "2026-10-29",
+  "timezone": "America/New_York",
+  "method": "Assistant-authored fictional everyday adult texts. Randomly select three from each of ten six-text topic pools, excluding exact normalized inputs in existing bake JSON; then shuffle the 30 selected inputs. This is a balanced convenience sample, not random real-user traffic. Frozen before any generation.",
+  "seed": 2382724178428946420,
+  "sha256": "472d2e8d653f8721377395d6d9b9259431ef119ab53989f8385c82f196e908a9",
+  "inputFile": "bake/original-roast-inputs-v14-30.json",
+  "pool": {
+    "work": [
+      "I volunteered you for the presentation.",
+      "She thinks she's getting promoted.",
+      "The boss wants everyone to dress up.",
+      "Can you stop hitting reply all?",
+      "He put motivational quotes in his email.",
+      "I told them you know what you're doing."
+    ],
+    "dating": [
+      "He brought his own wine.",
+      "She said you're exactly her type.",
+      "I think the waiter was flirting with me.",
+      "He wants to meet your friends.",
+      "She said her ex is still her best friend.",
+      "I thought you'd be taller."
+    ],
+    "friends": [
+      "Nobody has heard from him since Saturday.",
+      "I invited the whole group chat.",
+      "Please don't tell anyone I said that.",
+      "She wants to be your roommate.",
+      "He said he can keep a secret.",
+      "I used your photo for the invitation."
+    ],
+    "looks": [
+      "He shaved his beard.",
+      "She says those eyebrows are natural.",
+      "That spray tan really suits you.",
+      "I bought the same shirt as you.",
+      "He wears that cologne everywhere.",
+      "Your gym photos are getting attention."
+    ],
+    "family": [
+      "My mom asked if we're serious.",
+      "Your cousin is staying for the weekend.",
+      "Dad wants to give everyone a speech.",
+      "My sister thinks you're hilarious.",
+      "He's bringing his parents to dinner.",
+      "Your aunt asked about my dating life."
+    ],
+    "party": [
+      "He's already on his fourth drink.",
+      "She took control of the music.",
+      "Are you coming to karaoke?",
+      "Someone left a bra on the couch.",
+      "We booked the private room.",
+      "Try not to embarrass me at the wedding."
+    ],
+    "home": [
+      "I borrowed your hairbrush.",
+      "He offered to clean the kitchen.",
+      "The upstairs neighbors are quiet tonight.",
+      "I found something under your bed.",
+      "She's been in the shower for an hour.",
+      "Your laundry is still in the dryer."
+    ],
+    "food": [
+      "I made this from scratch.",
+      "He wants to cook for you.",
+      "She brought her famous potato salad.",
+      "I ate the last of your leftovers.",
+      "The waiter said he remembers us.",
+      "Tell me what you think of the sauce."
+    ],
+    "ego": [
+      "He started a podcast.",
+      "She says she's an old soul.",
+      "I think I handled that pretty well.",
+      "He says nobody understands his sense of humor.",
+      "She called herself a natural leader.",
+      "I've been told I'm a great listener."
+    ],
+    "flirting": [
+      "I wore something special for you.",
+      "We have the place to ourselves.",
+      "I think you left your underwear here.",
+      "That hotel room has a huge mirror.",
+      "I've been thinking about our last date.",
+      "Are you trying to make me jealous?"
+    ]
+  },
+  "excludedPriorInputs": [],
+  "model": "nousresearch/hermes-4-405b",
+  "runtimeCommit": "48c96558de12700ad612c38812f49886d2853bea",
+  "deployment": "https://almost-sent-avyldtu7v-agostino-technology-group.vercel.app",
+  "selection": "Only first actual shipped reveal; no manual rerolls or later-reveal substitutions. App-internal retries and rescue remain enabled. Failed attempts remain in the denominator."
+}
