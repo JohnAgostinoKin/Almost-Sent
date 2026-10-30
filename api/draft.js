@@ -1,3 +1,4 @@
+const punchy = require("../lib/punchy");
 // api/draft.js — v6: one model, one room, three lanes, everywhere.
 //
 // v5 fired Hermes (WILDCARD_MODEL) as two parallel calls on every
@@ -354,6 +355,9 @@ async function runGenerator(key, model, sent, kind, genOpts) {
   if (!first.skip && !first.lines.length && first.reason === "filtered") {
     return tagModel(await callOneGenerator(key, model, sent, kind, genOpts), model, "retry");
   }
+  if (punchy.enabled && (first.skip || first.reason === "error" || first.reason === "unparsable")) {
+    return tagModel(first, model, "comparison: no writer fallback");
+  }
   if (first.skip || first.reason === "error" || first.reason === "unparsable") {
     return tagModel(await callOneGenerator(key, FALLBACK_MODEL, sent, kind, genOpts), FALLBACK_MODEL, "fallback");
   }
@@ -613,7 +617,7 @@ async function handle(req, res, internal) {
   // again.
   if (!escalate) {
     // Experimental preview can exercise the writer even for homepage chips.
-    const curated = process.env.LIVE_DEMOS === "1" ? null : curatedLeadFor(normalizeBefore(sent));
+    const curated = (punchy.enabled || process.env.LIVE_DEMOS === "1") ? null : curatedLeadFor(normalizeBefore(sent));
     if (curated) {
       res.status(200).json({
         sent: sent,
@@ -733,7 +737,7 @@ async function handle(req, res, internal) {
   // The five voices are available for every input; safety is judged in context.
   const lanePlans = lanePlansFor(sent);
 
-  const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
+  const genOpts = Object.assign({ escalate: escalate, shown: shown }, punchy.enabled ? { timeoutMs: 20000 } : {}, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
   const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
   // Hard cap on total request time. Gates every extra round below (regen,
   // fill, pairwise — see retryFits) AND, inside runGenerationRound, the
@@ -744,7 +748,7 @@ async function handle(req, res, internal) {
   // 30-second first show reached an outside tester with every timing
   // gate here looking like it had held. No cap in internal (pre-warm)
   // mode — nobody is waiting, and Astra's rounds never fit 10s anyway.
-  const REQUEST_BUDGET_MS = internal ? Infinity : (Number(process.env.REQUEST_BUDGET_MS) || 10000); // env override is for tests only
+  const REQUEST_BUDGET_MS = internal ? Infinity : (punchy.enabled ? 40000 : (Number(process.env.REQUEST_BUDGET_MS) || 10000)); // env override is for tests only
 
   // One full generate-then-judge pass — Hermes' two calls, safety+taste
   // running concurrently on the combined candidate set. Factored into its
@@ -803,7 +807,7 @@ async function handle(req, res, internal) {
     // to be clearable by ONE half landing alone, or it's not really a
     // soft deadline firing, just Promise.all resolving early once BOTH
     // halves happen to finish.
-    const GENERATION_SOFT_DEADLINE_MS = internal ? 90000 : 3500;
+    const GENERATION_SOFT_DEADLINE_MS = internal ? 90000 : (punchy.enabled ? 20000 : 3500);
     const MIN_CANDIDATES_FOR_SOFT_DEADLINE = 3;
     let lateGroupCount = 0;
     // Kept in scope past the soft-deadline dance below (not just inside

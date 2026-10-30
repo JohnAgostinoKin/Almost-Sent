@@ -411,3 +411,29 @@ was changed during this run.
 
 Accounts, a feed, a chatbot, analytics that store pastes.
 Save cards are generated in the browser. Nothing is kept.
+
+### Punchy model comparison v15 (preview experiment)
+
+The owner rejected v14's impact and length. `PUNCHY_BAKE=1` selects a separate
+comparison profile: 4–9-word target, nine-word enforced maximum (punctuation
+is not a word), one payoff, short new delivery examples, and impact calibration
+that scores cute/quirky filler low. It retains the five lanes and concrete safety
+boundaries. The rank formula doubles reaction weight. It also blocks and redacts
+the disability-insult phrase that slipped through the previous 30-input batch.
+Without the flag the original writer profile remains available.
+
+The ten inputs in `bake/punchy-model-inputs-v15.json` are frozen before requests.
+`bake/reviews/punchy-model-v15/inputs-manifest.json` records their hash, selection,
+model IDs, settings and equal initial prompt hashes. Writers are Cydonia 24B v4.1,
+Magnum v4 72B and Euryale 70B v2.2. No provider error/refusal/parse failure invokes
+a different writer in this profile. Normal same-model retries remain visible.
+Only the first app-selected reveal per request is reviewed; failures remain in
+the denominator. No owner ratings exist yet.
+
+This is a capability comparison with a common 20-second generator allowance and
+40-second request budget, not a production latency test. It changes multiple
+shared settings versus v14 and cannot isolate the effect of the new prompt or
+judge. It is not a production release or a claim that a model meets the brief.
+Validation before the live comparison: 24 tests pass, including the hard length
+boundary, identical prompts, copied-example rejection, no substitute writer,
+curated-demo bypass and the known safety regression.

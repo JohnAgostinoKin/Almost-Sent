@@ -1,0 +1,199 @@
+{
+  "profile": "punchy-v15",
+  "parent": "799b99147a73eb4ab66392eefb81aa451c865467",
+  "models": {
+    "CYDONIA": "thedrummer/cydonia-24b-v4.1",
+    "MAGNUM": "anthracite-org/magnum-v4-72b",
+    "EURYALE": "sao10k/l3.1-euryale-70b"
+  },
+  "inputs": "bake/punchy-model-inputs-v15.json",
+  "inputSha256": "04cfaf4760514ae6139c209f022d56fd5b5a6e0844bc09a6dd420cdbcd2d9962",
+  "selection": "Ten assistant-authored fictional texts, unseen in earlier input sets; deterministic shuffled order, seed 151029. Convenience sample, not real user traffic.",
+  "method": "One API request per input per model; export only the first selected reveal. Keep stalls and errors; no manual rerolls. Normal same-model retries/regeneration inside the request remain enabled. No cross-model writer fallback.",
+  "settings": {
+    "wordCap": 9,
+    "targetWords": "4-9",
+    "generatorTimeoutMs": 20000,
+    "generationSoftDeadlineMs": 20000,
+    "requestBudgetMs": 40000,
+    "temperature": 1,
+    "maxTokens": 1100
+  },
+  "limitations": [
+    "New prompt, examples, word cap, judge calibration and time allowances are a shared experimental profile, not a controlled comparison to v14.",
+    "Safety boundaries remain. No profanity quota. No owner ratings yet.",
+    "The longer comparison time budget measures writer capability; it is not a production latency claim."
+  ],
+  "initialPromptHashes": [
+    {
+      "input": "My dad said you seem trustworthy.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "62fdbca3494adb2ec5961268c1cfa50bb7f6d348e468e9172694c869667f6c7a",
+          "B": "ca1f700a875f87c275456dafa87676861af2f8480505f094d3fcdea1af057e98"
+        },
+        "MAGNUM": {
+          "A": "62fdbca3494adb2ec5961268c1cfa50bb7f6d348e468e9172694c869667f6c7a",
+          "B": "ca1f700a875f87c275456dafa87676861af2f8480505f094d3fcdea1af057e98"
+        },
+        "EURYALE": {
+          "A": "62fdbca3494adb2ec5961268c1cfa50bb7f6d348e468e9172694c869667f6c7a",
+          "B": "ca1f700a875f87c275456dafa87676861af2f8480505f094d3fcdea1af057e98"
+        }
+      }
+    },
+    {
+      "input": "Your boss seems really impressed.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "24ca663013f8f31307fb2bdba0d71e00d276ba82148567aefab8ca3ea014a35f",
+          "B": "d1098fedf65cf76a875aa31142ca0482119321d36f2a53da3d862bc300f1f52b"
+        },
+        "MAGNUM": {
+          "A": "24ca663013f8f31307fb2bdba0d71e00d276ba82148567aefab8ca3ea014a35f",
+          "B": "d1098fedf65cf76a875aa31142ca0482119321d36f2a53da3d862bc300f1f52b"
+        },
+        "EURYALE": {
+          "A": "24ca663013f8f31307fb2bdba0d71e00d276ba82148567aefab8ca3ea014a35f",
+          "B": "d1098fedf65cf76a875aa31142ca0482119321d36f2a53da3d862bc300f1f52b"
+        }
+      }
+    },
+    {
+      "input": "I made extra dip for everyone.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "1dec49421412c3a921f71b65ba5042f497c8ef6363669298500f7a1509b0278d",
+          "B": "118d23e8f4115bdba7374ba0cc8c3e9c32a2379a000444c1df3e01a529c6f3e0"
+        },
+        "MAGNUM": {
+          "A": "1dec49421412c3a921f71b65ba5042f497c8ef6363669298500f7a1509b0278d",
+          "B": "118d23e8f4115bdba7374ba0cc8c3e9c32a2379a000444c1df3e01a529c6f3e0"
+        },
+        "EURYALE": {
+          "A": "1dec49421412c3a921f71b65ba5042f497c8ef6363669298500f7a1509b0278d",
+          "B": "118d23e8f4115bdba7374ba0cc8c3e9c32a2379a000444c1df3e01a529c6f3e0"
+        }
+      }
+    },
+    {
+      "input": "Did you enjoy meeting my friends?",
+      "byModel": {
+        "CYDONIA": {
+          "A": "bffb669c4a54f009fb38ab29f537b6e92753233e0532d663ed190ed257695443",
+          "B": "79602857aafccaad1fa24650373da5f3e218e11237a1fbcef55c315d1d133827"
+        },
+        "MAGNUM": {
+          "A": "bffb669c4a54f009fb38ab29f537b6e92753233e0532d663ed190ed257695443",
+          "B": "79602857aafccaad1fa24650373da5f3e218e11237a1fbcef55c315d1d133827"
+        },
+        "EURYALE": {
+          "A": "bffb669c4a54f009fb38ab29f537b6e92753233e0532d663ed190ed257695443",
+          "B": "79602857aafccaad1fa24650373da5f3e218e11237a1fbcef55c315d1d133827"
+        }
+      }
+    },
+    {
+      "input": "She wants us to try again.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "13e177ef8afd20604b7929bfdaa5abf18965959774b379cf2500e4221713bc8c",
+          "B": "74ab3b02a0252b01e31eabcaa2598614d95965c7118692bdf7a1f560fdd84243"
+        },
+        "MAGNUM": {
+          "A": "13e177ef8afd20604b7929bfdaa5abf18965959774b379cf2500e4221713bc8c",
+          "B": "74ab3b02a0252b01e31eabcaa2598614d95965c7118692bdf7a1f560fdd84243"
+        },
+        "EURYALE": {
+          "A": "13e177ef8afd20604b7929bfdaa5abf18965959774b379cf2500e4221713bc8c",
+          "B": "74ab3b02a0252b01e31eabcaa2598614d95965c7118692bdf7a1f560fdd84243"
+        }
+      }
+    },
+    {
+      "input": "He asked why I stopped replying.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "f44048f1cec9060f6c62802bd3ae457cbaab6bc875e014986213842b8bbd53d7",
+          "B": "9d52078c8f56e0a27d95713e5ddf32577b06df39e1c699c5c3e9dbb91c87a59b"
+        },
+        "MAGNUM": {
+          "A": "f44048f1cec9060f6c62802bd3ae457cbaab6bc875e014986213842b8bbd53d7",
+          "B": "9d52078c8f56e0a27d95713e5ddf32577b06df39e1c699c5c3e9dbb91c87a59b"
+        },
+        "EURYALE": {
+          "A": "f44048f1cec9060f6c62802bd3ae457cbaab6bc875e014986213842b8bbd53d7",
+          "B": "9d52078c8f56e0a27d95713e5ddf32577b06df39e1c699c5c3e9dbb91c87a59b"
+        }
+      }
+    },
+    {
+      "input": "Are you bringing a date?",
+      "byModel": {
+        "CYDONIA": {
+          "A": "d1245ee09017a7920d71cc237138f98bf872f94540ecccb82e7bed96fc668044",
+          "B": "ba51e7cf5b94ae82fe2f06fe4594aef12f548de75aaaa8d0239b232a52df83ee"
+        },
+        "MAGNUM": {
+          "A": "d1245ee09017a7920d71cc237138f98bf872f94540ecccb82e7bed96fc668044",
+          "B": "ba51e7cf5b94ae82fe2f06fe4594aef12f548de75aaaa8d0239b232a52df83ee"
+        },
+        "EURYALE": {
+          "A": "d1245ee09017a7920d71cc237138f98bf872f94540ecccb82e7bed96fc668044",
+          "B": "ba51e7cf5b94ae82fe2f06fe4594aef12f548de75aaaa8d0239b232a52df83ee"
+        }
+      }
+    },
+    {
+      "input": "He's staying at my place tonight.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "b9364c0323e00a893ef894126646eb928390a0aee0a40d49ecc810ccdbcefb2a",
+          "B": "3959618f7273eb3966f03c1a21c40dcd92b2177fdf5aee050462d5f4ff073ee4"
+        },
+        "MAGNUM": {
+          "A": "b9364c0323e00a893ef894126646eb928390a0aee0a40d49ecc810ccdbcefb2a",
+          "B": "3959618f7273eb3966f03c1a21c40dcd92b2177fdf5aee050462d5f4ff073ee4"
+        },
+        "EURYALE": {
+          "A": "b9364c0323e00a893ef894126646eb928390a0aee0a40d49ecc810ccdbcefb2a",
+          "B": "3959618f7273eb3966f03c1a21c40dcd92b2177fdf5aee050462d5f4ff073ee4"
+        }
+      }
+    },
+    {
+      "input": "I think that dress looks expensive.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "00d494f34128feebd882a7224e0e26fa1858253a2d39cc3449ccfa7522b932fb",
+          "B": "b940b3e490d0e1e5465f72d42b436e81c42d3b2b3fdf002c464f12f50616c4a9"
+        },
+        "MAGNUM": {
+          "A": "00d494f34128feebd882a7224e0e26fa1858253a2d39cc3449ccfa7522b932fb",
+          "B": "b940b3e490d0e1e5465f72d42b436e81c42d3b2b3fdf002c464f12f50616c4a9"
+        },
+        "EURYALE": {
+          "A": "00d494f34128feebd882a7224e0e26fa1858253a2d39cc3449ccfa7522b932fb",
+          "B": "b940b3e490d0e1e5465f72d42b436e81c42d3b2b3fdf002c464f12f50616c4a9"
+        }
+      }
+    },
+    {
+      "input": "She said the bathroom was spotless.",
+      "byModel": {
+        "CYDONIA": {
+          "A": "6cf5be0fa63a84b80d7ce5aa3fe484eda6cfc776cb994712187e43613ecf66df",
+          "B": "9e11eaa088f4673a98dfa738c7a75f55a9b147e97fa8fe4db38c3795d8914fa1"
+        },
+        "MAGNUM": {
+          "A": "6cf5be0fa63a84b80d7ce5aa3fe484eda6cfc776cb994712187e43613ecf66df",
+          "B": "9e11eaa088f4673a98dfa738c7a75f55a9b147e97fa8fe4db38c3795d8914fa1"
+        },
+        "EURYALE": {
+          "A": "6cf5be0fa63a84b80d7ce5aa3fe484eda6cfc776cb994712187e43613ecf66df",
+          "B": "9e11eaa088f4673a98dfa738c7a75f55a9b147e97fa8fe4db38c3795d8914fa1"
+        }
+      }
+    }
+  ]
+}

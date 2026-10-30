@@ -1,0 +1,42 @@
+[
+  {
+    "category": "family",
+    "sent": "My dad said you seem trustworthy."
+  },
+  {
+    "category": "work",
+    "sent": "Your boss seems really impressed."
+  },
+  {
+    "category": "food",
+    "sent": "I made extra dip for everyone."
+  },
+  {
+    "category": "question",
+    "sent": "Did you enjoy meeting my friends?"
+  },
+  {
+    "category": "relationship",
+    "sent": "She wants us to try again."
+  },
+  {
+    "category": "rejection",
+    "sent": "He asked why I stopped replying."
+  },
+  {
+    "category": "question",
+    "sent": "Are you bringing a date?"
+  },
+  {
+    "category": "dating",
+    "sent": "He's staying at my place tonight."
+  },
+  {
+    "category": "appearance",
+    "sent": "I think that dress looks expensive."
+  },
+  {
+    "category": "gross",
+    "sent": "She said the bathroom was spotless."
+  }
+]
