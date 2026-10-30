@@ -209,6 +209,14 @@ with the same Claude writer and preserve all failed or fallback attempts.
 More profanity establishes a change in voice, not a proven improvement in
 impact; that still requires owner ratings.
 
+The recorded comparison is ready at
+`/scripts/bake-rate.html?review=roast-v12&systems=BEFORE,AFTER&rubric=impact-v1`.
+Both versions returned six own-model first reveals without fallback. The
+previous version used profanity in one of six leads; roast-v12 used it in six
+of six. One previous-version lead was unscored after the taste judge failed;
+that fact is retained in the snapshot. No results were replaced or rerolled.
+All fifteen automated tests pass. Human impact ratings are still pending.
+
 ## Do not add yet
 
 Accounts, a feed, a chatbot, analytics that store pastes.

@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-29",
+  "rubric": "impact-v1",
+  "method": "Six same-input comparisons using the same Claude writer, one first-reveal request per version. The first input is the owner-provided tone reference and is a direction check, not held-out evidence; the other five inputs are fresh. BEFORE uses the prior reaction-v11 configuration; AFTER changes writing examples, lane mix, tone calibration and safety framing for an opt-in adult roast. No regeneration or cherry-picking after responses. Failed, blocked and alternate-model responses remain attempts and are never substituted. Profanity is a descriptive voice measure, not a quality score. No human ratings yet.",
+  "profanityPattern": "\\b(?:fuck\\w*|shit\\w*|bullshit|asshole\\w*|bitch\\w*|cunt\\w*)\\b",
+  "systems": [
+    {
+      "system": "BEFORE",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "ownReveals": 6,
+      "fallbacks": 0,
+      "blocked": 0,
+      "profanityInFirstReveals": 1,
+      "unscoredFirstReveals": 1,
+      "medianElapsedMs": 8084
+    },
+    {
+      "system": "AFTER",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "ownReveals": 6,
+      "fallbacks": 0,
+      "blocked": 0,
+      "profanityInFirstReveals": 6,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 9287.5
+    }
+  ],
+  "ownerRatings": 0
+}

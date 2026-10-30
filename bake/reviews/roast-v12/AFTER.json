@@ -1,0 +1,129 @@
+{
+  "system": "AFTER",
+  "label": "Roast-v12 voice",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "eb72db6421f136cf252da4551054eca04f8ee303",
+  "deployment": "https://almost-sent-ngfgqa3x6-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "man is he a weirdo",
+      "category": "owner-direction-check",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "man is he a weirdo, fucking creepy little bastard looks like his own mother tried to return him."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 10539,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "He's really proud of that promotion.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He's really proud of that promotion. which is fucking adorable for a man whose only qualification was being too boring to fire."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8389,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "Thanks for bringing your boyfriend.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Thanks for bringing your boyfriend. he told me in the bathroom he's only dating you because he lost a fucking bet."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9436,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "That was quite a speech.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "That was quite a speech. fucking hell. nobody has ever talked that long and said less since your mother's labor."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9139,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "You look different in your profile picture.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "You look different in your profile picture. like someone who hasn't fucking ruined every room they've ever walked into. nice filter, asshole."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9796,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "We should do dinner again.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "We should do dinner again. bring your own bill this time, you cheap fucking freeloader."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7848,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    }
+  ]
+}

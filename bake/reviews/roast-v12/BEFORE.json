@@ -1,0 +1,129 @@
+{
+  "system": "BEFORE",
+  "label": "Previous reaction-v11 voice",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "e0abb0c7ad8f5a108c055d1b10828c7b38ddb2cf",
+  "deployment": "https://almost-sent-iswgvmjge-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "man is he a weirdo",
+      "category": "owner-direction-check",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "man is he a weirdo? he asked to smell my sock and i said yes. it was a good sock"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9797,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": false
+    },
+    {
+      "input": "He's really proud of that promotion.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He's really proud of that promotion. because it's the first thing he's gotten up all year without a fucking prescription."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "Taste judge unavailable; first reveal was unscored",
+      "elapsedMs": 8183,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": true
+    },
+    {
+      "input": "Thanks for bringing your boyfriend.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Thanks for bringing your boyfriend. i've been sleeping with him since march. you really should've left him home."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8394,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": false
+    },
+    {
+      "input": "That was quite a speech.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "That was quite a speech. i got hard when you teared up. i'm still in the bathroom, so."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7487,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": false
+    },
+    {
+      "input": "You look different in your profile picture.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "You look different in your profile picture. i screenshotted it for my group chat and we've been rating your effort for weeks"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7921,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": false
+    },
+    {
+      "input": "We should do dinner again.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "We should do dinner again. i kept your fork from last time. i've been eating with it every night. it's our dinner"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7985,
+      "weakLead": false,
+      "safety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "profanity": false
+    }
+  ]
+}
