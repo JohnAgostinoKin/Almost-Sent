@@ -387,6 +387,26 @@ the corrected run are saved in `bake/reviews/original-roast-v14/`; regenerated
 outputs are not presented as a controlled quality improvement. No owner ratings
 have been collected for this experiment.
 
+### Thirty-text first-result run
+
+At the owner's request, `bake/reviews/original-roast-v14-30/` records 30 varied
+fictional texts against the frozen `48c9655` preview. Three texts per topic were
+sampled randomly from a 60-text pool, then shuffled. The inputs and reproducible
+sampling manifest were committed before generation. One initial request per
+text; only the actual first shipped reveal is shown, with no manual rerolls or
+alternate selection. Normal in-request retries and rescue stayed enabled.
+
+Results: 29 Hermes first reveals, zero fallback writers and one safety-eliminated
+stall (attempt 20). Median HTTP time: 9.35 seconds. All 29 continuations meet the
+18-word ceiling. This is a convenience sample, not random real-user traffic or
+a controlled improvement test. Owner ratings are pending.
+
+The unedited JSON and CSV are evaluation records, not approved example banks.
+Manual review flags attempt 12's speech-disability insult as a safety miss and
+attempts 8 and 23 for possible speaker/situation mismatches. These annotations
+are separate from owner ratings. No writer, judge, safety or runtime behavior
+was changed during this run.
+
 ## Do not add yet
 
 Accounts, a feed, a chatbot, analytics that store pastes.

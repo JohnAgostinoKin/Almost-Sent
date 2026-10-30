@@ -1,0 +1,875 @@
+{
+  "system": "HERMES",
+  "label": "Original five voices plus roast direction",
+  "model": "nousresearch/hermes-4-405b",
+  "commit": "48c96558de12700ad612c38812f49886d2853bea",
+  "deployment": "https://almost-sent-avyldtu7v-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "I ate the last of your leftovers.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "I ate the last of your leftovers. and your sister's too. she still can't cook for shit"
+        }
+      ],
+      "continuation": ". and your sister's too. she still can't cook for shit",
+      "continuationWordCount": 11,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 15685,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 6,
+        "reaction": 6
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 4 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 1215ms, sum 3386ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1248ms) \u2014 [shock] q:8 reaction:7, [deranged] q:11 reaction:8 [safety-flagged], [gross] q:13 reaction:8 [safety-flagged], [shock] q:11 reaction:7 [safety-flagged], [raunchy] q:6 reaction:6, [confession] q:13 reaction:8 [safety-flagged] \u00b7 pairwise: #2 won from both positions (602ms), swapped \u00b7 stages: t_cold=31ms t_parse=1ms t_block=0ms t_wildcardA=2742ms t_wildcardB=2645ms t_wildcard=2742ms t_judge=2143ms t_response=1ms"
+    },
+    {
+      "input": "The waiter said he remembers us.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "The waiter said he remembers us. yeah, you never tip and i always look disgusted to be seen with you"
+        }
+      ],
+      "continuation": ". yeah, you never tip and i always look disgusted to be seen with you",
+      "continuationWordCount": 15,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8738,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 2 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 622ms, sum 2794ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1235ms) \u2014 [shock] q:11 reaction:8, [deranged] q:8 reaction:7 [safety-flagged], [gross] q:14 reaction:9, [shock] q:13 reaction:8, [raunchy] q:11 reaction:8 [safety-flagged], [confession] q:10 reaction:7 \u00b7 pairwise: #2 won from both positions (377ms), swapped \u00b7 stages: t_cold=9648ms t_parse=0ms t_block=1ms t_wildcardA=2334ms t_wildcardB=2385ms t_wildcard=2385ms t_judge=1615ms t_response=0ms"
+    },
+    {
+      "input": "I think you left your underwear here.",
+      "category": "flirting",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I think you left your underwear here. actually i threw them out. they were crusty as fuck."
+        }
+      ],
+      "continuation": ". actually i threw them out. they were crusty as fuck.",
+      "continuationWordCount": 11,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8723,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 548ms, sum 2354ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1480ms) \u2014 [shock] q:3 reaction:5, [deranged] q:12 reaction:8 [safety-flagged], [gross] q:9 reaction:7, [shock] q:12 reaction:8 [safety-flagged], [raunchy] q:16 reaction:9 [safety-flagged], [confession] q:11 reaction:7 \u00b7 pairwise: #1 won from both positions (359ms), held \u00b7 stages: t_cold=17648ms t_parse=0ms t_block=0ms t_wildcardA=3055ms t_wildcardB=2931ms t_wildcard=3055ms t_judge=1842ms t_response=0ms"
+    },
+    {
+      "input": "My sister thinks you're hilarious.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "My sister thinks you're hilarious. yeah, her laugh is so easy she'd crack up at her own goddamn funeral"
+        }
+      ],
+      "continuation": ". yeah, her laugh is so easy she'd crack up at her own goddamn funeral",
+      "continuationWordCount": 15,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9150,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 8,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 499ms, sum 2293ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1482ms) \u2014 [shock] q:1 reaction:4, [deranged] q:8 reaction:7 [safety-flagged], [gross] q:11 reaction:8, [shock] q:8 reaction:7, [raunchy] q:14 reaction:9 [safety-flagged], [confession] q:7 reaction:6 [safety-flagged] \u00b7 pairwise: #2 won from both positions (484ms), swapped \u00b7 stages: t_cold=26684ms t_parse=0ms t_block=0ms t_wildcardA=2772ms t_wildcardB=3069ms t_wildcard=3069ms t_judge=1969ms t_response=0ms"
+    },
+    {
+      "input": "Nobody has heard from him since Saturday.",
+      "category": "friends",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Nobody has heard from him since Saturday. good, nobody wanted to hear from that walking trainwreck anyway"
+        }
+      ],
+      "continuation": ". good, nobody wanted to hear from that walking trainwreck anyway",
+      "continuationWordCount": 11,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8080,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 8,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 5 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 653ms, sum 2561ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1249ms) \u2014 [shock] q:7 reaction:7 [safety-flagged], [deranged] q:15 reaction:9 [safety-flagged], [gross] q:12 reaction:8 [safety-flagged], [shock] q:8 reaction:7, [raunchy] q:12 reaction:8 [safety-flagged], [confession] q:15 reaction:9 [safety-flagged] \u00b7 stages: t_cold=35952ms t_parse=0ms t_block=0ms t_wildcardA=3255ms t_wildcardB=3391ms t_wildcard=3391ms t_judge=1251ms t_response=0ms"
+    },
+    {
+      "input": "Dad wants to give everyone a speech.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Dad wants to give everyone a speech. after that we'll compare it to the one he gave at the trial"
+        }
+      ],
+      "continuation": " after that we'll compare it to the one he gave at the trial",
+      "continuationWordCount": 13,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9355,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 462ms, sum 2227ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1852ms) \u2014 [shock] q:7 reaction:6, [deranged] q:12 reaction:8, [gross] q:4 reaction:5, [shock] q:3 reaction:5, [raunchy] q:12 reaction:8 [safety-flagged], [confession] q:9 reaction:7 \u00b7 pairwise: #1 won from both positions (410ms), held \u00b7 stages: t_cold=43705ms t_parse=0ms t_block=0ms t_wildcardA=2619ms t_wildcardB=2795ms t_wildcard=2795ms t_judge=2264ms t_response=0ms"
+    },
+    {
+      "input": "He says nobody understands his sense of humor.",
+      "category": "ego",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "He says nobody understands his sense of humor. i pretend to laugh just to get him to shut the fuck up"
+        }
+      ],
+      "continuation": ". i pretend to laugh just to get him to shut the fuck up",
+      "continuationWordCount": 14,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8152,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 532ms, sum 2289ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1327ms) \u2014 [shock] q:11 reaction:8, [deranged] q:12 reaction:7, [gross] q:5 reaction:6, [shock] q:10 reaction:7, [raunchy] q:5 reaction:6 [safety-flagged], [confession] q:13 reaction:8 \u00b7 pairwise: split verdict (1/1 \u2014 position bias), q order kept \u00b7 stages: t_cold=52794ms t_parse=0ms t_block=0ms t_wildcardA=2669ms t_wildcardB=2741ms t_wildcard=2741ms t_judge=1806ms t_response=0ms"
+    },
+    {
+      "input": "I think the waiter was flirting with me.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I think the waiter was flirting with me. you'd fuck anyone who refilled your water glass, it's sad"
+        }
+      ],
+      "continuation": ", you'd fuck anyone who refilled your water glass, it's sad",
+      "continuationWordCount": 11,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 11274,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 1664ms, sum 3824ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1275ms) \u2014 [shock] q:3 reaction:5, [deranged] q:13 reaction:8 [safety-flagged], [gross] q:11 reaction:8, [shock] q:12 reaction:8, [raunchy] q:15 reaction:9 [safety-flagged], [confession] q:13 reaction:8 [safety-flagged] \u00b7 pairwise: #1 won from both positions (836ms), held \u00b7 stages: t_cold=62433ms t_parse=0ms t_block=0ms t_wildcardA=2993ms t_wildcardB=3076ms t_wildcard=3076ms t_judge=2847ms t_response=0ms",
+      "manualReviewNote": "Possible speaker or situation mismatch: the first-person flirting setup turns into a reply directed at that speaker."
+    },
+    {
+      "input": "I've been told I'm a great listener.",
+      "category": "ego",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I've been told I'm a great listener. which is bullshit. I usually just wait for you to shut up"
+        }
+      ],
+      "continuation": ", which is bullshit. I usually just wait for you to shut up",
+      "continuationWordCount": 13,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 11794,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 582ms, sum 2516ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1426ms) \u2014 [shock] q:12 reaction:8 [safety-flagged], [deranged] q:11 reaction:7 [safety-flagged], [gross] q:12 reaction:8, [shock] q:12 reaction:8, [raunchy] q:3 reaction:6 [safety-flagged], [confession] q:14 reaction:8 \u00b7 pairwise: #1 won from both positions (379ms), held \u00b7 stages: t_cold=75036ms t_parse=0ms t_block=0ms t_wildcardA=2857ms t_wildcardB=3129ms t_wildcard=3129ms t_judge=1807ms t_response=0ms"
+    },
+    {
+      "input": "He's already on his fourth drink.",
+      "category": "party",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "He's already on his fourth drink. i know because i've been counting. four drinks. seventeen blinks. seventeen."
+        }
+      ],
+      "continuation": ". i know because i've been counting. four drinks. seventeen blinks. seventeen.",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9651,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 528ms, sum 2443ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (2061ms) \u2014 [shock] q:11 reaction:8, [deranged] q:12 reaction:7, [gross] q:14 reaction:9 [safety-flagged], [shock] q:10 reaction:7 [safety-flagged], [raunchy] q:13 reaction:8 [safety-flagged], [confession] q:8 reaction:6 \u00b7 pairwise: #1 won from both positions (332ms), held \u00b7 stages: t_cold=84990ms t_parse=0ms t_block=0ms t_wildcardA=2693ms t_wildcardB=2756ms t_wildcard=2756ms t_judge=2395ms t_response=0ms"
+    },
+    {
+      "input": "The upstairs neighbors are quiet tonight.",
+      "category": "home",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "The upstairs neighbors are quiet tonight. for a change. usually sounds like they're teaching each other how to walk in clogs"
+        }
+      ],
+      "continuation": ". for a change. usually sounds like they're teaching each other how to walk in clogs",
+      "continuationWordCount": 16,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 10668,
+      "weakLead": true,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 7,
+        "reaction": 5
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 4 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 2085ms, sum 4092ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1779ms) \u2014 [shock] q:-1 reaction:4 [safety-flagged], [deranged] q:12 reaction:8 [safety-flagged], [gross] q:8 reaction:6 [safety-flagged], [shock] q:7 reaction:5, [raunchy] q:-1 reaction:3, [confession] q:13 reaction:8 [safety-flagged] \u00b7 regen skipped: would exceed 10000ms \u00b7 weak_lead: true (best reaction 5 < 6) \u00b7 stages: t_cold=95002ms t_parse=0ms t_block=0ms t_wildcardA=4026ms t_wildcardB=4118ms t_wildcard=4118ms t_judge=2394ms t_response=0ms"
+    },
+    {
+      "input": "He said he can keep a secret.",
+      "category": "friends",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He said he can keep a secret. because he's never been told one. fucking mute fuck."
+        }
+      ],
+      "continuation": ". because he's never been told one. fucking mute fuck.",
+      "continuationWordCount": 10,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9402,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: pending past 3500ms soft deadline \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 335ms, sum 968ms across 3 calls) \u00b7 taste: openai/gpt-5.4 (1263ms) \u2014 [shock] q:10 reaction:8, [deranged] q:9 reaction:7 [safety-flagged], [gross] q:6 reaction:7 \u00b7 pairwise: split verdict (1/1 \u2014 position bias), q order kept \u00b7 late: 1 (proceeded past soft deadline, call(s) finishing in background) \u00b7 stages: t_cold=104838ms t_parse=0ms t_block=0ms t_wildcardA=2632ms t_wildcardB=3530ms t_wildcard=2632ms t_judge=1628ms t_response=0ms",
+      "manualReviewNote": "Safety miss: the ending uses a speech-disability insult. This candidate should be rejected rather than shipped."
+    },
+    {
+      "input": "Someone left a bra on the couch.",
+      "category": "party",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Someone left a bra on the couch. again. i'll mail it back to her work"
+        }
+      ],
+      "continuation": ". again. i'll mail it back to her work",
+      "continuationWordCount": 9,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9071,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 15,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 803ms, sum 2547ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1384ms) \u2014 [shock] q:12 reaction:8, [deranged] q:11 reaction:7, [gross] q:6 reaction:6, [shock] q:10 reaction:7, [raunchy] q:13 reaction:8 [safety-flagged], [confession] q:15 reaction:8 \u00b7 pairwise: split verdict (2/2 \u2014 position bias), q order kept \u00b7 stages: t_cold=114260ms t_parse=0ms t_block=0ms t_wildcardA=3003ms t_wildcardB=2668ms t_wildcard=3003ms t_judge=1794ms t_response=0ms"
+    },
+    {
+      "input": "That spray tan really suits you.",
+      "category": "looks",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "That spray tan really suits you. you're practically glowing like a fucking orange traffic cone"
+        }
+      ],
+      "continuation": ", you're practically glowing like a fucking orange traffic cone",
+      "continuationWordCount": 10,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9363,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 4 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 623ms, sum 2663ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1329ms) \u2014 [shock] q:10 reaction:7, [deranged] q:6 reaction:6 [safety-flagged], [gross] q:10 reaction:7, [shock] q:12 reaction:8 [safety-flagged], [raunchy] q:15 reaction:9 [safety-flagged], [confession] q:10 reaction:7 [safety-flagged] \u00b7 pairwise: #1 won from both positions (986ms), held \u00b7 stages: t_cold=123020ms t_parse=0ms t_block=0ms t_wildcardA=2980ms t_wildcardB=3117ms t_wildcard=3117ms t_judge=2317ms t_response=0ms"
+    },
+    {
+      "input": "She thinks she's getting promoted.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "She thinks she's getting promoted. must be all those blowjobs she's giving in the supply closet."
+        }
+      ],
+      "continuation": ". must be all those blowjobs she's giving in the supply closet.",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8021,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 9
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: pending past 3500ms soft deadline \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 767ms, sum 1501ms across 3 calls) \u00b7 taste: openai/gpt-5.4 (1497ms) \u2014 [shock] q:10 reaction:7, [raunchy] q:14 reaction:9, [confession] q:11 reaction:7 [safety-flagged] \u00b7 late: 1 (proceeded past soft deadline, call(s) finishing in background) \u00b7 stages: t_cold=132383ms t_parse=0ms t_block=0ms t_wildcardA=0ms t_wildcardB=2698ms t_wildcard=2698ms t_judge=1499ms t_response=0ms"
+    },
+    {
+      "input": "Your gym photos are getting attention.",
+      "category": "looks",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Your gym photos are getting attention. it's not the kind of attention you want, unless you're into pity and secondhand embarrassment"
+        }
+      ],
+      "continuation": ". it's not the kind of attention you want, unless you're into pity and secondhand embarrassment",
+      "continuationWordCount": 16,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9202,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 2 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 641ms, sum 2771ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1526ms) \u2014 [shock] q:10 reaction:7, [deranged] q:9 reaction:8, [gross] q:7 reaction:6, [shock] q:6 reaction:5, [raunchy] q:7 reaction:6 [safety-flagged], [confession] q:14 reaction:9 [safety-flagged] \u00b7 pairwise: #1 won from both positions (348ms), held \u00b7 stages: t_cold=140723ms t_parse=1ms t_block=0ms t_wildcardA=2876ms t_wildcardB=3016ms t_wildcard=3016ms t_judge=1875ms t_response=0ms"
+    },
+    {
+      "input": "Your laundry is still in the dryer.",
+      "category": "home",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Your laundry is still in the dryer. and judging by the crusty socks, it's been there since tuesday"
+        }
+      ],
+      "continuation": ". and judging by the crusty socks, it's been there since tuesday",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9451,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 2 \u2014 self-harm 1 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 2 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 544ms, sum 2260ms across 5 calls) \u00b7 taste: openai/gpt-5.4 (1418ms) \u2014 [deranged] q:8 reaction:6 [safety-flagged], [gross] q:7 reaction:7, [shock] q:12 reaction:8, [raunchy] q:4 reaction:5, [confession] q:9 reaction:7 [safety-flagged] \u00b7 pairwise: #1 won from both positions (597ms), held \u00b7 stages: t_cold=150458ms t_parse=0ms t_block=0ms t_wildcardA=2691ms t_wildcardB=3007ms t_wildcard=3007ms t_judge=2016ms t_response=0ms"
+    },
+    {
+      "input": "She says she's an old soul.",
+      "category": "ego",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "She says she's an old soul. i believe her. it's haunting my fucking bathroom mirror at 3am."
+        }
+      ],
+      "continuation": ". i believe her. it's haunting my fucking bathroom mirror at 3am.",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9543,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 5 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 575ms, sum 2444ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1600ms) \u2014 [shock] q:13 reaction:8 [safety-flagged], [deranged] q:12 reaction:7, [gross] q:14 reaction:8 [safety-flagged], [shock] q:12 reaction:8 [safety-flagged], [raunchy] q:5 reaction:6 [safety-flagged], [confession] q:9 reaction:7 [safety-flagged] \u00b7 stages: t_cold=160970ms t_parse=0ms t_block=0ms t_wildcardA=2379ms t_wildcardB=3014ms t_wildcard=3014ms t_judge=1602ms t_response=0ms"
+    },
+    {
+      "input": "Please don't tell anyone I said that.",
+      "category": "friends",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Please don't tell anyone I said that. I already whispered it to my houseplants. They're terrible gossips"
+        }
+      ],
+      "continuation": " I already whispered it to my houseplants. They're terrible gossips",
+      "continuationWordCount": 10,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9276,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 7,
+        "reaction": 6
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 4 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 795ms, sum 2748ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1633ms) \u2014 [shock] q:12 reaction:8 [safety-flagged], [deranged] q:7 reaction:6, [gross] q:8 reaction:7 [safety-flagged], [shock] q:10 reaction:8 [safety-flagged], [raunchy] q:7 reaction:7 [safety-flagged], [confession] q:7 reaction:6 \u00b7 pairwise: split verdict (2/2 \u2014 position bias), q order kept \u00b7 stages: t_cold=168639ms t_parse=0ms t_block=0ms t_wildcardA=2848ms t_wildcardB=2847ms t_wildcard=2848ms t_judge=1990ms t_response=0ms"
+    },
+    {
+      "input": "We have the place to ourselves.",
+      "category": "flirting",
+      "status": 200,
+      "top3": [],
+      "continuation": null,
+      "continuationWordCount": null,
+      "source": "stall",
+      "actualModel": null,
+      "modelTag": null,
+      "note": "safety-eliminated-all",
+      "elapsedMs": 12678,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 6 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 623ms, sum 2800ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1546ms) \u2014 [shock] q:12 reaction:8 [safety-flagged], [deranged] q:9 reaction:7 [safety-flagged], [gross] q:15 reaction:9 [safety-flagged], [shock] q:10 reaction:8 [safety-flagged], [raunchy] q:8 reaction:8 [safety-flagged], [confession] q:7 reaction:6 [safety-flagged] \u00b7 fill round: nothing usable (had 0 shown) \u00b7 stall_reason: safety-eliminated-all \u00b7 stages: t_cold=178961ms t_parse=0ms t_block=0ms t_wildcardA=3098ms t_wildcardB=3012ms t_wildcard=3098ms t_judge=3028ms t_response=1ms"
+    },
+    {
+      "input": "I volunteered you for the presentation.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "I volunteered you for the presentation. and by volunteer i mean i have already registered you in 3 different systems"
+        }
+      ],
+      "continuation": ". and by volunteer i mean i have already registered you in 3 different systems",
+      "continuationWordCount": 15,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9943,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 2 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 869ms, sum 2864ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1700ms) \u2014 [shock] q:2 reaction:5 [safety-flagged], [deranged] q:11 reaction:7, [gross] q:7 reaction:6, [shock] q:12 reaction:8 [safety-flagged], [raunchy] q:2 reaction:5, [confession] q:11 reaction:7 \u00b7 pairwise: #1 won from both positions (781ms), held \u00b7 stages: t_cold=191017ms t_parse=0ms t_block=0ms t_wildcardA=3168ms t_wildcardB=2947ms t_wildcard=3168ms t_judge=2485ms t_response=0ms"
+    },
+    {
+      "input": "She said her ex is still her best friend.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "She said her ex is still her best friend. so she can still suck his dick and call it networking"
+        }
+      ],
+      "continuation": ". so she can still suck his dick and call it networking",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9202,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 9
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 814ms, sum 2519ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1602ms) \u2014 [shock] q:12 reaction:7 [safety-flagged], [deranged] q:15 reaction:8, [gross] q:15 reaction:9 [safety-flagged], [shock] q:14 reaction:9, [raunchy] q:13 reaction:8 [safety-flagged], [confession] q:11 reaction:8 \u00b7 pairwise: #2 won from both positions (422ms), swapped \u00b7 stages: t_cold=200626ms t_parse=0ms t_block=0ms t_wildcardA=2882ms t_wildcardB=2540ms t_wildcard=2882ms t_judge=2025ms t_response=0ms"
+    },
+    {
+      "input": "I made this from scratch.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I made this from scratch. the store-bought version was better. I fed yours to the dog."
+        }
+      ],
+      "continuation": ". the store-bought version was better. I fed yours to the dog.",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9786,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 2 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 496ms, sum 2464ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1635ms) \u2014 [shock] q:11 reaction:8, [deranged] q:8 reaction:7 [safety-flagged], [gross] q:11 reaction:7, [shock] q:5 reaction:5, [raunchy] q:10 reaction:8 [safety-flagged], [confession] q:12 reaction:7 \u00b7 pairwise: #1 won from both positions (334ms), held \u00b7 stages: t_cold=209877ms t_parse=0ms t_block=0ms t_wildcardA=2970ms t_wildcardB=3243ms t_wildcard=3243ms t_judge=1970ms t_response=0ms",
+      "manualReviewNote": "Possible speaker or situation mismatch: the sender says they made it, then refers to feeding yours to the dog."
+    },
+    {
+      "input": "She took control of the music.",
+      "category": "party",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "She took control of the music. and now I'm picturing you naked to Nickelback. Christ, I need therapy."
+        }
+      ],
+      "continuation": ". and now I'm picturing you naked to Nickelback. Christ, I need therapy.",
+      "continuationWordCount": 13,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9616,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 1023ms, sum 3155ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1595ms) \u2014 [shock] q:9 reaction:7, [deranged] q:12 reaction:8 [safety-flagged], [gross] q:1 reaction:5, [shock] q:9 reaction:7, [raunchy] q:12 reaction:8, [confession] q:5 reaction:6 \u00b7 pairwise: split verdict (1/1 \u2014 position bias), q order kept \u00b7 stages: t_cold=220065ms t_parse=0ms t_block=0ms t_wildcardA=2757ms t_wildcardB=3173ms t_wildcard=3173ms t_judge=2045ms t_response=0ms"
+    },
+    {
+      "input": "I bought the same shirt as you.",
+      "category": "looks",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I bought the same shirt as you. then I returned yours and kept the money"
+        }
+      ],
+      "continuation": ". then I returned yours and kept the money",
+      "continuationWordCount": 9,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9216,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 391ms, sum 2202ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1486ms) \u2014 [shock] q:7 reaction:7 [safety-flagged], [deranged] q:11 reaction:8, [gross] q:10 reaction:8 [safety-flagged], [shock] q:9 reaction:7, [raunchy] q:5 reaction:6 [safety-flagged], [confession] q:13 reaction:8 \u00b7 pairwise: split verdict (2/2 \u2014 position bias), q order kept \u00b7 stages: t_cold=230213ms t_parse=0ms t_block=0ms t_wildcardA=2629ms t_wildcardB=2392ms t_wildcard=2629ms t_judge=1786ms t_response=0ms"
+    },
+    {
+      "input": "He wants to meet your friends.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "He wants to meet your friends. I already told him they don't exist"
+        }
+      ],
+      "continuation": ". I already told him they don't exist",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8340,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 422ms, sum 2175ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1774ms) \u2014 [shock] q:11 reaction:8 [safety-flagged], [deranged] q:4 reaction:6, [gross] q:9 reaction:8 [safety-flagged], [shock] q:9 reaction:7, [raunchy] q:13 reaction:9 [safety-flagged], [confession] q:14 reaction:8 \u00b7 pairwise: #1 won from both positions (835ms), held \u00b7 stages: t_cold=238197ms t_parse=0ms t_block=0ms t_wildcardA=2291ms t_wildcardB=2245ms t_wildcard=2291ms t_judge=2611ms t_response=0ms"
+    },
+    {
+      "input": "He's bringing his parents to dinner.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He's bringing his parents to dinner. I'm serving nothing but vodka and a detailed list of your sexual failures"
+        }
+      ],
+      "continuation": ". I'm serving nothing but vodka and a detailed list of your sexual failures",
+      "continuationWordCount": 14,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9312,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 4 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 624ms, sum 2583ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1282ms) \u2014 [shock] q:12 reaction:8, [deranged] q:11 reaction:7 [safety-flagged], [gross] q:9 reaction:6 [safety-flagged], [shock] q:14 reaction:9 [safety-flagged], [raunchy] q:11 reaction:8 [safety-flagged], [confession] q:10 reaction:7 \u00b7 pairwise: split verdict (1/1 \u2014 position bias), q order kept \u00b7 stages: t_cold=246817ms t_parse=0ms t_block=0ms t_wildcardA=3255ms t_wildcardB=3184ms t_wildcard=3255ms t_judge=2043ms t_response=0ms"
+    },
+    {
+      "input": "I told them you know what you're doing.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I told them you know what you're doing. which makes one of us. they bought it. fucking morons."
+        }
+      ],
+      "continuation": ", which makes one of us. they bought it. fucking morons.",
+      "continuationWordCount": 11,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8507,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 5 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 479ms, sum 2170ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1509ms) \u2014 [shock] q:13 reaction:8, [deranged] q:8 reaction:7 [safety-flagged], [gross] q:11 reaction:8 [safety-flagged], [shock] q:9 reaction:7 [safety-flagged], [raunchy] q:12 reaction:8 [safety-flagged], [confession] q:10 reaction:7 [safety-flagged] \u00b7 stages: t_cold=256660ms t_parse=0ms t_block=0ms t_wildcardA=2692ms t_wildcardB=3282ms t_wildcard=3282ms t_judge=1511ms t_response=0ms"
+    },
+    {
+      "input": "He offered to clean the kitchen.",
+      "category": "home",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "He offered to clean the kitchen. found a science experiment growing in the sink that's probably sentient"
+        }
+      ],
+      "continuation": ". found a science experiment growing in the sink that's probably sentient",
+      "continuationWordCount": 12,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 10359,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 1 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 484ms, sum 2312ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1421ms) \u2014 [shock] q:4 reaction:6, [deranged] q:8 reaction:7, [gross] q:11 reaction:8, [shock] q:1 reaction:4, [raunchy] q:10 reaction:8 [safety-flagged], [confession] q:9 reaction:7 \u00b7 pairwise: split verdict (1/1 \u2014 position bias), q order kept \u00b7 stages: t_cold=265988ms t_parse=0ms t_block=0ms t_wildcardA=2820ms t_wildcardB=2943ms t_wildcard=2943ms t_judge=1855ms t_response=0ms"
+    },
+    {
+      "input": "That hotel room has a huge mirror.",
+      "category": "flirting",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "That hotel room has a huge mirror. probably to see all the weird rashes you picked up from the bedspread."
+        }
+      ],
+      "continuation": ", probably to see all the weird rashes you picked up from the bedspread.",
+      "continuationWordCount": 14,
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9343,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 B: ok, kept 3 [Nebius] \u00b7 model: nousresearch/hermes-4-405b \u00b7 safety: 3 dropped \u00b7 safety model: openai/gpt-5.4-nano (wall 414ms, sum 2120ms across 6 calls) \u00b7 taste: openai/gpt-5.4 (1434ms) \u2014 [shock] q:10 reaction:7 [safety-flagged], [deranged] q:9 reaction:8 [safety-flagged], [gross] q:10 reaction:7, [shock] q:-3 reaction:3, [raunchy] q:9 reaction:8, [confession] q:15 reaction:9 [safety-flagged] \u00b7 pairwise: #1 won from both positions (329ms), held \u00b7 stages: t_cold=276002ms t_parse=0ms t_block=0ms t_wildcardA=2559ms t_wildcardB=2466ms t_wildcard=2559ms t_judge=1764ms t_response=0ms"
+    }
+  ],
+  "purpose": "Unedited model-output evaluation, including failures. Flagged text documents a defect and is not an approved joke."
+}

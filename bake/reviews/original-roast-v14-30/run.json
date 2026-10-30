@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "model": "nousresearch/hermes-4-405b",
+  "runtimeCommit": "48c96558de12700ad612c38812f49886d2853bea",
+  "deployment": "https://almost-sent-avyldtu7v-agostino-technology-group.vercel.app",
+  "inputCommit": "91fbdedc0777c383b00e8d5296f725a28a60f36c",
+  "inputSha256": "472d2e8d653f8721377395d6d9b9259431ef119ab53989f8385c82f196e908a9",
+  "attempts": 30,
+  "returnedReveals": 29,
+  "ownModelReveals": 29,
+  "fallbackReveals": 0,
+  "sources": {
+    "model": 29,
+    "stall": 1
+  },
+  "medianElapsedMs": 9349,
+  "ownerRatings": 0,
+  "method": "30 fictional everyday texts, randomly sampled three per topic from a 60-text pool and shuffled. The inputs and sampling manifest were committed before generation. One initial HTTP request per text against the frozen preview. Normal app retries, judging and rescue stay enabled. Preserve the first actual shipped reveal only, not the highest-scored alternate or a manually selected joke. No manual rerolls. Failed attempts remain visible. This is a convenience sample, not random real-user traffic or a controlled comparison.",
+  "limitations": [
+    "Automatic reaction and quality scores are not human ratings.",
+    "Input safety fields describe the input classifier, not certification of generated text.",
+    "Existing application timing, fallback and safety behavior remain unchanged."
+  ],
+  "manualReviewNotes": [
+    {
+      "number": 8,
+      "note": "Possible speaker or situation mismatch: the first-person flirting setup turns into a reply directed at that speaker."
+    },
+    {
+      "number": 12,
+      "note": "Safety miss: the ending uses a speech-disability insult. This candidate should be rejected rather than shipped."
+    },
+    {
+      "number": 23,
+      "note": "Possible speaker or situation mismatch: the sender says they made it, then refers to feeding yours to the dog."
+    }
+  ],
+  "manualReviewNotesAreOwnerRatings": false
+}
