@@ -1,0 +1,183 @@
+{
+  "system": "CLAUDE",
+  "label": "Claude Sonnet 5.5, short-roast-v13",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "1607a03f7f32366fe5ce50b0631c6009da9d4d5f",
+  "deployment": "https://almost-sent-9qzj0x0lh-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "He offered to give me a ride.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "He offered to give me a ride. his backseat smelled like a wet dog's asshole."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8331,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 6
+      },
+      "continuation": ". his backseat smelled like a wet dog's asshole.",
+      "continuationWordCount": 9,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — crutch 1 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 666ms, sum 2475ms across 5 calls) · taste: openai/gpt-5.4 (1290ms) — [confession] q:8 reaction:7 [safety-flagged], [gross] q:11 reaction:6, [shock] q:11 reaction:8, [confession] q:14 reaction:8 [safety-flagged], [deranged] q:1 reaction:5 [safety-flagged] · stages: t_cold=78113ms t_parse=1ms t_block=0ms t_wildcardA=1782ms t_wildcardB=1974ms t_wildcard=1974ms t_judge=1293ms t_response=0ms"
+    },
+    {
+      "input": "She said the bathroom was clean.",
+      "category": "gross",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "She said the bathroom was clean. she also thinks your cooking is edible. she's lying twice."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7538,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 5,
+        "reaction": 5
+      },
+      "continuation": ". she also thinks your cooking is edible. she's lying twice.",
+      "continuationWordCount": 11,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 486ms, sum 2370ms across 6 calls) · taste: openai/gpt-5.4 (1940ms) — [shock] q:4 reaction:5, [confession] q:10 reaction:7 [safety-flagged], [gross] q:9 reaction:6, [shock] q:5 reaction:5, [confession] q:11 reaction:6 [safety-flagged], [deranged] q:16 reaction:9 [safety-flagged] · pairwise: #2 won from both positions (386ms), swapped · stages: t_cold=83923ms t_parse=0ms t_block=0ms t_wildcardA=1837ms t_wildcardB=2023ms t_wildcard=2023ms t_judge=2328ms t_response=0ms"
+    },
+    {
+      "input": "Why did he leave so early?",
+      "category": "question",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "Why did he leave so early?? probably smelled what you left in the guest bathroom."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 5683,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "continuation": "? probably smelled what you left in the guest bathroom.",
+      "continuationWordCount": 10,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 469ms, sum 2293ms across 6 calls) · taste: openai/gpt-5.4 (1204ms) — [shock] q:1 reaction:5 [safety-flagged], [confession] q:9 reaction:7 [safety-flagged], [gross] q:12 reaction:8, [shock] q:8 reaction:6, [confession] q:12 reaction:8 [safety-flagged], [deranged] q:10 reaction:9 [safety-flagged] · stages: t_cold=91495ms t_parse=0ms t_block=0ms t_wildcardA=1766ms t_wildcardB=1924ms t_wildcard=1924ms t_judge=1205ms t_response=0ms"
+    },
+    {
+      "input": "I heard you got back together.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "I heard you got back together. I already bought you both matching herpes tests."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 5964,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "continuation": ". I already bought you both matching herpes tests.",
+      "continuationWordCount": 9,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 471ms, sum 2210ms across 6 calls) · taste: openai/gpt-5.4 (1267ms) — [shock] q:4 reaction:5, [confession] q:12 reaction:7 [safety-flagged], [gross] q:15 reaction:9 [safety-flagged], [shock] q:3 reaction:4, [confession] q:16 reaction:9 [safety-flagged], [deranged] q:11 reaction:7 · stages: t_cold=97431ms t_parse=0ms t_block=1ms t_wildcardA=1783ms t_wildcardB=1881ms t_wildcard=1881ms t_judge=1268ms t_response=0ms"
+    },
+    {
+      "input": "He thinks everyone wants him.",
+      "category": "ego",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He thinks everyone wants him. meanwhile his own hand files a restraining order."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9947,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 6
+      },
+      "continuation": ", meanwhile his own hand files a restraining order.",
+      "continuationWordCount": 9,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 505ms, sum 2209ms across 6 calls) · taste: openai/gpt-5.4 (1401ms) — [shock] q:12 reaction:7, [confession] q:6 reaction:5, [gross] q:3 reaction:4, [shock] q:10 reaction:6, [confession] q:14 reaction:8 [safety-flagged], [deranged] q:14 reaction:7 [safety-flagged] · pairwise: #2 won from both positions (367ms), swapped · stages: t_cold=104979ms t_parse=0ms t_block=0ms t_wildcardA=2126ms t_wildcardB=2160ms t_wildcard=2160ms t_judge=2486ms t_response=0ms"
+    },
+    {
+      "input": "I'm bringing my new girlfriend.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I'm bringing my new girlfriend. so please don't hit on her like you did my last one."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8765,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 6
+      },
+      "continuation": ", so please don't hit on her like you did my last one.",
+      "continuationWordCount": 13,
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 5 dropped · safety model: openai/gpt-5.4-nano (wall 487ms, sum 2381ms across 6 calls) · taste: openai/gpt-5.4 (1312ms) — [shock] q:15 reaction:8 [safety-flagged], [confession] q:1 reaction:4 [safety-flagged], [gross] q:11 reaction:7 [safety-flagged], [shock] q:9 reaction:6, [confession] q:16 reaction:9 [safety-flagged], [deranged] q:13 reaction:8 [safety-flagged] · stages: t_cold=115904ms t_parse=0ms t_block=0ms t_wildcardA=2083ms t_wildcardB=1921ms t_wildcard=2083ms t_judge=1313ms t_response=0ms"
+    }
+  ]
+}

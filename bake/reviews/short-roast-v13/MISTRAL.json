@@ -1,0 +1,135 @@
+{
+  "system": "MISTRAL",
+  "label": "Mistral Large 4, short-roast-v13",
+  "model": "mistralai/mistral-large-4-0",
+  "commit": "1607a03f7f32366fe5ce50b0631c6009da9d4d5f",
+  "deployment": "https://almost-sent-400gcmvp6-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "He offered to give me a ride.",
+      "category": "logistics",
+      "top3": [],
+      "source": "model",
+      "actualModel": "mistralai/mistral-large-2512",
+      "modelTag": "mistralai/mistral-large-2512",
+      "note": "Excluded from requested-model rating: the app used mistralai/mistral-large-2512 as fallback.",
+      "elapsedMs": 14202,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · B: still pending at 10000ms request budget · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 398ms, sum 1029ms across 3 calls) · taste: openai/gpt-5.4 (989ms) — [unknown] q:9 reaction:7, [unknown] q:11 reaction:7 [safety-flagged], [gross] q:11 reaction:7 · pairwise skipped: would exceed 10000ms · stages: t_cold=64744ms t_parse=0ms t_block=0ms t_wildcardA=9908ms t_wildcardB=10352ms t_wildcard=9908ms t_judge=992ms t_response=0ms"
+    },
+    {
+      "input": "She said the bathroom was clean.",
+      "category": "gross",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "modelTag": null,
+      "note": "No requested-model reveal; the request exhausted its runtime budget.",
+      "elapsedMs": 13393,
+      "weakLead": false,
+      "stallReason": "budget",
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": null,
+      "pipelineTrace": "wildcard: A: still pending at 10000ms request budget · B: still pending at 10000ms request budget · safety: 0 dropped · taste: failed open (no candidates) — fell back to fixed lane order · fill round skipped: would exceed 10000ms · stall_reason: budget · stages: t_cold=79093ms t_parse=0ms t_block=0ms t_wildcardA=0ms t_wildcardB=0ms t_wildcard=0ms t_judge=0ms t_response=0ms"
+    },
+    {
+      "input": "Why did he leave so early?",
+      "category": "question",
+      "top3": [],
+      "source": "model",
+      "actualModel": "mistralai/mistral-large-2512",
+      "modelTag": "mistralai/mistral-large-2512",
+      "note": "Excluded from requested-model rating: the app used mistralai/mistral-large-2512 as fallback.",
+      "elapsedMs": 13878,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: still pending at 10000ms request budget · B: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 775ms, sum 1431ms across 3 calls) · taste: openai/gpt-5.4 (1393ms) — [unknown] q:8 reaction:7, [unknown] q:7 reaction:8, [unknown] q:8 reaction:7 [safety-flagged] · pairwise skipped: would exceed 10000ms · stages: t_cold=91615ms t_parse=0ms t_block=0ms t_wildcardA=10042ms t_wildcardB=9751ms t_wildcard=9751ms t_judge=1395ms t_response=0ms"
+    },
+    {
+      "input": "I heard you got back together.",
+      "category": "dating",
+      "top3": [],
+      "source": "model",
+      "actualModel": "mistralai/mistral-large-2512",
+      "modelTag": "mistralai/mistral-large-2512",
+      "note": "Excluded from requested-model rating: the app used mistralai/mistral-large-2512 as fallback.",
+      "elapsedMs": 14490,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · B: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 571ms, sum 2488ms across 6 calls) · taste: openai/gpt-5.4 (1221ms) — [unknown] q:12 reaction:7 [safety-flagged], [unknown] q:12 reaction:8 [safety-flagged], [gross] q:9 reaction:7, [unknown] q:7 reaction:6, [unknown] q:13 reaction:9 [safety-flagged], [unknown] q:10 reaction:8 [safety-flagged] · pairwise skipped: would exceed 10000ms · stages: t_cold=106423ms t_parse=0ms t_block=0ms t_wildcardA=9857ms t_wildcardB=9582ms t_wildcard=9857ms t_judge=1224ms t_response=0ms"
+    },
+    {
+      "input": "He thinks everyone wants him.",
+      "category": "ego",
+      "top3": [],
+      "source": "model",
+      "actualModel": "mistralai/mistral-large-2512",
+      "modelTag": "mistralai/mistral-large-2512",
+      "note": "Excluded from requested-model rating: the app used mistralai/mistral-large-2512 as fallback.",
+      "elapsedMs": 16644,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: still pending at 10000ms request budget · B: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · safety: 0 dropped · safety model: openai/gpt-5.4-nano (wall 456ms, sum 1244ms across 3 calls) · taste: openai/gpt-5.4 (1047ms) — [unknown] q:0 reaction:4, [unknown] q:10 reaction:6, [unknown] q:-2 reaction:3 · stages: t_cold=123101ms t_parse=0ms t_block=0ms t_wildcardA=10223ms t_wildcardB=9872ms t_wildcard=9872ms t_judge=1049ms t_response=0ms"
+    },
+    {
+      "input": "I'm bringing my new girlfriend.",
+      "category": "dating",
+      "top3": [],
+      "source": "model",
+      "actualModel": "mistralai/mistral-large-2512",
+      "modelTag": "mistralai/mistral-large-2512",
+      "note": "Excluded from requested-model rating: the app used mistralai/mistral-large-2512 as fallback.",
+      "elapsedMs": 15539,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "continuation": null,
+      "continuationWordCount": null,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · B: ok, kept 3 [Mistral] · model: mistralai/mistral-large-2512 (fallback) · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 490ms, sum 2458ms across 6 calls) · taste: openai/gpt-5.4 (1259ms) — [unknown] q:8 reaction:7 [safety-flagged], [unknown] q:9 reaction:6, [gross] q:7 reaction:8, [unknown] q:11 reaction:7 [safety-flagged], [unknown] q:12 reaction:8 [safety-flagged], [unknown] q:2 reaction:4 · stages: t_cold=138446ms t_parse=0ms t_block=0ms t_wildcardA=9853ms t_wildcardB=9981ms t_wildcard=9981ms t_judge=1262ms t_response=0ms"
+    }
+  ]
+}

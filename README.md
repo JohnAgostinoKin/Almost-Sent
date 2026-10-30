@@ -284,12 +284,30 @@ Cache version: `short-roast-v13`. Seventeen automated tests cover the known
 tail regression, preserved clauses, short word cap, model parameter
 compatibility and existing generation behavior.
 
-The next model comparison uses six fresh inputs in
-`bake/short-roast-inputs-v13.json`, with Claude Sonnet 5.5 as the control and
-Mistral Large 4 / DeepSeek V4.1 Flash 1017 as challengers. These are test
-candidates, not established better writers. Mistral uses supported low
-reasoning; DeepSeek uses its supported non-thinking mode. Production remains
-unchanged while this revision is evaluated.
+The model comparison in `bake/reviews/short-roast-v13/` uses six fresh inputs
+committed before generation in `bake/short-roast-inputs-v13.json`. All three
+previews ran frozen commit `1607a03`; initial prompt messages were reconstructed,
+compared and hashed. Claude Sonnet 5.5 and DeepSeek V4.1 Flash 1017 each returned
+six own-model first reveals with no fallback. Mistral Large 4 returned none:
+five attempts used the older Mistral Large 2512 fallback and one stalled.
+Those six attempts remain in `MISTRAL.json` with empty rating entries, rather
+than attributing fallback text to the requested writer. Mistral used supported
+low reasoning; DeepSeek used its supported non-thinking mode. Normal runtime
+retries and rescue were enabled, with no manual rerolls or later-reveal swaps.
+
+Median HTTP time was 7.93 seconds for Sonnet, 8.40 for DeepSeek and 14.35 for
+the unsuccessful Mistral Large 4 attempts. All twelve valid continuations fit
+the 14-word app ceiling (Sonnet: 9–13; DeepSeek: 9–14, using the app's whitespace
+count, which can count standalone punctuation). Manual inspection still finds
+generic insults and weak reveals; no owner ratings or model winner exist for
+this sample. One Sonnet snapshot preserves a duplicated question mark from
+the existing composer, rather than silently altering the recorded result.
+
+Rate the twelve valid first reveals at
+`/scripts/bake-rate.html?review=short-roast-v13&systems=CLAUDE,DEEPSEEK&rubric=impact-v1`.
+Mistral Large 4 is excluded from this rating UI because it has no own-model
+outputs to rate; its failures remain part of the recorded test. Production
+and the preview's Sonnet writer configuration remain unchanged.
 
 ## Do not add yet
 
