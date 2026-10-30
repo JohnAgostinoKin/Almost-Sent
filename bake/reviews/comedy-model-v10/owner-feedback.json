@@ -1,0 +1,158 @@
+{
+  "source": "owner-ratings.csv",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "raters": 1,
+  "method": "Nine owner ratings joined by system, input index and exact input to recorded first reveals. Partial review: both reply-all outputs are unrated, and the Hermes ex-invitation attempt stalled. Counts describe rated outputs only; missing rows are not negative ratings. One rater and one unreplicated sample, not an audience estimate. Automatic reaction and q scores are copied from original request traces, not new judgments.",
+  "conclusion": "No rated output earned LOL or a screenshot pick. This sample does not establish a funnier writer. The automatic judge overestimates several owner-rejected outputs; diagnose candidate quality versus selection before another model change.",
+  "summary": [
+    {
+      "system": "HERMES",
+      "attempts": 6,
+      "rated": 4,
+      "stalls": 1,
+      "unratedSuccessfulOutputs": 1,
+      "lol": 0,
+      "smirk": 1,
+      "nothing": 3,
+      "bad": 0,
+      "screenshots": 0
+    },
+    {
+      "system": "CLAUDE",
+      "attempts": 6,
+      "rated": 5,
+      "stalls": 0,
+      "unratedSuccessfulOutputs": 1,
+      "lol": 0,
+      "smirk": 1,
+      "nothing": 2,
+      "bad": 2,
+      "screenshots": 0
+    }
+  ],
+  "unrated": [
+    {
+      "system": "HERMES",
+      "inputIndex": 3,
+      "input": "Thanks for inviting my ex.",
+      "source": "stall",
+      "reason": "No rating in uploaded CSV; do not infer a reaction."
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 5,
+      "input": "Please stop replying all.",
+      "source": "model",
+      "reason": "No rating in uploaded CSV; do not infer a reaction."
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 5,
+      "input": "Please stop replying all.",
+      "source": "model",
+      "reason": "No rating in uploaded CSV; do not infer a reaction."
+    }
+  ],
+  "ratings": [
+    {
+      "system": "HERMES",
+      "inputIndex": 0,
+      "input": "Your dog likes me more than you.",
+      "text": "Your dog likes me more than you. it's because i feed him under the table. and under your bed.",
+      "rating": "smirk",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 6,
+      "automaticQ": 8
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 0,
+      "input": "Your dog likes me more than you.",
+      "text": "Your dog likes me more than you. i bribe him with the bacon you think you're allergic to. it's been six months.",
+      "rating": "nothing",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 7,
+      "automaticQ": 13
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 1,
+      "input": "Let's not tell anyone about last night.",
+      "text": "Let's not tell anyone about last night. especially the part where you called me by your ex's name and I answered",
+      "rating": "nothing",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 7,
+      "automaticQ": 11
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 1,
+      "input": "Let's not tell anyone about last night.",
+      "text": "Let's not tell anyone about last night. mostly because i've already sold the footage to a shady european website.",
+      "rating": "nothing",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 8,
+      "automaticQ": 14
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 2,
+      "input": "I brought dessert.",
+      "text": "I brought dessert. and the main course. you're out of cat food again.",
+      "rating": "nothing",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 5,
+      "automaticQ": 7
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 2,
+      "input": "I brought dessert.",
+      "text": "I brought dessert. it's the one you said you were allergic to. i've been calling your bluff since march",
+      "rating": "bad",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 7,
+      "automaticQ": 12
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 3,
+      "input": "Thanks for inviting my ex.",
+      "text": "Thanks for inviting my ex. we're getting a place together, so really you're the matchmaker.",
+      "rating": "bad",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 6,
+      "automaticQ": 11
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 4,
+      "input": "Can you pick me up from the airport?",
+      "text": "Can you pick me up from the airport?? it's the only time anyone's gotten picked up by you without lying about their name",
+      "rating": "smirk",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 6,
+      "automaticQ": 8
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 4,
+      "input": "Can you pick me up from the airport?",
+      "text": "Can you pick me up from the airport? i put us on the no-fly list last week. surprise!",
+      "rating": "nothing",
+      "screenshot": false,
+      "failure": "",
+      "automaticReaction": 7,
+      "automaticQ": 13
+    }
+  ]
+}

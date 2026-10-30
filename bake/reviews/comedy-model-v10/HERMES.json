@@ -1,0 +1,94 @@
+{
+  "system": "HERMES",
+  "label": "HERMES writer; shared v10 prompt and judge",
+  "model": "nousresearch/hermes-4-405b",
+  "commit": "0df82d82aaa1b47d15cb6d5e1bb8f28bf8f5346c",
+  "deployment": "https://almost-sent-lxxj6puw9-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "Your dog likes me more than you.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Your dog likes me more than you. it's because i feed him under the table. and under your bed."
+        }
+      ],
+      "source": "model",
+      "actualModel": "hermes",
+      "note": "",
+      "elapsedMs": 9593,
+      "weakLead": false
+    },
+    {
+      "input": "Let's not tell anyone about last night.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Let's not tell anyone about last night. mostly because i've already sold the footage to a shady european website."
+        }
+      ],
+      "source": "model",
+      "actualModel": "hermes",
+      "note": "",
+      "elapsedMs": 9663,
+      "weakLead": false
+    },
+    {
+      "input": "I brought dessert.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I brought dessert. and the main course. you're out of cat food again."
+        }
+      ],
+      "source": "model",
+      "actualModel": "hermes",
+      "note": "",
+      "elapsedMs": 15233,
+      "weakLead": true
+    },
+    {
+      "input": "Thanks for inviting my ex.",
+      "category": "dating",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "safety-eliminated-all",
+      "elapsedMs": 8218,
+      "weakLead": false
+    },
+    {
+      "input": "Can you pick me up from the airport?",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Can you pick me up from the airport? i put us on the no-fly list last week. surprise!"
+        }
+      ],
+      "source": "model",
+      "actualModel": "hermes",
+      "note": "",
+      "elapsedMs": 9139,
+      "weakLead": false
+    },
+    {
+      "input": "Please stop replying all.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Please stop replying all. i've been doing it on purpose because i know how much it annoys you"
+        }
+      ],
+      "source": "model",
+      "actualModel": "hermes",
+      "note": "",
+      "elapsedMs": 11162,
+      "weakLead": true
+    }
+  ]
+}

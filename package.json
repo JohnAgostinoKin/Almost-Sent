@@ -5,6 +5,8 @@
   "description": "the draft they never sent",
   "scripts": {
     "dev": "vercel dev",
+    "test": "node --test tests/*.test.js",
+    "comedy-check": "node scripts/comedy-check.js",
     "start": "npx serve .",
     "bake": "node scripts/bake.js",
     "bake-blind": "node scripts/bake-blind.js",

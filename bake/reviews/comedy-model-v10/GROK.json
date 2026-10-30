@@ -1,0 +1,69 @@
+{
+  "system": "GROK",
+  "label": "GROK writer; shared v10 prompt and judge",
+  "model": "x-ai/grok-4.7",
+  "commit": "0df82d82aaa1b47d15cb6d5e1bb8f28bf8f5346c",
+  "deployment": "https://almost-sent-6x1pcljkb-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "Your dog likes me more than you.",
+      "category": "friends",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "budget",
+      "elapsedMs": 12621,
+      "weakLead": false
+    },
+    {
+      "input": "Let's not tell anyone about last night.",
+      "category": "dating",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "budget",
+      "elapsedMs": 12984,
+      "weakLead": false
+    },
+    {
+      "input": "I brought dessert.",
+      "category": "friends",
+      "top3": [],
+      "source": "fallback",
+      "actualModel": "mistralai/mistral-large-2512",
+      "note": "Different model fallback; excluded from writer comparison",
+      "elapsedMs": 14016,
+      "weakLead": true
+    },
+    {
+      "input": "Thanks for inviting my ex.",
+      "category": "dating",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "budget",
+      "elapsedMs": 17023,
+      "weakLead": false
+    },
+    {
+      "input": "Can you pick me up from the airport?",
+      "category": "logistics",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "budget",
+      "elapsedMs": 12053,
+      "weakLead": false
+    },
+    {
+      "input": "Please stop replying all.",
+      "category": "work",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "note": "budget",
+      "elapsedMs": 15739,
+      "weakLead": false
+    }
+  ]
+}

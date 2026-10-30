@@ -1,0 +1,12 @@
+rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure,schema,reactions
+anonymous,2026-10-30T01:46:35.268Z,0,He calls himself a life coach.,HERMES,0,none,no,,impact-v1,
+anonymous,2026-10-30T01:46:45.010Z,0,He calls himself a life coach.,CLAUDE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T01:47:06.640Z,1,Your new tattoo is definitely noticeable.,HERMES,0,mild,no,,impact-v1,
+anonymous,2026-10-30T01:47:28.267Z,1,Your new tattoo is definitely noticeable.,CLAUDE,1,none,no,,impact-v1,
+anonymous,2026-10-30T01:47:44.473Z,2,She says everyone at work is jealous of her.,CLAUDE,0,none,no,,impact-v1,
+anonymous,2026-10-30T01:47:55.644Z,2,She says everyone at work is jealous of her.,HERMES,1,strong,no,,impact-v1,
+anonymous,2026-10-30T01:48:25.669Z,3,I put you down as my emergency contact.,CLAUDE,0,strong,no,too long,impact-v1,
+anonymous,2026-10-30T01:48:40.820Z,4,You should hear him sing.,HERMES,0,mild,no,,impact-v1,
+anonymous,2026-10-30T01:48:58.783Z,4,You should hear him sing.,CLAUDE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T01:49:24.302Z,5,Thanks for setting me up with your friend.,HERMES,0,mild,no,too long,impact-v1,
+anonymous,2026-10-30T01:49:38.959Z,5,Thanks for setting me up with your friend.,CLAUDE,1,none,no,,impact-v1,

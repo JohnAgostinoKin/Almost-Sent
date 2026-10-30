@@ -1,0 +1,194 @@
+{
+  "source": "owner-ratings.csv",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "schema": "impact-v1",
+  "raters": 1,
+  "method": "11 owner ratings joined to exact recorded first reveals by system, input index and input text. The sixth DeepSeek output is unrated, not a stall or an invented NONE. Mistral has no own-model output and was excluded from the rating UI. One unreplicated sample.",
+  "conclusion": "Claude has one STRONG and five MILD ratings; DeepSeek has four MILD and one NONE among five rated outputs. Neither earns a screenshot pick. Claude wins two of five rated pairs with three ties. The owner rejects this direction and recalls an earlier five-category setup; no further writer or prompt experiment is started.",
+  "summary": [
+    {
+      "system": "CLAUDE",
+      "attempts": 6,
+      "reviewableOutputs": 6,
+      "rated": 6,
+      "unrated": 0,
+      "strong": 1,
+      "mild": 5,
+      "none": 0,
+      "screenshots": 0
+    },
+    {
+      "system": "DEEPSEEK",
+      "attempts": 6,
+      "reviewableOutputs": 6,
+      "rated": 5,
+      "unrated": 1,
+      "strong": 0,
+      "mild": 4,
+      "none": 1,
+      "screenshots": 0
+    }
+  ],
+  "pairedSummary": {
+    "CLAUDE": 2,
+    "tie": 3
+  },
+  "pairedComparisons": [
+    {
+      "inputIndex": 0,
+      "input": "He offered to give me a ride.",
+      "claude": "strong",
+      "deepseek": "mild",
+      "strongerReaction": "CLAUDE"
+    },
+    {
+      "inputIndex": 1,
+      "input": "She said the bathroom was clean.",
+      "claude": "mild",
+      "deepseek": "mild",
+      "strongerReaction": "tie"
+    },
+    {
+      "inputIndex": 2,
+      "input": "Why did he leave so early?",
+      "claude": "mild",
+      "deepseek": "mild",
+      "strongerReaction": "tie"
+    },
+    {
+      "inputIndex": 3,
+      "input": "I heard you got back together.",
+      "claude": "mild",
+      "deepseek": "mild",
+      "strongerReaction": "tie"
+    },
+    {
+      "inputIndex": 4,
+      "input": "He thinks everyone wants him.",
+      "claude": "mild",
+      "deepseek": "none",
+      "strongerReaction": "CLAUDE"
+    }
+  ],
+  "unrated": [
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 5,
+      "input": "I'm bringing my new girlfriend.",
+      "reason": "No owner rating in uploaded CSV; a real own-model result exists."
+    }
+  ],
+  "ratings": [
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 0,
+      "input": "He offered to give me a ride.",
+      "text": "He offered to give me a ride. his passenger seat smells like fucking ass and old fries.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 0,
+      "input": "He offered to give me a ride.",
+      "text": "He offered to give me a ride. his backseat smelled like a wet dog's asshole.",
+      "rating": "strong",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 1,
+      "input": "She said the bathroom was clean.",
+      "text": "She said the bathroom was clean. the rag she used was the fucking toilet brush.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 1,
+      "input": "She said the bathroom was clean.",
+      "text": "She said the bathroom was clean. she also thinks your cooking is edible. she's lying twice.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 2,
+      "input": "Why did he leave so early?",
+      "text": "Why did he leave so early?? probably smelled what you left in the guest bathroom.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 2,
+      "input": "Why did he leave so early?",
+      "text": "Why did he leave so early? he told me your laugh makes him want to fucking leave the country.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 3,
+      "input": "I heard you got back together.",
+      "text": "I heard you got back together. you always did have shit taste in cock.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 3,
+      "input": "I heard you got back together.",
+      "text": "I heard you got back together. I already bought you both matching herpes tests.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "DEEPSEEK",
+      "inputIndex": 4,
+      "input": "He thinks everyone wants him.",
+      "text": "He thinks everyone wants him. i told him i did. once. he believed it.",
+      "rating": "none",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 4,
+      "input": "He thinks everyone wants him.",
+      "text": "He thinks everyone wants him. meanwhile his own hand files a restraining order.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 5,
+      "input": "I'm bringing my new girlfriend.",
+      "text": "I'm bringing my new girlfriend. so please don't hit on her like you did my last one.",
+      "rating": "mild",
+      "screenshot": false,
+      "failure": "",
+      "reactions": []
+    }
+  ]
+}

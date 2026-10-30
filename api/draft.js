@@ -460,74 +460,23 @@ async function forgetImpl(sent) {
   }
 }
 
-// Which of the judged survivors (q-descending, safety-flagged already gone)
-// a visitor actually sees, in order — the position-selection loop the
-// handler's own comment above describes: position 1 is the highest-q
-// eligible survivor, positions 2 and 3 have to be at least as intense
-// (reaction) as the position right before them, and every pick has to clear
-// per-response diversity (lib/postprocess.js's createDiversityTracker).
-//
-// Lane caps on top of that, enforced here mechanically rather than trusted
-// to the prompt: at most one lane:raunchy and at most one lane:gross line
-// across the shown positions, and — on an INVITED text (lib/prompt.js's
-// invitesRaunchy) — gross never
-// wins: it's ineligible for positions 1 and 2 and can only take position 3,
-// so a text that invited a proposition doesn't lead with a bodily gag. If
-// nothing but gross survived an invited text, the cap is relaxed rather than
-// stalling a request that has drafts (`relaxed` says so, for `why`).
-function selectPositions(survivors, invited, fillEmpty) {
+// Keep the judge's winner first. Later reveals must meet the previous
+// reaction score and offer a different joke; never pad with weaker lines.
+function selectPositions(survivors) {
   const tracker = createDiversityTracker();
   const positions = [];
-  let raunchyUsed = false;
-  let grossUsed = false;
-  function eligible(s, slot, relaxGross) {
-    const lane = s.candidate.lane;
-    if (lane === "raunchy" && raunchyUsed) return false;
-    if (lane === "gross" && grossUsed) return false;
-    if (lane === "gross" && invited && slot < 3 && !relaxGross) return false;
-    return true;
+  const usedRestrictedLanes = new Set();
+  for (const survivor of survivors) {
+    const candidate = survivor.candidate;
+    const previous = positions[positions.length - 1];
+    if (previous && (previous.reaction == null || survivor.reaction == null ||
+        survivor.reaction < previous.reaction)) continue;
+    if (usedRestrictedLanes.has(candidate.lane) || tracker.isDuplicate(candidate.text)) continue;
+    positions.push(survivor);
+    tracker.record(candidate.text);
+    if (candidate.lane === "raunchy" || candidate.lane === "gross") usedRestrictedLanes.add(candidate.lane);
+    if (positions.length === 3) break;
   }
-  function take(s) {
-    positions.push(s);
-    tracker.record(s.candidate.text);
-    if (s.candidate.lane === "raunchy") raunchyUsed = true;
-    if (s.candidate.lane === "gross") grossUsed = true;
-  }
-  let relaxed = false;
-  let first = survivors.filter(function (s) { return eligible(s, 1, false); })[0];
-  if (!first && survivors.length) { first = survivors[0]; relaxed = true; }
-  if (first) take(first);
-  for (let need = 2; need <= 3 && positions.length === need - 1; need++) {
-    const prev = positions[need - 2];
-    // survivors is q-descending, so the first one clearing the reaction
-    // bar is the highest-q qualifier — no separate re-sort needed.
-    const next = survivors.filter(function (s) {
-      return positions.indexOf(s) === -1 && eligible(s, need, relaxed) &&
-        (prev.reaction == null || s.reaction >= prev.reaction) &&
-        !tracker.isDuplicate(s.candidate.text);
-    })[0];
-    if (!next) break;
-    take(next);
-  }
-  // First show always ships three (when three lines exist): if the reaction
-  // chain above left a slot empty, fill it with the highest-q remaining line
-  // that still clears the lane caps and diversity — a less intense second
-  // card beats an empty one on a first show. Never on escalation (fillEmpty
-  // false): a "make it worse" tap that reveals something LESS intense reads
-  // as a reroll, so there the chain stays strict.
-  let chainRelaxed = 0;
-  if (fillEmpty) {
-    while (positions.length < 3) {
-      const next = survivors.filter(function (s) {
-        return positions.indexOf(s) === -1 && eligible(s, positions.length + 1, relaxed) && !tracker.isDuplicate(s.candidate.text);
-      })[0];
-      if (!next) break;
-      take(next);
-      chainRelaxed++;
-    }
-  }
-  positions.relaxed = relaxed;
-  positions.chainRelaxed = chainRelaxed;
   return positions;
 }
 
@@ -782,7 +731,7 @@ async function handle(req, res, internal) {
 
   // Whether the sent text invites a raunchy line — decided here, in code
   // (lib/prompt.js's invitesRaunchy), never left to the model. Sets both
-  // calls' lane plans, and gates what selectPositions lets gross do.
+  // calls' lane plans. Ranking remains independent of the lane.
   const lanePlans = lanePlansFor(sent);
   const invited = lanePlans.invited;
 
@@ -1309,55 +1258,15 @@ async function handle(req, res, internal) {
   const stragglerPickupCount = round.stragglerPickupCount;
   const stallRescueNote = round.stallRescueNote;
 
-  // Position selection also enforces per-response diversity now (see
-  // lib/postprocess.js's createDiversityTracker) — a repeated opening
-  // move, background prop, or simile across positions 1-3 reads as one
-  // joke shown three times, not three different ones. v3 exported this
-  // tracker with a comment saying it was "driven from callOnce" but never
-  // actually wired it into this loop — every response before this line
-  // skipped diversity dedup entirely (the v4 addendum's section G asked
-  // specifically whether every generation path runs the full postprocess
-  // pipeline; this was the one real gap found, not bible-prep.js or the
-  // word cap/crutch filters, which were already applied everywhere).
-  // "Escalation must escalate" fix: the previous rule (within
-  // REACTION_CLOSE_ENOUGH=2 of position 1's own reaction, either
-  // direction) let a "take it further" tap reveal something LESS intense
-  // than what was already shown, which reads as a reroll, not an
-  // escalation. Positions 2 and 3 now have to be at least as intense as
-  // the position right before them — chained again, like the original
-  // pre-v5 rule, not anchored to position 1 the way the last fix had it.
-  //
-  // Written here as `s.reaction >= prev.reaction`, which is the actual
-  // requirement — the task that asked for this fix stated it as two
-  // conditions, "shock >= shock(prev) AND reaction >= reaction(prev) -
-  // 2"; `shock` is this codebase's own retired name for the same
-  // `reaction` field (see lib/judge.js's own header on why v4 folded
-  // shock into reaction), so both conditions are on the same scale, and
-  // the first (>=) already implies the second (>= -2) — there's nothing
-  // the second half of that AND would ever additionally exclude. Kept as
-  // one condition rather than two redundant ones; flag if a genuinely
-  // separate second metric was actually intended.
-  //
-  // No q-based tolerance gate anymore either (the pre-v5 rule's `s.q >=
-  // 0.7 * prev.q`) — the new rule is stated purely in terms of
-  // reaction/shock, so a candidate that clears the reaction bar is
-  // eligible regardless of how its q compares; q still decides which one
-  // among the eligible candidates gets picked (`remaining` stays
-  // q-descending).
-  let positions = selectPositions(survivors, invited, !escalate);
+  let positions = selectPositions(survivors);
 
-  // First show always ships three. Fewer than three positions after the
-  // round(s) above → one more generation round, its survivors merged with
-  // this round's (q-ordered, safety demotion re-applied — see
-  // mergeSurvivors), then positions are re-selected. Only if the one extra
-  // round per request (extraRoundUsed, above) is still free — a regen that
-  // already ran was that round — and only if it fits REQUEST_BUDGET_MS.
-  // Never on escalation (one tap, one round — see needsRegen).
+  // Spend the remaining retry only if there is no usable reveal. One
+  // strong first result should not wait for a round of filler alternatives.
   let fillNote = "";
   // Zero survivors counts too: a round the judge wiped out (at any gate mix
   // that isn't the all-gate-1 case handled above) would otherwise stall on
   // first show without ever trying again — seen live on "you up?".
-  if (!escalate && positions.length < 3) {
+  if (!escalate && positions.length === 0) {
     if (extraRoundUsed) {
       fillNote = " · fill round skipped: the one extra round went to regen";
     } else if (!retryFits()) {
@@ -1370,7 +1279,7 @@ async function handle(req, res, internal) {
       if (!fill.refuse && fill.survivors.length) {
         const before = survivors.length;
         survivors = mergeSurvivors(survivors, fill.survivors, unionSets(round.unjudged, fill.unjudged));
-        positions = selectPositions(survivors, invited, true);
+        positions = selectPositions(survivors);
         fillNote = " · fill round: had " + had + " shown, +" + (survivors.length - before) + " survivor(s), now " + positions.length + " shown";
       } else {
         fillNote = " · fill round: nothing usable (had " + had + " shown)";
@@ -1405,7 +1314,7 @@ async function handle(req, res, internal) {
         pairwiseNote = " · pairwise failed (" + (ab.reason || ba.reason || "?") + "), q order kept";
       } else if (ab.winner === 2 && ba.winner === 1) {
         survivors = [survivors[1], survivors[0]].concat(survivors.slice(2));
-        positions = selectPositions(survivors, invited, true);
+        positions = selectPositions(survivors);
         pairwiseNote = " · pairwise: #2 won from both positions (" + ms + "ms), swapped";
       } else if (ab.winner === 1 && ba.winner === 2) {
         pairwiseNote = " · pairwise: #1 won from both positions (" + ms + "ms), held";
@@ -1415,20 +1324,8 @@ async function handle(req, res, internal) {
     }
   }
 
-  // The reader asked for it: on a text that invites raunchy (lib/prompt.js's
-  // invitesRaunchy), the best raunchy survivor leads if its reaction is
-  // within one point of the top survivor's. q still decides everything else;
-  // this only moves one line to the front, after pairwise has had its say.
-  let raunchyLeadNote = "";
-  if (invited && survivors.length > 1 && survivors[0].candidate.lane !== "raunchy") {
-    const top = survivors[0];
-    const bestRaunchy = survivors.filter(function (s) { return s.candidate.lane === "raunchy" && s.reaction != null; })[0];
-    if (bestRaunchy && top.reaction != null && top.reaction - bestRaunchy.reaction <= 1) {
-      survivors = [bestRaunchy].concat(survivors.filter(function (s) { return s !== bestRaunchy; }));
-      positions = selectPositions(survivors, invited, !escalate);
-      raunchyLeadNote = " · raunchy leads: invited, reaction " + bestRaunchy.reaction + " within 1 of top " + top.reaction;
-    }
-  }
+  // No lane override after the pairwise verdict: raunch earns the lead
+  // by winning on comedy, not by receiving an automatic promotion.
 
   const responseStarted = Date.now();
   const drafts = positions.map(function (p, i) {
@@ -1444,9 +1341,7 @@ async function handle(req, res, internal) {
     (regenerated
       ? " · regen: true (" + (gate1Wipeout ? "every candidate eliminated at gate 1 — retried with the POV hint" : "first round best reaction " + firstRoundBestReaction + " < " + REACTION_LEAD_GATE) + ")"
       : "") +
-    regenSkippedNote + fillNote + pairwiseNote + raunchyLeadNote +
-    (positions.relaxed ? " · gross cap relaxed: nothing else survived an invited text" : "") +
-    (positions.chainRelaxed ? " · reaction chain relaxed for " + positions.chainRelaxed + " slot(s) to ship three" : "") +
+    regenSkippedNote + fillNote + pairwiseNote +
     (weakLead ? " · weak_lead: true (best reaction " + finalBestReaction + " < " + REACTION_LEAD_GATE + ")" : "") +
     (lateGroupCount ? " · late: " + lateGroupCount + " (proceeded past soft deadline, call(s) finishing in background)" : "") +
     (stragglerPickupCount ? " · stragglers picked up: " + stragglerPickupCount : "") +

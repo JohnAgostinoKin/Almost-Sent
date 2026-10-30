@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-29",
+  "rubric": "impact-v1",
+  "method": "Same six inputs and same Claude writer. BEFORE reuses the exact recorded v10 first reveals; AFTER is one new request per input using reaction-v11 writing and judging. Inputs have been seen before and are not held out. Display order is randomized and version labels are hidden. No historical ratings are copied. One new lead was excluded by the deterministic animal-contact safety fix and remains visible as a failed attempt; no replacement was generated. One sample per configuration, not proof of improved impact. One other request fell back to Mistral; that lead is also excluded from the Claude comparison and remains a failed requested-writer attempt.",
+  "systems": [
+    {
+      "system": "BEFORE",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "reviewableReveals": 6,
+      "blocked": 0,
+      "stalls": 0,
+      "medianElapsedMs": 8247.5,
+      "fallbacks": 0
+    },
+    {
+      "system": "AFTER",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "reviewableReveals": 4,
+      "blocked": 1,
+      "stalls": 0,
+      "medianElapsedMs": 8988,
+      "fallbacks": 1
+    }
+  ],
+  "ownerRatings": 7,
+  "ownerReview": {
+    "source": "owner-feedback.json",
+    "complete": false,
+    "schema": "impact-v1",
+    "rated": 7
+  }
+}

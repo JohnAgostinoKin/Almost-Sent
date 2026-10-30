@@ -1,0 +1,274 @@
+{
+  "source": "owner-ratings.csv",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "schema": "impact-v1",
+  "raters": 1,
+  "method": "Complete owner review: 12 ratings joined to exact recorded first reveals by system, index and input. Same Claude writer, six same-input pairs, one unreplicated sample per version. Input 0 is an explicit owner tone reference and is a direction check, not held-out evidence; inputs 1-5 were fresh. Strength, optional reaction tags, screenshot intent and failure reasons remain separate. Historical reviews are not pooled. New ratings have been recorded but have not yet been incorporated into runtime prompts.",
+  "conclusion": "The new voice earns two screenshot picks versus zero before, while both versions earn three STRONG ratings. The new version has two MILD and one NONE versus one MILD and two NONE before. Pairwise strength improves on two inputs, declines on one and ties on three. One new output is marked too far. Of the five fresh inputs, the new version earns two STRONG ratings and one screenshot pick versus three STRONG ratings and no screenshot picks before. This supports the roast direction and identifies usable examples; it is not proof of consistent shock or a broad quality win.",
+  "summary": [
+    {
+      "system": "BEFORE",
+      "rated": 6,
+      "strong": 3,
+      "mild": 1,
+      "none": 2,
+      "screenshots": 0,
+      "failureReasons": {},
+      "reactionTags": {
+        "laugh": 1,
+        "brutal": 1
+      }
+    },
+    {
+      "system": "AFTER",
+      "rated": 6,
+      "strong": 3,
+      "mild": 2,
+      "none": 1,
+      "screenshots": 2,
+      "failureReasons": {
+        "too far": 1
+      },
+      "reactionTags": {
+        "laugh": 1,
+        "brutal": 1
+      }
+    }
+  ],
+  "freshInputSummary": {
+    "excludedInputIndices": [
+      0
+    ],
+    "reason": "Input 0 was supplied as a tone reference before generation.",
+    "summary": [
+      {
+        "system": "BEFORE",
+        "rated": 5,
+        "strong": 3,
+        "mild": 0,
+        "none": 2,
+        "screenshots": 0,
+        "failureReasons": {},
+        "reactionTags": {
+          "laugh": 1,
+          "brutal": 1
+        }
+      },
+      {
+        "system": "AFTER",
+        "rated": 5,
+        "strong": 2,
+        "mild": 2,
+        "none": 1,
+        "screenshots": 1,
+        "failureReasons": {
+          "too far": 1
+        },
+        "reactionTags": {
+          "brutal": 1
+        }
+      }
+    ]
+  },
+  "pairedSummary": {
+    "AFTER": 2,
+    "BEFORE": 1,
+    "tie": 3
+  },
+  "pairedComparisons": [
+    {
+      "inputIndex": 0,
+      "input": "man is he a weirdo",
+      "before": "mild",
+      "after": "strong",
+      "strongerReaction": "AFTER",
+      "beforeScreenshot": false,
+      "afterScreenshot": true
+    },
+    {
+      "inputIndex": 1,
+      "input": "He's really proud of that promotion.",
+      "before": "strong",
+      "after": "mild",
+      "strongerReaction": "BEFORE",
+      "beforeScreenshot": false,
+      "afterScreenshot": false
+    },
+    {
+      "inputIndex": 2,
+      "input": "Thanks for bringing your boyfriend.",
+      "before": "strong",
+      "after": "strong",
+      "strongerReaction": "tie",
+      "beforeScreenshot": false,
+      "afterScreenshot": false
+    },
+    {
+      "inputIndex": 3,
+      "input": "That was quite a speech.",
+      "before": "none",
+      "after": "none",
+      "strongerReaction": "tie",
+      "beforeScreenshot": false,
+      "afterScreenshot": false
+    },
+    {
+      "inputIndex": 4,
+      "input": "You look different in your profile picture.",
+      "before": "strong",
+      "after": "strong",
+      "strongerReaction": "tie",
+      "beforeScreenshot": false,
+      "afterScreenshot": true
+    },
+    {
+      "inputIndex": 5,
+      "input": "We should do dinner again.",
+      "before": "none",
+      "after": "mild",
+      "strongerReaction": "AFTER",
+      "beforeScreenshot": false,
+      "afterScreenshot": false
+    }
+  ],
+  "unrated": [],
+  "followUp": [
+    "Use the two AFTER screenshot picks as positively rated examples for a future calibration; keep the same profanity-friendly roast direction.",
+    "Retain the old promotion line as a STRONG example: it beat the new mild insult even though its automatic taste score was unavailable.",
+    "The new speech line is NONE with too far. Preserve that exact feedback without inferring a blanket ban on family jokes: the new mother/return line earned STRONG and a screenshot pick.",
+    "The new dinner line is MILD, not a validated strong example. Profanity alone is not evidence of impact.",
+    "None of the optional tags selected were shock, embarrassment or disgust; do not equate omitted tags with verified absence, or claim the desired shock goal is achieved.",
+    "Any prompt update informed by these ratings needs a fresh-input bake; these six inputs now serve as calibration evidence."
+  ],
+  "ratings": [
+    {
+      "system": "AFTER",
+      "inputIndex": 0,
+      "input": "man is he a weirdo",
+      "text": "man is he a weirdo, fucking creepy little bastard looks like his own mother tried to return him.",
+      "rating": "strong",
+      "reactions": [
+        "laugh"
+      ],
+      "screenshot": true,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 0,
+      "input": "man is he a weirdo",
+      "text": "man is he a weirdo? he asked to smell my sock and i said yes. it was a good sock",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 1,
+      "input": "He's really proud of that promotion.",
+      "text": "He's really proud of that promotion. which is fucking adorable for a man whose only qualification was being too boring to fire.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 1,
+      "input": "He's really proud of that promotion.",
+      "text": "He's really proud of that promotion. because it's the first thing he's gotten up all year without a fucking prescription.",
+      "rating": "strong",
+      "reactions": [
+        "laugh"
+      ],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 2,
+      "input": "Thanks for bringing your boyfriend.",
+      "text": "Thanks for bringing your boyfriend. i've been sleeping with him since march. you really should've left him home.",
+      "rating": "strong",
+      "reactions": [
+        "brutal"
+      ],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 2,
+      "input": "Thanks for bringing your boyfriend.",
+      "text": "Thanks for bringing your boyfriend. he told me in the bathroom he's only dating you because he lost a fucking bet.",
+      "rating": "strong",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 3,
+      "input": "That was quite a speech.",
+      "text": "That was quite a speech. fucking hell. nobody has ever talked that long and said less since your mother's labor.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "too far"
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 3,
+      "input": "That was quite a speech.",
+      "text": "That was quite a speech. i got hard when you teared up. i'm still in the bathroom, so.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 4,
+      "input": "You look different in your profile picture.",
+      "text": "You look different in your profile picture. like someone who hasn't fucking ruined every room they've ever walked into. nice filter, asshole.",
+      "rating": "strong",
+      "reactions": [
+        "brutal"
+      ],
+      "screenshot": true,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 4,
+      "input": "You look different in your profile picture.",
+      "text": "You look different in your profile picture. i screenshotted it for my group chat and we've been rating your effort for weeks",
+      "rating": "strong",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 5,
+      "input": "We should do dinner again.",
+      "text": "We should do dinner again. bring your own bill this time, you cheap fucking freeloader.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 5,
+      "input": "We should do dinner again.",
+      "text": "We should do dinner again. i kept your fork from last time. i've been eating with it every night. it's our dinner",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    }
+  ]
+}

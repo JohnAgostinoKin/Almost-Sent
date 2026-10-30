@@ -1,0 +1,325 @@
+{
+  "system": "AFTER",
+  "label": "Revised writing and judging, same Hermes writer",
+  "commit": "9df63cf47b9c579563569202e353a49f8d14d268",
+  "model": "nousresearch/hermes-4-405b",
+  "deployment": "https://almost-sent-8vghkfz8a-agostino-technology-group.vercel.app",
+  "generatedAt": "2026-10-29",
+  "results": [
+    {
+      "input": "Your presentation had a lot of slides.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Your presentation had a lot of slides. most of them were screenshots of you sleeping at your desk. the rest were memes about it."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 11732,
+      "serverMs": 9190,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Could you send me the meeting notes?",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Could you send me the meeting notes? i need to know which version of my name to misspell in the response"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9943,
+      "serverMs": 7425,
+      "weakLead": true,
+      "scored": true
+    },
+    {
+      "input": "I added you to the team photo.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I added you to the team photo. but you're behind a plant. it's labeled 'hopes and dreams'"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8824,
+      "serverMs": 6476,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "The expense report needs one more receipt.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "The expense report needs one more receipt. good news: i found one from your birthday dinner i never submitted."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8123,
+      "serverMs": 5736,
+      "weakLead": true,
+      "scored": true
+    },
+    {
+      "input": "I left my umbrella at your place yesterday.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "I left my umbrella at your place yesterday. so I installed a motion-activated airhorn in your medicine cabinet."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 6804,
+      "serverMs": 4602,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Are we calling this a date?",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Are we calling this a date? or do i get to keep the free meal after i ghost you"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9538,
+      "serverMs": 6505,
+      "weakLead": false,
+      "scored": false
+    },
+    {
+      "input": "You can stay the night if you want.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "You can stay the night if you want. my last guest thought i did this for charity. they were wrong on both counts."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9913,
+      "serverMs": 7414,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I wore that shirt you like.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I wore that shirt you like. it still smells like her. i checked."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9961,
+      "serverMs": 7788,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I put your name on the guest list.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I put your name on the guest list. you'll find out which friends i've been lying to when you see who *isn't* there"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9817,
+      "serverMs": 7653,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Please don't tag me in that video.",
+      "category": "friends",
+      "top3": [],
+      "source": "stall",
+      "note": "budget",
+      "elapsedMs": 12165,
+      "serverMs": 10002,
+      "weakLead": false,
+      "scored": false
+    },
+    {
+      "input": "Can you pretend we arrived together?",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Can you pretend we arrived together? i already told the bouncer we're the world's worst three-legged race team."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 16763,
+      "serverMs": 14617,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I saved the last slice for you.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I saved the last slice for you. i didn't think you'd actually eat it. i was just torturing the others"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8996,
+      "serverMs": 6247,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Everyone is asking what time you'll be here.",
+      "category": "family",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Everyone is asking what time you'll be here. which is cute because i stopped planning around you somewhere between our second and first anniversary."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13415,
+      "serverMs": 10466,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I sent the holiday photos to everyone.",
+      "category": "family",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I sent the holiday photos to everyone. mostly to prove I didn't crop you out. mostly."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 7127,
+      "serverMs": 4902,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Interesting.",
+      "category": "short",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "Interesting. i got so lost in thought i didn't notice the sink running. or sitting down."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 10220,
+      "serverMs": 7473,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Good to know.",
+      "category": "short",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Good to know. I actually googled how to seem normal when I say that"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 8361,
+      "serverMs": 6136,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "I booked the room under your name.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I booked the room under your name. because they have my real one flagged from last time, but you don't need to know why."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 10942,
+      "serverMs": 5850,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "The delivery driver left it with the neighbor.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "The delivery driver left it with the neighbor. I already returned their lawn gnome wearing it. check your porch."
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 13580,
+      "serverMs": 7463,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "We said we were keeping this casual.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "We said we were keeping this casual. so the only thing i labeled in your fridge is the pregnancy test"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9711,
+      "serverMs": 6121,
+      "weakLead": false,
+      "scored": true
+    },
+    {
+      "input": "Your earrings are still on my nightstand.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Your earrings are still on my nightstand. and the phone number you asked me to lose. guess which one i called"
+        }
+      ],
+      "source": "model",
+      "note": "",
+      "elapsedMs": 9329,
+      "serverMs": 5832,
+      "weakLead": false,
+      "scored": true
+    }
+  ]
+}

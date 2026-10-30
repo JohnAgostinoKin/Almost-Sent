@@ -237,7 +237,7 @@
     <div class="example" id="example">
       <span class="chips-lead">example:</span>
       <p class="example-line example-sent"><em>they sent:</em> sorry, i fell asleep</p>
-      <p class="example-line example-draft"><em>they almost sent:</em> on someone else. don't make it weird</p>
+      <p class="example-line example-draft"><em>they almost sent:</em> your last message bored the fucking consciousness out of me</p>
       <button class="beat-toggle" type="button" id="do-one-now">do one now &rarr;</button>
     </div>
 
@@ -276,9 +276,9 @@
            row, left-aligned (.react's own flex default), before
            escalation rather than after it. -->
       <div class="react" id="react">
-        <button type="button" data-value="hit" aria-label="nailed it" title="nailed it">😂</button>
+        <button type="button" data-value="hit" aria-label="that landed" title="that landed — shock, cringe, disgust or laughter">😳</button>
         <button type="button" data-value="meh" aria-label="meh" title="meh">😐</button>
-        <button type="button" data-value="far" aria-label="too far" title="too far">😬</button>
+        <button type="button" data-value="far" aria-label="too far" title="too far">🚫</button>
       </div>
       <!-- The one share row on the page now, directly under the
            reactions — ahead of escalation and the contest, which used to
@@ -813,7 +813,7 @@
       anotherBtn.disabled = fetchingEscalation || !alternatesAllowed || tapCount >= 1;
     }
 
-    // Re-arms the 😂/😐/😬 row for a newly shown draft — one tap is allowed
+    // Re-arms the 😳/😐/🚫 row for a newly shown draft — one tap is allowed
     // per draft (see the click handler below), so every time a different
     // draft comes on screen (initial render or "another") the buttons need
     // to un-grey and drop whichever one was picked for the last draft.
@@ -1429,7 +1429,7 @@
       refreshAnotherState();
     });
 
-    // One tap on 😂/😐/😬, then the whole row greys out until the next draft
+    // One tap on 😳/😐/🚫, then the whole row greys out until the next draft
     // is shown (resetReact, called on initial render and on "another").
     // Logs the draft's own text (pool[cursor].text) alongside lane/value/
     // position — that's this app's own generated continuation, not the

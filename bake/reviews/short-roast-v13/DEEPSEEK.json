@@ -1,0 +1,183 @@
+{
+  "system": "DEEPSEEK",
+  "label": "DeepSeek V4.1 Flash 1017, short-roast-v13",
+  "model": "deepseek/deepseek-v4.1-flash-1017",
+  "commit": "1607a03f7f32366fe5ce50b0631c6009da9d4d5f",
+  "deployment": "https://almost-sent-8wgrvd8cs-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "He offered to give me a ride.",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "He offered to give me a ride. his passenger seat smells like fucking ass and old fries."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 7435,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 6
+      },
+      "continuation": ". his passenger seat smells like fucking ass and old fries.",
+      "continuationWordCount": 11,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 1912ms, sum 3931ms across 6 calls) · taste: openai/gpt-5.4 (1258ms) — [shock] q:2 reaction:4, [confession] q:9 reaction:7 [safety-flagged], [gross] q:10 reaction:6, [shock] q:5 reaction:5, [confession] q:2 reaction:6 [safety-flagged], [deranged] elim:continues · pairwise: #1 won from both positions (638ms), held · stages: t_cold=59811ms t_parse=1ms t_block=0ms t_wildcardA=781ms t_wildcardB=889ms t_wildcard=889ms t_judge=2595ms t_response=1ms"
+    },
+    {
+      "input": "She said the bathroom was clean.",
+      "category": "gross",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "She said the bathroom was clean. the rag she used was the fucking toilet brush."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 4961,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "continuation": ". the rag she used was the fucking toilet brush.",
+      "continuationWordCount": 10,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — crutch 1 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 421ms, sum 1905ms across 5 calls) · taste: openai/gpt-5.4 (1489ms) — [confession] q:6 reaction:5, [gross] q:11 reaction:7, [shock] elim:turn, [confession] q:9 reaction:6 [safety-flagged], [deranged] q:10 reaction:8 [safety-flagged] · stages: t_cold=66719ms t_parse=0ms t_block=1ms t_wildcardA=697ms t_wildcardB=869ms t_wildcard=869ms t_judge=1492ms t_response=0ms"
+    },
+    {
+      "input": "Why did he leave so early?",
+      "category": "question",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Why did he leave so early? he told me your laugh makes him want to fucking leave the country."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 9365,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      },
+      "continuation": ". he told me your laugh makes him want to fucking leave the country.",
+      "continuationWordCount": 14,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — words 1 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 488ms, sum 1833ms across 5 calls) · taste: openai/gpt-5.4 (1257ms) — [shock] q:8 reaction:6, [confession] q:10 reaction:7, [shock] q:12 reaction:7, [confession] q:7 reaction:6 [safety-flagged], [deranged] q:6 reaction:5 [safety-flagged] · pairwise: #2 won from both positions (359ms), swapped · stages: t_cold=74949ms t_parse=0ms t_block=0ms t_wildcardA=993ms t_wildcardB=887ms t_wildcard=993ms t_judge=1618ms t_response=0ms"
+    },
+    {
+      "input": "I heard you got back together.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I heard you got back together. you always did have shit taste in cock."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 11279,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 4,
+        "reaction": 5
+      },
+      "continuation": ". you always did have shit taste in cock.",
+      "continuationWordCount": 9,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 1066ms, sum 3430ms across 6 calls) · taste: failed open (batch failed: timeout after 3000ms) — fell back to fixed lane order · fill round: had 0 shown, +1 survivor(s), now 1 shown · stages: t_cold=83207ms t_parse=1ms t_block=0ms t_wildcardA=795ms t_wildcardB=828ms t_wildcard=828ms t_judge=4292ms t_response=0ms"
+    },
+    {
+      "input": "He thinks everyone wants him.",
+      "category": "ego",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "He thinks everyone wants him. i told him i did. once. he believed it."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 4938,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "continuation": ". i told him i did. once. he believed it.",
+      "continuationWordCount": 10,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — crutch 1 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 513ms, sum 1844ms across 5 calls) · taste: openai/gpt-5.4 (1474ms) — [confession] q:11 reaction:7, [gross] q:5 reaction:5 [safety-flagged], [shock] q:12 reaction:6, [confession] q:10 reaction:7, [deranged] q:14 reaction:8 · stages: t_cold=92328ms t_parse=0ms t_block=0ms t_wildcardA=738ms t_wildcardB=832ms t_wildcard=832ms t_judge=1475ms t_response=0ms"
+    },
+    {
+      "input": "I'm bringing my new girlfriend.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I'm bringing my new girlfriend. another one you'll dump for being fucking sane."
+        }
+      ],
+      "source": "model",
+      "actualModel": "deepseek/deepseek-v4.1-flash-1017",
+      "modelTag": "deepseek/deepseek-v4.1-flash-1017",
+      "note": "",
+      "elapsedMs": 12705,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "continuation": ". another one you'll dump for being fucking sane.",
+      "continuationWordCount": 9,
+      "provider": "Mistral",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · B: ok, kept 3 [Mistral] · model: deepseek/deepseek-v4.1-flash-1017 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 1309ms, sum 3466ms across 6 calls) · taste: openai/gpt-5.4 (1269ms) — [shock] q:11 reaction:7, [confession] q:7 reaction:9 [safety-flagged], [gross] q:10 reaction:8, [shock] q:9 reaction:6, [confession] q:11 reaction:8 [safety-flagged], [deranged] q:7 reaction:5 · regen: true (first round best reaction 4 < 6) · pairwise: split verdict (2/2 — position bias), q order kept · stages: t_cold=100733ms t_parse=0ms t_block=0ms t_wildcardA=704ms t_wildcardB=1104ms t_wildcard=1104ms t_judge=2036ms t_response=0ms"
+    }
+  ]
+}

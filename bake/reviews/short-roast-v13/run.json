@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "commit": "1607a03f7f32366fe5ce50b0631c6009da9d4d5f",
+  "rubric": "impact-v1",
+  "method": "Six fresh inputs committed before generation. One first-reveal HTTP request per model per input using the same frozen short-roast-v13 code, initial prompt messages, lane mix, examples, judges, temperature, token cap and runtime deadlines. Normal app retries and rescue remain enabled. No manual rerolls or substitutions. Model-compatible routing/reasoning settings vary as recorded. Separate preview deployments have no production database credentials. Model identity was checked for every response. Only actual requested-model first reveals enter the rating files; all failed or fallback attempts remain documented with empty top3. This is one unreplicated exploratory sample, not a population estimate.",
+  "inputs": "bake/short-roast-inputs-v13.json",
+  "settings": {
+    "temperature": 1,
+    "maxTokensPerGeneration": 1100,
+    "requestBudgetMs": 10000,
+    "generationSoftDeadlineMs": 3500,
+    "tasteModel": "openai/gpt-5.4",
+    "safetyModel": "openai/gpt-5.4-nano",
+    "crisisModel": "mistralai/mistral-small-2603",
+    "claudeReasoning": {
+      "effort": "low"
+    },
+    "mistralReasoning": {
+      "effort": "low"
+    },
+    "deepseekReasoning": {
+      "enabled": false
+    }
+  },
+  "systems": [
+    {
+      "system": "CLAUDE",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "ownReveals": 6,
+      "stalls": 0,
+      "fallbacks": 0,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 7934.5,
+      "continuationWordCount": {
+        "min": 9,
+        "median": 9.5,
+        "max": 13
+      }
+    },
+    {
+      "system": "MISTRAL",
+      "model": "mistralai/mistral-large-4-0",
+      "attempts": 6,
+      "ownReveals": 0,
+      "stalls": 1,
+      "fallbacks": 5,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 14346,
+      "continuationWordCount": null
+    },
+    {
+      "system": "DEEPSEEK",
+      "model": "deepseek/deepseek-v4.1-flash-1017",
+      "attempts": 6,
+      "ownReveals": 6,
+      "stalls": 0,
+      "fallbacks": 0,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 8400,
+      "continuationWordCount": {
+        "min": 9,
+        "median": 10,
+        "max": 14
+      }
+    }
+  ],
+  "promptVerification": {
+    "messagesIdenticalAcrossModels": true,
+    "method": "Reconstructed both initial request messages from the frozen commit with preview-equivalent absence of database credentials; hashes match across the three model IDs.",
+    "hashAlgorithm": "sha256",
+    "inputs": [
+      {
+        "input": "He offered to give me a ride.",
+        "initialRequestMessagesSha256": [
+          "c0d776bce530c84fc0f126873635d4edc49cb78d879b06c1c2448eada43afcf1",
+          "d8305b51e189155cb88034117cf39343f762112f7ba15f007625c03845f962bc"
+        ]
+      },
+      {
+        "input": "She said the bathroom was clean.",
+        "initialRequestMessagesSha256": [
+          "3b6c46bb6a52b9c22a40cfe27288a650fc7703b26a6f778b4c5bfcf2dbc8d29f",
+          "8b12e7cbe0e0b00297910066d66e0aa47638ecad9973c64cfd75b08dadfe48b0"
+        ]
+      },
+      {
+        "input": "Why did he leave so early?",
+        "initialRequestMessagesSha256": [
+          "ecc17453b57041094f7a144b0e638aacf338b431d3993419d71d9013b08a1881",
+          "7297a50602974ff94d837bc27e0d9b7beb0a8184bec6c8f731bb3c2de03b369c"
+        ]
+      },
+      {
+        "input": "I heard you got back together.",
+        "initialRequestMessagesSha256": [
+          "f1649615a4ac08d4229cf90d38d3c63f91cbec9358e17bbb98e11e5f3093db09",
+          "573592140cb2ba2366de5d73904bb8d7d6dd239710928c6e8de73fcbd0998c09"
+        ]
+      },
+      {
+        "input": "He thinks everyone wants him.",
+        "initialRequestMessagesSha256": [
+          "9792fb2146a921baed24db469715aa698a6e4419cce7c84194dc19283f579344",
+          "f430c3ee4e6feeb24e6e7a31d71302868f30ebee95bee2c1f0193219321868af"
+        ]
+      },
+      {
+        "input": "I'm bringing my new girlfriend.",
+        "initialRequestMessagesSha256": [
+          "0ada639680cdeda2bffea7a8d50b17e9ad282beb30d8e1c2154110af3d579c1a",
+          "03abd70210a0af22f1ad51bec67632b060f378986557bc31fc9e8bdc32fc88f4"
+        ]
+      }
+    ]
+  },
+  "reviewSystems": [
+    "CLAUDE",
+    "DEEPSEEK"
+  ],
+  "excludedFromRatingUI": {
+    "MISTRAL": "Zero own-model reveals: five responses used mistralai/mistral-large-2512 fallback and one stalled. All six attempts are preserved in MISTRAL.json; fallback output is not attributed to Large 4."
+  },
+  "ownerRatings": 11,
+  "observations": [
+    "Every valid first continuation meets the 14-token whitespace-count ceiling used by the app; the leading punctuation can itself count as a token.",
+    "No writer winner is established. Manual inspection still finds generic insults and weak reveals; profanity alone is not evidence of impact.",
+    "One Sonnet result has duplicated question punctuation under the frozen composer. The snapshot preserves the actual rendered output rather than silently repairing the test.",
+    "Input safety metadata describes the input classifier; it is not a certificate for the generated output."
+  ],
+  "ownerFeedback": "owner-feedback.json"
+}

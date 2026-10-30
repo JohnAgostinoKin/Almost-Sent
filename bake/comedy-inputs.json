@@ -1,0 +1,22 @@
+[
+  { "category": "work", "sent": "Your presentation had a lot of slides." },
+  { "category": "work", "sent": "Could you send me the meeting notes?" },
+  { "category": "work", "sent": "I added you to the team photo." },
+  { "category": "work", "sent": "The expense report needs one more receipt." },
+  { "category": "dating", "sent": "I left my umbrella at your place yesterday." },
+  { "category": "dating", "sent": "Are we calling this a date?" },
+  { "category": "dating", "sent": "You can stay the night if you want." },
+  { "category": "dating", "sent": "I wore that shirt you like." },
+  { "category": "friends", "sent": "I put your name on the guest list." },
+  { "category": "friends", "sent": "Please don't tag me in that video." },
+  { "category": "friends", "sent": "Can you pretend we arrived together?" },
+  { "category": "friends", "sent": "I saved the last slice for you." },
+  { "category": "family", "sent": "Everyone is asking what time you'll be here." },
+  { "category": "family", "sent": "I sent the holiday photos to everyone." },
+  { "category": "short", "sent": "Interesting." },
+  { "category": "short", "sent": "Good to know." },
+  { "category": "logistics", "sent": "I booked the room under your name." },
+  { "category": "logistics", "sent": "The delivery driver left it with the neighbor." },
+  { "category": "dating", "sent": "We said we were keeping this casual." },
+  { "category": "dating", "sent": "Your earrings are still on my nightstand." }
+]

@@ -1,0 +1,163 @@
+{
+  "system": "HERMES",
+  "label": "Hermes 4 405B, roast-v12",
+  "model": "nousresearch/hermes-4-405b",
+  "commit": "5c8d63101f8585fb14501befd4f355532cee6756",
+  "deployment": "https://almost-sent-q30m0r2bm-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "He calls himself a life coach.",
+      "category": "ego",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "He calls himself a life coach. he made me journal my 'gratitude' for him not shitting on my carpet."
+        }
+      ],
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8432,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 16,
+        "reaction": 9
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — words 1 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 545ms, sum 2136ms across 5 calls) · taste: openai/gpt-5.4 (1351ms) — [unknown] q:6 reaction:5, [gross] q:0 reaction:4, [shock] q:11 reaction:7, [confession] q:13 reaction:8 [safety-flagged], [deranged] q:16 reaction:9 · stages: t_cold=31436ms t_parse=1ms t_block=0ms t_wildcardA=4285ms t_wildcardB=4142ms t_wildcard=4285ms t_judge=1355ms t_response=0ms"
+    },
+    {
+      "input": "Your new tattoo is definitely noticeable.",
+      "category": "looks",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Your new tattoo is definitely noticeable. mostly for how fucking desperate you are for people to acknowledge your existence."
+        }
+      ],
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8571,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 663ms, sum 2964ms across 6 calls) · taste: openai/gpt-5.4 (1707ms) — [unknown] q:10 reaction:7, [unknown] q:6 reaction:6 [safety-flagged], [gross] q:12 reaction:7 [safety-flagged], [shock] q:11 reaction:7, [confession] q:8 reaction:6, [deranged] q:10 reaction:9 [safety-flagged] · pairwise: #1 won from both positions (401ms), held · stages: t_cold=39593ms t_parse=0ms t_block=0ms t_wildcardA=2724ms t_wildcardB=3156ms t_wildcard=3156ms t_judge=2112ms t_response=0ms"
+    },
+    {
+      "input": "She says everyone at work is jealous of her.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "She says everyone at work is jealous of her. I started a betting pool for when she finally realizes it's fucking hatred."
+        }
+      ],
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 9734,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 1 — words 1, crutch 1 [Nebius] · model: nousresearch/hermes-4-405b · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 503ms, sum 1579ms across 4 calls) · taste: openai/gpt-5.4 (1610ms) — [unknown] q:7 reaction:6 [safety-flagged], [unknown] q:4 reaction:7 [safety-flagged], [gross] q:9 reaction:7, [deranged] q:14 reaction:8 · pairwise: #1 won from both positions (447ms), held · stages: t_cold=49348ms t_parse=0ms t_block=0ms t_wildcardA=3006ms t_wildcardB=3045ms t_wildcard=3045ms t_judge=2059ms t_response=0ms"
+    },
+    {
+      "input": "I put you down as my emergency contact.",
+      "category": "friends",
+      "top3": [],
+      "source": "stall",
+      "actualModel": null,
+      "modelTag": null,
+      "note": "No usable first reveal; safety-eliminated-all",
+      "elapsedMs": 8408,
+      "weakLead": false,
+      "stallReason": "safety-eliminated-all",
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: pending past 3500ms soft deadline · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 391ms, sum 1070ms across 3 calls) · taste: openai/gpt-5.4 (1166ms) — [shock] q:11 reaction:7 [safety-flagged], [shock] elim:anchor_load_bearing [safety-flagged], [gross] q:8 reaction:6 [safety-flagged] · fill round skipped: would exceed 10000ms · late: 1 (proceeded past soft deadline, call(s) finishing in background) · stall rescue: 1 straggler(s) landed after 0ms, none survived — stalling · stall_reason: safety-eliminated-all · stages: t_cold=58159ms t_parse=0ms t_block=0ms t_wildcardA=3167ms t_wildcardB=3647ms t_wildcard=3167ms t_judge=2151ms t_response=1ms"
+    },
+    {
+      "input": "You should hear him sing.",
+      "category": "talent",
+      "top3": [
+        {
+          "tag": "unknown",
+          "text": "You should hear him sing. that voice could curdle fucking concrete."
+        }
+      ],
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 8716,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 7,
+        "reaction": 6
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: pending past 3500ms soft deadline · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 360ms, sum 1022ms across 3 calls) · taste: openai/gpt-5.4 (1165ms) — [unknown] q:10 reaction:7 [safety-flagged], [unknown] q:7 reaction:6, [gross] q:6 reaction:6 · pairwise: split verdict (2/2 — position bias), q order kept · late: 1 (proceeded past soft deadline, call(s) finishing in background) · stages: t_cold=66555ms t_parse=0ms t_block=0ms t_wildcardA=2967ms t_wildcardB=4489ms t_wildcard=2967ms t_judge=1627ms t_response=0ms"
+    },
+    {
+      "input": "Thanks for setting me up with your friend.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Thanks for setting me up with your friend. i didn't realize you were so desperate to spread the misery around, you fucking cockroach."
+        }
+      ],
+      "source": "model",
+      "actualModel": "nousresearch/hermes-4-405b",
+      "modelTag": "hermes",
+      "note": "",
+      "elapsedMs": 12060,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      },
+      "provider": "Nebius",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Nebius] · model: nousresearch/hermes-4-405b · B: ok, kept 1 — words 2 [Nebius] · model: nousresearch/hermes-4-405b · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 416ms, sum 1513ms across 4 calls) · taste: openai/gpt-5.4 (1235ms) — [unknown] q:11 reaction:7 [safety-flagged], [unknown] q:10 reaction:8, [gross] q:8 reaction:6, [shock] q:12 reaction:8 · pairwise: #1 won from both positions (859ms), held · stages: t_cold=75143ms t_parse=1ms t_block=0ms t_wildcardA=6536ms t_wildcardB=5119ms t_wildcard=6536ms t_judge=2096ms t_response=0ms"
+    }
+  ]
+}

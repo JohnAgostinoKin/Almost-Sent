@@ -39,8 +39,7 @@
 // which skips the guard when it's unset): this endpoint spends money.
 
 const { runPrecompute } = require("../draft");
-const { normalizeBefore } = require("../../lib/prompt");
-const { putPrecomputed, freshKeys, readSpend, writeSpend } = require("../../lib/precomputed");
+const { putPrecomputed, freshKeys, readSpend, writeSpend, precomputedKey } = require("../../lib/precomputed");
 
 const ASTRA_MODEL = "openai/gpt-6-astra";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -107,7 +106,7 @@ module.exports = async function handler(req, res) {
   const seen = new Set();
   const todo = [];
   for (const r of rows) {
-    const k = normalizeBefore(r.sent);
+    const k = precomputedKey(r.sent);
     if (!k || k.indexOf("__") === 0 || seen.has(k) || fresh.keys.has(k)) continue;
     seen.add(k);
     todo.push(r.sent);
