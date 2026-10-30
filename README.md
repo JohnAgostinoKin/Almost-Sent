@@ -43,7 +43,7 @@ The page will load. `/api/draft` only works with `vercel dev` or after deploy.
 ## Prompt quality
 
 `lib/prompt.js` writes six candidates in two parallel calls. `lib/judge.js`
-checks the sender's point of view, anchor, comic turn and clarity for every
+checks the sender's point of view, subject connection, impact and clarity for every
 lane. The final winner appears first; later reveals must clear the previous
 reaction score and diversity checks. A weaker line no longer fills an empty
 slot. One good reveal is enough; an extra round is reserved for a weak or
@@ -52,9 +52,9 @@ missing lead. Raunch has no automatic ranking bonus.
 Run `npm test` for selection, composition, demo API, and cache regressions.
 Tests establish behavior, **not whether a joke is funny**.
 
-For the twelve fixed demo jokes, serve this directory and open
-`/scripts/bake-rate.html?review=comedy-v8`. It compares the previous release
-with this candidate, hides the labels, randomizes the order, and downloads
+For the archived comparison of twelve fixed demo jokes, serve this directory and open
+`/scripts/bake-rate.html?review=comedy-v8`. It compares the two historical versions,
+hides the labels, randomizes the order, and downloads
 ratings locally. These checked-in samples are hand-written demo results,
 not AI output. Two unchanged leads serve as controls.
 
@@ -179,6 +179,35 @@ strength, type, unwanted reactions and screenshot intent, with stalls included
 in the request count. Laughter is optional. Check wrong-speaker errors and slow requests separately. Judge scores
 alone are not a launch gate. Bump `COMEDY_CACHE_VERSION` when the writing or
 selection changes so persisted results cannot hide the new behavior.
+
+## Current roast direction
+
+The owner wants the energy of an opt-in insult restaurant: blunt, personal,
+uncensored and outrageous, with shock and embarrassment valid without a laugh.
+Their own reference is “man is he a weirdo ... i wonder if his mother had any
+kids that lived!” This is a tone reference, not a claim about an actual family.
+
+Roast-v12 replaces the mild writer examples, makes three of six candidates
+direct roasts, and asks for natural profanity in at least two thirds of each
+batch. A stronger clean insult can still win. The taste judge accepts direct
+personal cuts without requiring a confession, wordplay or a unique noun
+callback. Historical laughter examples no longer dominate its calibration;
+it uses the owner's explicit examples and actual impact ratings.
+
+Safety now evaluates one sender's full message, rather than incorrectly
+describing the continuation as a reply. Ordinary nonliteral adult insults
+about looks, intelligence and generic family disappointment are allowed.
+Specific unsafe categories stay blocked, including the animal-contact guard.
+The cache version is `roast-v12`. Homepage demo leads and alternates match the
+new voice, but remain clearly identified in source as assistant-written,
+unrated examples.
+
+`bake/roast-inputs-v12.json` contains six comparison inputs. The first is the
+owner's supplied example and is a direction check, not held-out evidence.
+The other five inputs are fresh. Compare the prior and roast-v12 versions
+with the same Claude writer and preserve all failed or fallback attempts.
+More profanity establishes a change in voice, not a proven improvement in
+impact; that still requires owner ratings.
 
 ## Do not add yet
 
