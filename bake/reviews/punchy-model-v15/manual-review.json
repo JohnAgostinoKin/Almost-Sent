@@ -1,0 +1,38 @@
+{
+  "reviewer": "assistant",
+  "ownerRatings": 0,
+  "assessment": "No consistent breakthrough on the requested shock/embarrassment/disgust brief. Length is corrected, but many results remain mild, awkward, generic or disconnected. This is a qualitative assessment, not owner ratings or a measured model ranking.",
+  "examplesOfRemainingDefects": [
+    {
+      "system": "CYDONIA",
+      "inputNumber": 3,
+      "issue": "The ex-in-pantry continuation has no clear connection to making dip."
+    },
+    {
+      "system": "CYDONIA",
+      "inputNumber": 10,
+      "issue": "Polishing for fifty minutes supplies neither a sharp insult nor a clear shocking reveal."
+    },
+    {
+      "system": "MAGNUM",
+      "inputNumber": 5,
+      "issue": "The phrase about honest plugs is unclear; the clarity judge should have rejected it."
+    },
+    {
+      "system": "MAGNUM",
+      "inputNumber": 7,
+      "issue": "The animal-date implication is not a useful candidate for this adult-human roast brief; retain as an observed defect, not a seed."
+    },
+    {
+      "system": "EURYALE",
+      "inputNumber": 8,
+      "issue": "Crusty snore jar is an unclear invented object."
+    },
+    {
+      "system": "EURYALE",
+      "inputNumber": 10,
+      "issue": "Taste judge timed out; fixed lane order selected the first reveal. One candidate safety check also failed open in this attempt, although the selected raunchy line used the safety fallback. The trace is preserved."
+    }
+  ],
+  "selectionIntegrity": "No lines were rewritten, rerolled or replaced with alternates. Rejected raw candidates were not published."
+}

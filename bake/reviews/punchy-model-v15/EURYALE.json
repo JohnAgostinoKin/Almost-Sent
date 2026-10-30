@@ -1,0 +1,288 @@
+{
+  "system": "EURYALE",
+  "model": "sao10k/l3.1-euryale-70b",
+  "commit": "e4279235077482bd274982755a4d8047b6a7bc6b",
+  "deployment": "https://almost-sent-83n36x2gu-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "My dad said you seem trustworthy.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "My dad said you seem trustworthy. daddy's a fucking idiot, isn't he?"
+        }
+      ],
+      "continuation": ". daddy's a fucking idiot, isn't he?",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 6596,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 17,
+        "reaction": 7
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 402ms, sum 1104ms across 3 calls) · taste: openai/gpt-5.4 (984ms) — [shock] q:17 reaction:7, [deranged] q:21 reaction:8 [safety-flagged], [gross] q:10 reaction:5 · stages: t_cold=82886ms t_parse=1ms t_block=0ms t_wildcardA=2272ms t_wildcardB=1015ms t_wildcard=2272ms t_judge=987ms t_response=0ms"
+    },
+    {
+      "input": "Your boss seems really impressed.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "Your boss seems really impressed. prob the noises you make at the copier"
+        }
+      ],
+      "continuation": ". prob the noises you make at the copier",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 11413,
+      "weakLead": true,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 5
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 337ms, sum 966ms across 3 calls) · taste: openai/gpt-5.4 (1192ms) — [shock] q:3 reaction:4, [deranged] q:-1 reaction:3, [gross] q:11 reaction:5 [safety-flagged] · regen: true (first round best reaction 5 < 6) · pairwise: #1 won from both positions (397ms), held · weak_lead: true (best reaction 5 < 6) · stages: t_cold=89115ms t_parse=0ms t_block=0ms t_wildcardA=1601ms t_wildcardB=2885ms t_wildcard=2885ms t_judge=1591ms t_response=0ms"
+    },
+    {
+      "input": "I made extra dip for everyone.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "I made extra dip for everyone. scraping it off the floor worked"
+        }
+      ],
+      "continuation": ". scraping it off the floor worked",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 7542,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 17,
+        "reaction": 7
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 422ms, sum 1942ms across 6 calls) · taste: openai/gpt-5.4 (1377ms) — [shock] q:15 reaction:6 [safety-flagged], [gross] q:17 reaction:7, [deranged] q:10 reaction:5, [shock] elim:clear [safety-flagged], [gross] q:16 reaction:7 [safety-flagged], [confession] q:21 reaction:8 [safety-flagged] · stages: t_cold=100898ms t_parse=0ms t_block=0ms t_wildcardA=2166ms t_wildcardB=2838ms t_wildcard=2838ms t_judge=1379ms t_response=0ms"
+    },
+    {
+      "input": "Did you enjoy meeting my friends?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "Did you enjoy meeting my friends? decided to start a betting pool for divorce"
+        }
+      ],
+      "continuation": ". decided to start a betting pool for divorce",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 9874,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 18,
+        "reaction": 7
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · B: ok, kept 5 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 651ms, sum 1949ms across 5 calls) · taste: openai/gpt-5.4 (1435ms) — [shock] q:5 reaction:5 [safety-flagged], [raunchy] q:15 reaction:7 [safety-flagged], [gross] q:11 reaction:6, [deranged] q:18 reaction:7, [confession] q:22 reaction:8 [safety-flagged] · pairwise: #1 won from both positions (382ms), held · stages: t_cold=107908ms t_parse=0ms t_block=0ms t_wildcardA=2598ms t_wildcardB=4259ms t_wildcard=4259ms t_judge=1819ms t_response=0ms"
+    },
+    {
+      "input": "She wants us to try again.",
+      "category": "relationship",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "She wants us to try again. my vasectomy failed. Like everything else I do."
+        }
+      ],
+      "continuation": ". my vasectomy failed. Like everything else I do.",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 11161,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 21,
+        "reaction": 8
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · B: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 433ms, sum 1091ms across 3 calls) · taste: openai/gpt-5.4 (1104ms) — [shock] q:11 reaction:5 [safety-flagged], [raunchy] q:18 reaction:7 [safety-flagged], [confession] elim:clear · fill round: had 0 shown, +3 survivor(s), now 1 shown · stages: t_cold=117610ms t_parse=0ms t_block=0ms t_wildcardA=1375ms t_wildcardB=4202ms t_wildcard=4202ms t_judge=2335ms t_response=0ms"
+    },
+    {
+      "input": "He asked why I stopped replying.",
+      "category": "rejection",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "He asked why I stopped replying. saw his name in my boyfriend's fuckbuddy app"
+        }
+      ],
+      "continuation": ". saw his name in my boyfriend's fuckbuddy app",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 7030,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 24,
+        "reaction": 9
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 382ms, sum 2013ms across 6 calls) · taste: openai/gpt-5.4 (1406ms) — [shock] q:11 reaction:6, [raunchy] q:15 reaction:7, [gross] q:19 reaction:8 [safety-flagged], [shock] q:3 reaction:4, [raunchy] q:16 reaction:7 [safety-flagged], [confession] q:24 reaction:9 · stages: t_cold=129459ms t_parse=1ms t_block=0ms t_wildcardA=2280ms t_wildcardB=1758ms t_wildcard=2280ms t_judge=1409ms t_response=0ms"
+    },
+    {
+      "input": "Are you bringing a date?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Are you bringing a date? your cousin said no"
+        }
+      ],
+      "continuation": ". your cousin said no",
+      "continuationWordCount": 4,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 6157,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 20,
+        "reaction": 8
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 437ms, sum 1109ms across 3 calls) · taste: openai/gpt-5.4 (1048ms) — [shock] q:20 reaction:8, [raunchy] q:5 reaction:4 [safety-flagged], [gross] q:20 reaction:8 [safety-flagged] · stages: t_cold=136128ms t_parse=0ms t_block=0ms t_wildcardA=2014ms t_wildcardB=1687ms t_wildcard=2014ms t_judge=1204ms t_response=0ms"
+    },
+    {
+      "input": "He's staying at my place tonight.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "He's staying at my place tonight. I'll leave the crusty snore jar."
+        }
+      ],
+      "continuation": ". I'll leave the crusty snore jar.",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 6963,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 16,
+        "reaction": 7
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: no json in output [DeepInfra] · model: sao10k/l3.1-euryale-70b (comparison: no writer fallback) · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 592ms, sum 1232ms across 3 calls) · taste: openai/gpt-5.4 (1270ms) — [shock] q:15 reaction:7 [safety-flagged], [deranged] q:11 reaction:6 [safety-flagged], [gross] q:16 reaction:7 · stages: t_cold=142347ms t_parse=0ms t_block=0ms t_wildcardA=2691ms t_wildcardB=2209ms t_wildcard=2691ms t_judge=1271ms t_response=0ms"
+    },
+    {
+      "input": "I think that dress looks expensive.",
+      "category": "appearance",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I think that dress looks expensive. I bought it for her"
+        }
+      ],
+      "continuation": ". I bought it for her",
+      "continuationWordCount": 5,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "",
+      "elapsedMs": 10999,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 23,
+        "reaction": 8
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 421ms, sum 1994ms across 6 calls) · taste: openai/gpt-5.4 (1311ms) — [shock] elim:clear [safety-flagged], [unknown] elim:clear, [gross] q:15 reaction:7 [safety-flagged], [shock] q:11 reaction:5, [raunchy] elim:clear [safety-flagged], [confession] q:23 reaction:8 · regen: true (first round best reaction 5 < 6) · stages: t_cold=149335ms t_parse=0ms t_block=0ms t_wildcardA=2972ms t_wildcardB=2701ms t_wildcard=2972ms t_judge=1314ms t_response=0ms"
+    },
+    {
+      "input": "She said the bathroom was spotless.",
+      "category": "gross",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "She said the bathroom was spotless. except for the hair I left down there"
+        }
+      ],
+      "continuation": ". except for the hair I left down there",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "sao10k/l3.1-euryale-70b",
+      "note": "Taste judge unavailable; app selected by fixed lane order. This is not a scored winner.",
+      "elapsedMs": 10115,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": null,
+        "reaction": null
+      },
+      "provider": "DeepInfra",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · B: ok, kept 3 [DeepInfra] · model: sao10k/l3.1-euryale-70b · safety: 3 dropped (1 failed open, demoted behind judged lines) · safety model: openai/gpt-5.4-nano+mistralai/mistral-small-2603 (wall 2770ms, sum 12322ms across 6 calls) · [raunchy] openai/gpt-5.4-nano failed (timeout after 3000ms), fell back to mistralai/mistral-small-2603 | [gross] openai/gpt-5.4-nano failed (timeout after 3000ms); fallback mistralai/mistral-small-2603 also failed (timeout after 2000ms) · taste: failed open (batch failed: timeout after 3000ms) — fell back to fixed lane order · stages: t_cold=160341ms t_parse=0ms t_block=0ms t_wildcardA=2076ms t_wildcardB=1686ms t_wildcard=2076ms t_judge=5008ms t_response=0ms"
+    }
+  ]
+}

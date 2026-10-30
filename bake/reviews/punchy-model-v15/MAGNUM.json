@@ -1,0 +1,280 @@
+{
+  "system": "MAGNUM",
+  "model": "anthracite-org/magnum-v4-72b",
+  "commit": "e4279235077482bd274982755a4d8047b6a7bc6b",
+  "deployment": "https://almost-sent-onchkvgc1-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "My dad said you seem trustworthy.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "My dad said you seem trustworthy. glad he didn't need your zit-popping skills too."
+        }
+      ],
+      "continuation": ". glad he didn't need your zit-popping skills too.",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 17914,
+      "weakLead": true,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 8,
+        "reaction": 5
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 511ms, sum 2369ms across 6 calls) · taste: openai/gpt-5.4 (1217ms) — [shock] q:17 reaction:7 [safety-flagged], [shock] q:21 reaction:8 [safety-flagged], [shock] q:13 reaction:6 [safety-flagged], [shock] q:2 reaction:4 [safety-flagged], [raunchy] q:10 reaction:6 [safety-flagged], [confession] q:16 reaction:7 [safety-flagged] · regen: true (first round best reaction 5 < 6) · pairwise: split verdict (1/1 — position bias), q order kept · weak_lead: true (best reaction 5 < 6) · stages: t_cold=45544ms t_parse=0ms t_block=1ms t_wildcardA=4194ms t_wildcardB=4540ms t_wildcard=4540ms t_judge=1638ms t_response=1ms"
+    },
+    {
+      "input": "Your boss seems really impressed.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "Your boss seems really impressed. didn't realize he was comparing dicks"
+        }
+      ],
+      "continuation": ". didn't realize he was comparing dicks",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 23642,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 6
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b (retry) · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 813ms, sum 2816ms across 6 calls) · taste: openai/gpt-5.4 (1324ms) — [shock] q:20 reaction:8 [safety-flagged], [raunchy] q:13 reaction:6, [gross] q:13 reaction:5, [shock] q:9 reaction:6 [safety-flagged], [raunchy] q:12 reaction:6 [safety-flagged], [confession] q:20 reaction:8 [safety-flagged] · regen: true (first round best reaction 5 < 6) · pairwise: #1 won from both positions (482ms), held · stages: t_cold=63094ms t_parse=0ms t_block=1ms t_wildcardA=4296ms t_wildcardB=10855ms t_wildcard=10855ms t_judge=1808ms t_response=0ms"
+    },
+    {
+      "input": "I made extra dip for everyone.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I made extra dip for everyone. turns out watered-down cough syrup makes great queso."
+        }
+      ],
+      "continuation": ". turns out watered-down cough syrup makes great queso.",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 9251,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 22,
+        "reaction": 8
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 2 — words 1 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 623ms, sum 2086ms across 5 calls) · taste: openai/gpt-5.4 (1153ms) — [shock] q:18 reaction:7 [safety-flagged], [gross] q:10 reaction:6, [confession] q:22 reaction:8, [shock] q:18 reaction:8 [safety-flagged], [confession] q:17 reaction:7 [safety-flagged] · stages: t_cold=86771ms t_parse=0ms t_block=0ms t_wildcardA=4997ms t_wildcardB=5044ms t_wildcard=5044ms t_judge=1155ms t_response=0ms"
+    },
+    {
+      "input": "Did you enjoy meeting my friends?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "Did you enjoy meeting my friends? your breath was nasty, did you eat someone's colon?"
+        }
+      ],
+      "continuation": ". your breath was nasty, did you eat someone's colon?",
+      "continuationWordCount": 9,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 14634,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 6
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 5 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 7 dropped · safety model: openai/gpt-5.4-nano (wall 1770ms, sum 4881ms across 8 calls) · taste: openai/gpt-5.4 (1427ms) — [shock] q:17 reaction:7 [safety-flagged], [raunchy] q:21 reaction:8 [safety-flagged], [gross] q:11 reaction:6, [deranged] q:21 reaction:8 [safety-flagged], [confession] q:17 reaction:8 [safety-flagged], [shock] elim:clear [safety-flagged], [raunchy] q:12 reaction:7 [safety-flagged], [confession] q:20 reaction:8 [safety-flagged] · stages: t_cold=95936ms t_parse=0ms t_block=0ms t_wildcardA=9553ms t_wildcardB=6241ms t_wildcard=9553ms t_judge=2114ms t_response=0ms"
+    },
+    {
+      "input": "She wants us to try again.",
+      "category": "relationship",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "She wants us to try again. so i can hear my big honest plugs again?"
+        }
+      ],
+      "continuation": ". so i can hear my big honest plugs again?",
+      "continuationWordCount": 9,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 15247,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 4,
+        "reaction": 5
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: no json in output [Mancer 2] · model: anthracite-org/magnum-v4-72b (comparison: no writer fallback) · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 386ms, sum 1012ms across 3 calls) · taste: openai/gpt-5.4 (1173ms) — [shock] q:20 reaction:8 [safety-flagged], [raunchy] q:5 reaction:5 [safety-flagged], [confession] q:27 reaction:9 [safety-flagged] · fill round: had 0 shown, +1 survivor(s), now 1 shown · stages: t_cold=111238ms t_parse=0ms t_block=0ms t_wildcardA=1835ms t_wildcardB=4965ms t_wildcard=4965ms t_judge=2129ms t_response=0ms"
+    },
+    {
+      "input": "He asked why I stopped replying.",
+      "category": "rejection",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He asked why I stopped replying. i'm not texting back to a fucking psychopath"
+        }
+      ],
+      "continuation": ". i'm not texting back to a fucking psychopath",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 16676,
+      "weakLead": true,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 8,
+        "reaction": 5
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 2 — words 1 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 394ms, sum 1728ms across 5 calls) · taste: openai/gpt-5.4 (1373ms) — [shock] q:6 reaction:4, [raunchy] q:6 reaction:5 [safety-flagged], [unknown] q:6 reaction:4 [safety-flagged], [shock] q:11 reaction:6 [safety-flagged], [raunchy] q:17 reaction:8 [safety-flagged] · regen: true (first round best reaction 5 < 6) · pairwise: #1 won from both positions (646ms), held · weak_lead: true (best reaction 5 < 6) · stages: t_cold=125331ms t_parse=0ms t_block=0ms t_wildcardA=4539ms t_wildcardB=4644ms t_wildcard=4644ms t_judge=2021ms t_response=0ms"
+    },
+    {
+      "input": "Are you bringing a date?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "Are you bringing a date? you mean the goat i got from the market?"
+        }
+      ],
+      "continuation": ". you mean the goat i got from the market?",
+      "continuationWordCount": 9,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 17823,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 16,
+        "reaction": 7
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: no json in output [Mancer 2] · model: anthracite-org/magnum-v4-72b (comparison: no writer fallback) · B: ok, kept 2 — words 1 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 345ms, sum 676ms across 2 calls) · taste: openai/gpt-5.4 (1342ms) — [shock] q:14 reaction:6 [safety-flagged], [raunchy] q:2 reaction:3 [safety-flagged] · fill round: had 0 shown, +2 survivor(s), now 1 shown · stages: t_cold=142934ms t_parse=0ms t_block=0ms t_wildcardA=7331ms t_wildcardB=4726ms t_wildcard=7331ms t_judge=2603ms t_response=0ms"
+    },
+    {
+      "input": "He's staying at my place tonight.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "He's staying at my place tonight. or pretending it's a one-nighter?"
+        }
+      ],
+      "continuation": ". or pretending it's a one-nighter?",
+      "continuationWordCount": 5,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 15279,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 5
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 824ms, sum 2453ms across 6 calls) · taste: openai/gpt-5.4 (1425ms) — [shock] q:-2 reaction:2 [safety-flagged], [raunchy] q:14 reaction:6 [safety-flagged], [deranged] q:13 reaction:7 [safety-flagged], [shock] q:7 reaction:5 [safety-flagged], [raunchy] q:0 reaction:3 [safety-flagged], [confession] q:5 reaction:4 [safety-flagged] · fill round: had 0 shown, +1 survivor(s), now 1 shown · stages: t_cold=160094ms t_parse=0ms t_block=0ms t_wildcardA=4321ms t_wildcardB=5140ms t_wildcard=5140ms t_judge=2826ms t_response=0ms"
+    },
+    {
+      "input": "I think that dress looks expensive.",
+      "category": "appearance",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "I think that dress looks expensive. you should've spent more on a bra."
+        }
+      ],
+      "continuation": ". you should've spent more on a bra.",
+      "continuationWordCount": 7,
+      "source": "model",
+      "actualModel": "anthracite-org/magnum-v4-72b",
+      "note": "",
+      "elapsedMs": 10183,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 6
+      },
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · B: ok, kept 3 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 396ms, sum 2147ms across 6 calls) · taste: openai/gpt-5.4 (1165ms) — [shock] q:6 reaction:5 [safety-flagged], [raunchy] q:13 reaction:6, [gross] q:17 reaction:8 [safety-flagged], [shock] q:5 reaction:4, [raunchy] q:20 reaction:8 [safety-flagged], [confession] q:16 reaction:6 · pairwise: #2 won from both positions (463ms), swapped · stages: t_cold=175619ms t_parse=0ms t_block=0ms t_wildcardA=4662ms t_wildcardB=4660ms t_wildcard=4662ms t_judge=1630ms t_response=0ms"
+    },
+    {
+      "input": "She said the bathroom was spotless.",
+      "category": "gross",
+      "status": 200,
+      "top3": [],
+      "continuation": null,
+      "continuationWordCount": null,
+      "source": "stall",
+      "actualModel": null,
+      "note": "safety-eliminated-all",
+      "elapsedMs": 17349,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": null,
+      "provider": "Mancer 2",
+      "pipelineTrace": "wildcard: A: no json in output [Mancer 2] · model: anthracite-org/magnum-v4-72b (comparison: no writer fallback) · B: ok, kept 1 [Mancer 2] · model: anthracite-org/magnum-v4-72b · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 330ms, sum 330ms across 1 calls) · taste: openai/gpt-5.4 (968ms) — [gross] q:15 reaction:6 [safety-flagged] · fill round: nothing usable (had 0 shown) · stall_reason: safety-eliminated-all · stages: t_cold=185599ms t_parse=0ms t_block=0ms t_wildcardA=5082ms t_wildcardB=2176ms t_wildcard=5082ms t_judge=2044ms t_response=1ms"
+    }
+  ]
+}

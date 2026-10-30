@@ -1,0 +1,288 @@
+{
+  "system": "CYDONIA",
+  "model": "thedrummer/cydonia-24b-v4.1",
+  "commit": "e4279235077482bd274982755a4d8047b6a7bc6b",
+  "deployment": "https://almost-sent-cxvxrm50s-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "My dad said you seem trustworthy.",
+      "category": "family",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "My dad said you seem trustworthy. he forgot how you chain snort toilet water"
+        }
+      ],
+      "continuation": ". he forgot how you chain snort toilet water",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 7270,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 17,
+        "reaction": 8
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 2270ms, sum 5209ms across 6 calls) · taste: openai/gpt-5.4 (1638ms) — [shock] q:-1 reaction:3, [raunchy] q:-5 reaction:2, [gross] q:17 reaction:8, [shock] q:18 reaction:7 [safety-flagged], [raunchy] q:2 reaction:3, [confession] q:25 reaction:9 [safety-flagged] · stages: t_cold=80069ms t_parse=0ms t_block=0ms t_wildcardA=1441ms t_wildcardB=1414ms t_wildcard=1441ms t_judge=2720ms t_response=0ms"
+    },
+    {
+      "input": "Your boss seems really impressed.",
+      "category": "work",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Your boss seems really impressed. the fake resume was my idea."
+        }
+      ],
+      "continuation": ". the fake resume was my idea.",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 7165,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 18,
+        "reaction": 7
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 5 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 2 — words 1 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 5 dropped · safety model: openai/gpt-5.4-nano (wall 490ms, sum 2731ms across 7 calls) · taste: openai/gpt-5.4 (1434ms) — [shock] elim:clear [safety-flagged], [raunchy] elim:clear [safety-flagged], [gross] q:13 reaction:6 [safety-flagged], [deranged] q:11 reaction:5 [safety-flagged], [confession] q:11 reaction:5, [raunchy] q:3 reaction:4 [safety-flagged], [confession] q:18 reaction:7 · stages: t_cold=87321ms t_parse=0ms t_block=0ms t_wildcardA=2729ms t_wildcardB=2073ms t_wildcard=2729ms t_judge=1436ms t_response=0ms"
+    },
+    {
+      "input": "I made extra dip for everyone.",
+      "category": "food",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "I made extra dip for everyone. my ex is still in your pantry."
+        }
+      ],
+      "continuation": ". my ex is still in your pantry.",
+      "continuationWordCount": 7,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 9471,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 17,
+        "reaction": 7
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 4 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 2452ms, sum 4826ms across 7 calls) · taste: openai/gpt-5.4 (1469ms) — [shock] q:-7 reaction:1, [deranged] q:-1 reaction:3, [gross] q:6 reaction:5, [confession] q:21 reaction:8 [safety-flagged], [shock] q:17 reaction:7, [raunchy] q:9 reaction:5, [gross] q:21 reaction:8 [safety-flagged] · stages: t_cold=94656ms t_parse=0ms t_block=0ms t_wildcardA=3558ms t_wildcardB=2819ms t_wildcard=3558ms t_judge=2743ms t_response=0ms"
+    },
+    {
+      "input": "Did you enjoy meeting my friends?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Did you enjoy meeting my friends? they call me 'Walking STD' too."
+        }
+      ],
+      "continuation": ". they call me 'Walking STD' too.",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 12008,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 19,
+        "reaction": 8
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 3 dropped · safety model: mistralai/mistral-small-2603+openai/gpt-5.4-nano (wall 546ms, sum 2457ms across 6 calls) · [shock] openai/gpt-5.4-nano failed (timeout after 3000ms), fell back to mistralai/mistral-small-2603 · taste: openai/gpt-5.4 (1641ms) — [shock] q:19 reaction:8, [deranged] q:9 reaction:6 [safety-flagged], [gross] q:21 reaction:8 [safety-flagged], [shock] q:0 reaction:3 [safety-flagged], [raunchy] q:9 reaction:5, [confession] q:17 reaction:7 · pairwise: split verdict (2/2 — position bias), q order kept · stages: t_cold=106041ms t_parse=0ms t_block=0ms t_wildcardA=1964ms t_wildcardB=2155ms t_wildcard=2155ms t_judge=3905ms t_response=0ms"
+    },
+    {
+      "input": "She wants us to try again.",
+      "category": "relationship",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "She wants us to try again. for another year anyway, right?"
+        }
+      ],
+      "continuation": ". for another year anyway, right?",
+      "continuationWordCount": 5,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 19013,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 1,
+        "reaction": 3
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: llm 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"thedrummer/cydonia-24b-v4.1 is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate yo · model: thedrummer/cydonia-24b-v4.1 (comparison: no writer fallback) · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 592ms, sum 1393ms across 3 calls) · taste: openai/gpt-5.4 (989ms) — [shock] q:20 reaction:8 [safety-flagged], [deranged] q:14 reaction:7 [safety-flagged], [gross] q:6 reaction:4 [safety-flagged] · fill round: had 0 shown, +1 survivor(s), now 1 shown · stages: t_cold=115921ms t_parse=0ms t_block=0ms t_wildcardA=9170ms t_wildcardB=151ms t_wildcard=9170ms t_judge=2339ms t_response=0ms"
+    },
+    {
+      "input": "He asked why I stopped replying.",
+      "category": "rejection",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "He asked why I stopped replying. i was practicing your goodbye face."
+        }
+      ],
+      "continuation": ". i was practicing your goodbye face.",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 9468,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 6
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 346ms, sum 1900ms across 6 calls) · taste: openai/gpt-5.4 (1453ms) — [shock] q:16 reaction:7 [safety-flagged], [deranged] q:14 reaction:6, [gross] q:8 reaction:5 [safety-flagged], [shock] q:11 reaction:6 [safety-flagged], [raunchy] elim:clear, [confession] q:15 reaction:7 [safety-flagged] · regen: true (first round best reaction 4 < 6) · stages: t_cold=135058ms t_parse=0ms t_block=0ms t_wildcardA=1596ms t_wildcardB=1477ms t_wildcard=1596ms t_judge=1454ms t_response=0ms"
+    },
+    {
+      "input": "Are you bringing a date?",
+      "category": "question",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "raunchy",
+          "text": "Are you bringing a date? she comes with her boyfriend too"
+        }
+      ],
+      "continuation": ". she comes with her boyfriend too",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 7233,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 16,
+        "reaction": 7
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 896ms, sum 2777ms across 6 calls) · taste: openai/gpt-5.4 (1389ms) — [shock] q:20 reaction:8 [safety-flagged], [raunchy] q:18 reaction:7 [safety-flagged], [gross] q:11 reaction:6, [shock] q:18 reaction:8 [safety-flagged], [raunchy] q:16 reaction:7, [confession] q:16 reaction:6 · pairwise: split verdict (2/2 — position bias), q order kept · stages: t_cold=144546ms t_parse=0ms t_block=0ms t_wildcardA=1161ms t_wildcardB=1192ms t_wildcard=1192ms t_judge=1701ms t_response=0ms"
+    },
+    {
+      "input": "He's staying at my place tonight.",
+      "category": "dating",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He's staying at my place tonight. the bed smells like your ex wife's perfume"
+        }
+      ],
+      "continuation": ". the bed smells like your ex wife's perfume",
+      "continuationWordCount": 8,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 10643,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 13,
+        "reaction": 6
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 5 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 4 — words 1 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 554ms, sum 3313ms across 8 calls) · taste: openai/gpt-5.4 (1518ms) — [shock] q:21 reaction:8 [safety-flagged], [raunchy] q:16 reaction:7 [safety-flagged], [gross] q:18 reaction:7 [safety-flagged], [deranged] q:20 reaction:8 [safety-flagged], [confession] q:19 reaction:7 [safety-flagged], [shock] q:13 reaction:6, [raunchy] q:9 reaction:5, [gross] q:22 reaction:8 [safety-flagged] · pairwise: #1 won from both positions (328ms), held · stages: t_cold=151799ms t_parse=0ms t_block=0ms t_wildcardA=3899ms t_wildcardB=4486ms t_wildcard=4486ms t_judge=1849ms t_response=0ms"
+    },
+    {
+      "input": "I think that dress looks expensive.",
+      "category": "appearance",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "I think that dress looks expensive. it still smells like barf."
+        }
+      ],
+      "continuation": ". it still smells like barf.",
+      "continuationWordCount": 5,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 6168,
+      "weakLead": false,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 19,
+        "reaction": 7
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 4 dropped · safety model: openai/gpt-5.4-nano (wall 474ms, sum 2148ms across 6 calls) · taste: openai/gpt-5.4 (1240ms) — [shock] q:8 reaction:4, [deranged] q:19 reaction:8 [safety-flagged], [gross] q:19 reaction:7, [shock] q:15 reaction:7 [safety-flagged], [raunchy] q:20 reaction:8 [safety-flagged], [confession] q:16 reaction:6 [safety-flagged] · stages: t_cold=162322ms t_parse=0ms t_block=0ms t_wildcardA=1934ms t_wildcardB=1855ms t_wildcard=1934ms t_judge=1243ms t_response=0ms"
+    },
+    {
+      "input": "She said the bathroom was spotless.",
+      "category": "gross",
+      "status": 200,
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "She said the bathroom was spotless. I polished it for fifty minutes."
+        }
+      ],
+      "continuation": ". I polished it for fifty minutes.",
+      "continuationWordCount": 6,
+      "source": "model",
+      "actualModel": "thedrummer/cydonia-24b-v4.1",
+      "note": "",
+      "elapsedMs": 10011,
+      "weakLead": true,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 3,
+        "reaction": 3
+      },
+      "provider": "Parasail",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · B: ok, kept 3 [Parasail] · model: thedrummer/cydonia-24b-v4.1 · safety: 6 dropped · safety model: openai/gpt-5.4-nano (wall 370ms, sum 1896ms across 6 calls) · taste: openai/gpt-5.4 (1226ms) — [shock] q:14 reaction:6 [safety-flagged], [deranged] q:12 reaction:7 [safety-flagged], [gross] q:20 reaction:8 [safety-flagged], [shock] q:16 reaction:7 [safety-flagged], [raunchy] q:12 reaction:6 [safety-flagged], [deranged] q:19 reaction:8 [safety-flagged] · regen: true (first round best reaction 3 < 6) · pairwise: split verdict (1/1 — position bias), q order kept · weak_lead: true (best reaction 3 < 6) · stages: t_cold=168355ms t_parse=0ms t_block=0ms t_wildcardA=1287ms t_wildcardB=1340ms t_wildcard=1340ms t_judge=1800ms t_response=0ms"
+    }
+  ]
+}

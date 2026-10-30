@@ -437,3 +437,21 @@ judge. It is not a production release or a claim that a model meets the brief.
 Validation before the live comparison: 24 tests pass, including the hard length
 boundary, identical prompts, copied-example rejection, no substitute writer,
 curated-demo bypass and the known safety regression.
+
+The completed v15 run returned Cydonia 10/10, Magnum 9/10 plus one stall, and
+Euryale 10/10. All 29 continuations stayed within nine words; none came from a
+substitute writer. Median request times were 9.47s, 15.98s and 8.71s respectively.
+Euryale's final attempt had a taste-judge timeout and used fixed lane order; it
+is preserved and labeled as an unscored selection. Its trace also records one
+candidate safety check failing open. These existing pipeline behaviors limit
+claims about a best-ranked result. Automatic scores are not owner ratings.
+
+First selections, provider traces, run statistics, CSV and separate qualitative
+review notes are in `bake/reviews/punchy-model-v15/`. The assistant review finds
+no consistent breakthrough in impact; this is not a human model ranking.
+Blind review: `/scripts/bake-rate.html?review=punchy-model-v15&systems=CYDONIA,MAGNUM,EURYALE&rubric=impact-v1`.
+The export can be reproduced from the private raw records with
+`node scripts/export-punchy-review.js <raw-directory>`; rejected debug candidates
+are deliberately excluded from the published review. Runtime for all three
+writers was frozen at `e427923`; no prompt/settings changes or manual rerolls
+were made after viewing outputs.

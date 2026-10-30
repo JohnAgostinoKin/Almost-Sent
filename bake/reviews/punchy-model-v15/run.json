@@ -1,0 +1,78 @@
+{
+  "runtimeCommit": "e4279235077482bd274982755a4d8047b6a7bc6b",
+  "inputCommit": "e4279235077482bd274982755a4d8047b6a7bc6b",
+  "inputSha256": "04cfaf4760514ae6139c209f022d56fd5b5a6e0844bc09a6dd420cdbcd2d9962",
+  "recordedAt": "2026-10-30T04:06:46.778Z",
+  "settings": {
+    "wordCap": 9,
+    "targetWords": "4-9",
+    "generatorTimeoutMs": 20000,
+    "generationSoftDeadlineMs": 20000,
+    "requestBudgetMs": 40000,
+    "temperature": 1,
+    "maxTokens": 1100
+  },
+  "systems": {
+    "CYDONIA": {
+      "model": "thedrummer/cydonia-24b-v4.1",
+      "deployment": "https://almost-sent-cxvxrm50s-agostino-technology-group.vercel.app",
+      "attempts": 10,
+      "ownModelReveals": 10,
+      "fallbackWriterReveals": 0,
+      "stalls": 0,
+      "otherFailures": 0,
+      "medianElapsedMs": 9469.5,
+      "medianContinuationWords": 6,
+      "maxContinuationWords": 8,
+      "automaticWeakLeads": 1,
+      "unscoredReveals": 0,
+      "attemptsWithSafetyFailureOpen": 0,
+      "ownerRatings": 0
+    },
+    "MAGNUM": {
+      "model": "anthracite-org/magnum-v4-72b",
+      "deployment": "https://almost-sent-onchkvgc1-agostino-technology-group.vercel.app",
+      "attempts": 10,
+      "ownModelReveals": 9,
+      "fallbackWriterReveals": 0,
+      "stalls": 1,
+      "otherFailures": 0,
+      "medianElapsedMs": 15977.5,
+      "medianContinuationWords": 8,
+      "maxContinuationWords": 9,
+      "automaticWeakLeads": 2,
+      "unscoredReveals": 0,
+      "attemptsWithSafetyFailureOpen": 0,
+      "ownerRatings": 0
+    },
+    "EURYALE": {
+      "model": "sao10k/l3.1-euryale-70b",
+      "deployment": "https://almost-sent-83n36x2gu-agostino-technology-group.vercel.app",
+      "attempts": 10,
+      "ownModelReveals": 10,
+      "fallbackWriterReveals": 0,
+      "stalls": 0,
+      "otherFailures": 0,
+      "medianElapsedMs": 8708,
+      "medianContinuationWords": 7,
+      "maxContinuationWords": 8,
+      "automaticWeakLeads": 1,
+      "unscoredReveals": 1,
+      "attemptsWithSafetyFailureOpen": 1,
+      "ownerRatings": 0
+    }
+  },
+  "method": "One API request per input per model; export only the first selected reveal. Keep stalls and errors; no manual rerolls. Normal same-model retries/regeneration inside the request remain enabled. No cross-model writer fallback.",
+  "selection": "Ten assistant-authored fictional texts, unseen in earlier input sets; deterministic shuffled order, seed 151029. Convenience sample, not real user traffic.",
+  "limitations": [
+    "New prompt, examples, word cap, judge calibration and time allowances are a shared experimental profile, not a controlled comparison to v14.",
+    "Safety boundaries remain. No profanity quota. No owner ratings yet.",
+    "The longer comparison time budget measures writer capability; it is not a production latency claim."
+  ],
+  "validation": {
+    "automatedTests": 24,
+    "allInitialPromptsIdenticalAcrossModels": true,
+    "allShippedRevealsWithinNineWords": true
+  },
+  "ownerRatings": 0
+}
