@@ -1,7 +1,7 @@
 {
   "date": "2026-10-29",
   "commit": "0df82d82aaa1b47d15cb6d5e1bb8f28bf8f5346c",
-  "method": "Six fresh inputs per configuration, one first-reveal request each. Same prompt, lane mix, safety and taste judges, and request deadlines. No production database access. Claude and Grok use supported low reasoning. Single exploratory sample, no human ratings. Fallbacks are excluded from the requested writer comparison and remain visible as no-reveal attempts.",
+  "method": "Six fresh inputs per configuration, one first-reveal request each. Same prompt, lane mix, safety and taste judges, and request deadlines. No production database access. Claude and Grok use supported low reasoning. Single exploratory generation sample; the subsequent partial owner review is recorded separately in owner-feedback.json. Fallbacks are excluded from the requested writer comparison and remain visible as no-reveal attempts.",
   "systems": [
     {
       "system": "HERMES",
@@ -30,5 +30,12 @@
       "fallbacks": 1,
       "medianElapsedMs": 13500
     }
-  ]
+  ],
+  "ownerReview": {
+    "source": "owner-feedback.json",
+    "rated": 9,
+    "complete": false,
+    "lol": 0,
+    "screenshots": 0
+  }
 }

@@ -1,0 +1,10 @@
+rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure
+anonymous,2026-10-30T00:08:53.617Z,0,Your dog likes me more than you.,HERMES,0,smirk,no,
+anonymous,2026-10-30T00:09:12.492Z,0,Your dog likes me more than you.,CLAUDE,1,nothing,no,
+anonymous,2026-10-30T00:09:26.873Z,1,Let's not tell anyone about last night.,CLAUDE,0,nothing,no,
+anonymous,2026-10-30T00:09:42.965Z,1,Let's not tell anyone about last night.,HERMES,1,nothing,no,
+anonymous,2026-10-30T00:09:53.903Z,2,I brought dessert.,HERMES,0,nothing,no,
+anonymous,2026-10-30T00:10:03.859Z,2,I brought dessert.,CLAUDE,1,bad,no,
+anonymous,2026-10-30T00:10:22.249Z,3,Thanks for inviting my ex.,CLAUDE,1,bad,no,
+anonymous,2026-10-30T00:10:33.331Z,4,Can you pick me up from the airport?,CLAUDE,0,smirk,no,
+anonymous,2026-10-30T00:10:46.952Z,4,Can you pick me up from the airport?,HERMES,1,nothing,no,

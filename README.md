@@ -92,9 +92,23 @@ Claude is the next experimental preview writer; production retains Hermes.
 
 Open `/scripts/bake-rate.html?review=comedy-model-v10&systems=HERMES,CLAUDE`
 for the six-input blind review. The full failed Grok run remains in the files
-and can also be included with `systems=HERMES,CLAUDE,GROK`. No new human
-ratings are recorded yet. The first test's owner ratings are not reused as
-scores for these new outputs.
+and can also be included with `systems=HERMES,CLAUDE,GROK`. The owner's
+subsequent partial review is saved as `owner-ratings.csv`, with exact output
+joins and original automatic scores in `owner-feedback.json`.
+
+| Writer | Rated outputs | LOL | Smirk | Nothing | Bad | Screenshot picks |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hermes | 4 | 0 | 1 | 3 | 0 | 0 |
+| Claude | 5 | 0 | 1 | 2 | 2 | 0 |
+
+Both reply-all outputs are unrated; the Hermes ex-invitation attempt stalled.
+Missing ratings are not counted as negative reactions. Neither writer has
+earned a comedy win in this sample. The automatic judge gave the Claude
+dessert line reaction 7/10 while the owner rated it BAD, and gave the two
+SMIRK outputs only 6/10. That mismatch warrants checking the full candidate
+pools against selected leads before another model switch or broader rewrite.
+These ratings are evaluation evidence, not new runtime calibration. The first
+test's owner ratings are not reused as scores for these new outputs.
 
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
