@@ -1,0 +1,101 @@
+{
+  "system": "BEFORE",
+  "label": "Previous laughter-oriented writing and judging; Claude",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "0df82d82aaa1b47d15cb6d5e1bb8f28bf8f5346c",
+  "deployment": "https://almost-sent-oqua8xw2y-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "Your dog likes me more than you.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Your dog likes me more than you. i bribe him with the bacon you think you're allergic to. it's been six months."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 5580,
+      "weakLead": false
+    },
+    {
+      "input": "Let's not tell anyone about last night.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Let's not tell anyone about last night. especially the part where you called me by your ex's name and I answered"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 10562,
+      "weakLead": false
+    },
+    {
+      "input": "I brought dessert.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I brought dessert. it's the one you said you were allergic to. i've been calling your bluff since march"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 6355,
+      "weakLead": false
+    },
+    {
+      "input": "Thanks for inviting my ex.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Thanks for inviting my ex. we're getting a place together, so really you're the matchmaker."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8476,
+      "weakLead": false
+    },
+    {
+      "input": "Can you pick me up from the airport?",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Can you pick me up from the airport?? it's the only time anyone's gotten picked up by you without lying about their name"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8019,
+      "weakLead": false
+    },
+    {
+      "input": "Please stop replying all.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Please stop replying all. i only started because hr replied all to my nudes and I wanted company"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8980,
+      "weakLead": false
+    }
+  ],
+  "originalSystem": "CLAUDE",
+  "originalReview": "comedy-model-v10"
+}

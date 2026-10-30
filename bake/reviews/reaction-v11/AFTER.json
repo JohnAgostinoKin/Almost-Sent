@@ -1,0 +1,95 @@
+{
+  "system": "AFTER",
+  "label": "Reaction-v11 writing and judging; Claude",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "649fa75cb5ec360d4a2c0b8260e7354d7654b36b",
+  "deployment": "https://almost-sent-czqdwjwr7-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "Your dog likes me more than you.",
+      "category": "friends",
+      "top3": [],
+      "source": "blocked",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "Excluded by animal-contact safety guard; counted as a failed attempt, no replacement generated.",
+      "elapsedMs": 9775,
+      "weakLead": false,
+      "status": 200
+    },
+    {
+      "input": "Let's not tell anyone about last night.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "Let's not tell anyone about last night. i'm still finding parts of it in my sheets. one's crunchy. i'm keeping it"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8087,
+      "weakLead": false,
+      "status": 200
+    },
+    {
+      "input": "I brought dessert.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I brought dessert. it's the same cake from your ex's party. she gave me the leftovers after we fucked"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9790,
+      "weakLead": false,
+      "status": 200
+    },
+    {
+      "input": "Thanks for inviting my ex.",
+      "category": "dating",
+      "top3": [],
+      "source": "fallback",
+      "actualModel": "mistralai/mistral-large-2512",
+      "note": "Different writer returned the lead; excluded from the Claude comparison, no replacement generated.",
+      "elapsedMs": 11706,
+      "weakLead": false,
+      "status": 200
+    },
+    {
+      "input": "Can you pick me up from the airport?",
+      "category": "logistics",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Can you pick me up from the airport? i'm not at the airport. i'm at your place, and your roommate's wearing your robe"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7399,
+      "weakLead": false,
+      "status": 200
+    },
+    {
+      "input": "Please stop replying all.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "Please stop replying all. i hit it on purpose. hr needed to see what you sent me"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8201,
+      "weakLead": false,
+      "status": 200
+    }
+  ]
+}

@@ -127,6 +127,19 @@ Old comedy review URLs retain their original labels and saved ratings. The new
 rubric uses separate browser storage and an explicit CSV schema; the tally
 prints each rubric separately and never converts old ratings into new ones.
 
+The reaction-v11 bake compares the recorded v10 Claude first reveals with
+new v11 Claude first reveals for the same six messages:
+`/scripts/bake-rate.html?review=reaction-v11&systems=BEFORE,AFTER&rubric=impact-v1`.
+The writer model stays the same; the writing and judging objective changes.
+The two versions are unlabeled and randomly ordered on each review card.
+Previously seen examples can be recognizable, so this is an exploratory
+comparison rather than a fresh held-out evaluation. No old ratings are carried
+into it. Exact outputs, source commits and request outcomes are recorded in
+`bake/reviews/reaction-v11/`.
+Two new attempts have no reviewable Claude lead: one was blocked by the
+animal-contact safety correction, and one fell back to a different writer.
+Both stay visible as no-reveal attempts; neither was replaced or rerolled.
+
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
 

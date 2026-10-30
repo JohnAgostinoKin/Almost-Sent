@@ -118,3 +118,15 @@ test('new comedy release misses old cache keys but preserves normalization and l
   assert.deepEqual(await putPrecomputed('__spend:2026-10-29', {}, 'test', 1000),
     { ok: false, status: 'reserved key' });
 });
+
+test('animal contact regression is blocked before judging without removing ordinary pet references', () => {
+  const sent = 'Your dog likes me more than you.';
+  const unsafe = { lane: 'confession', anchor: 'dog', text: '. i fed him off my genitals' };
+  const normal = { lane: 'confession', anchor: 'dog', text: '. i bring bacon. you bring expectations' };
+  const result = filterLines([unsafe, normal], sent);
+  assert.equal(result.kept.length, 1);
+  assert.equal(result.kept[0].text, normal.text);
+  assert.equal(result.droppedWall, 1);
+  assert.equal(result.all[0].filter, 'animal-sexual-contact');
+  assert.equal(result.all[0].text, '[blocked: sexual contact involving an animal]');
+});
