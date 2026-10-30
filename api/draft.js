@@ -612,7 +612,8 @@ async function handle(req, res, internal) {
   // tap past them needs a real escalated draft, not the same three lines
   // again.
   if (!escalate) {
-    const curated = curatedLeadFor(normalizeBefore(sent));
+    // Experimental preview can exercise the writer even for homepage chips.
+    const curated = process.env.LIVE_DEMOS === "1" ? null : curatedLeadFor(normalizeBefore(sent));
     if (curated) {
       res.status(200).json({
         sent: sent,
@@ -729,11 +730,8 @@ async function handle(req, res, internal) {
     if (pre.state !== "clear") { res.status(200).json({ source: "stall", drafts: [], stall_reason: "crisis check " + pre.state, safety: preSafety }); return; }
   }
 
-  // Whether the sent text invites a raunchy line — decided here, in code
-  // (lib/prompt.js's invitesRaunchy), never left to the model. Sets both
-  // calls' lane plans. Ranking remains independent of the lane.
+  // The five voices are available for every input; safety is judged in context.
   const lanePlans = lanePlansFor(sent);
-  const invited = lanePlans.invited;
 
   const genOpts = Object.assign({ escalate: escalate, shown: shown }, internal ? { timeoutMs: 60000, costSink: internal.costSink } : {});
   const genModel = internal && internal.model ? internal.model : WILDCARD_MODEL;
@@ -916,10 +914,9 @@ async function handle(req, res, internal) {
     // above. A no-op (empty array) whenever there's nothing cached, which
     // is the ordinary case — most escalation requests won't have a
     // straggler waiting for them.
-    const stragglers = (escalate ? takeStragglers(sent) : []).filter(function (c) { return invited || c.lane !== "raunchy"; });
-    // A text with no invitation token never gets a raunchy candidate, even
-    // if the model wrote one anyway (its slot was deranged — see lanePlansFor).
-    const freshCandidates = (wildcard.lines || []).filter(function (c) { return invited || c.lane !== "raunchy"; });
+    const stragglers = (escalate ? takeStragglers(sent) : []);
+    // All five voices reach contextual judging without invitation keywords.
+    const freshCandidates = (wildcard.lines || []);
     // Judged pool cap — relevant on an escalation refetch specifically;
     // first-show's own fresh candidates never get close to this on their
     // own (six candidates from Hermes — see this file's own header
@@ -1109,8 +1106,7 @@ async function handle(req, res, internal) {
       if (!rescue.landed) {
         stallRescueNote = "stall rescue: still pending after " + STALL_RESCUE_DEADLINE_MS + "ms — stalling";
       } else {
-        const rescueCandidates = rescue.results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, [])
-          .filter(function (c) { return invited || c.lane !== "raunchy"; });
+        const rescueCandidates = rescue.results.reduce(function (acc, r) { return acc.concat(r.lines || []); }, []);
         if (!rescueCandidates.length) {
           stallRescueNote = "stall rescue: pending call(s) landed after " + rescueWaitMs + "ms with nothing usable — stalling";
         } else {
