@@ -342,6 +342,51 @@ prompts again, start another model bake, or change production or preview writer
 configuration. The latest partial owner ratings are preserved before any next
 creative revision.
 
+## Original five voices plus roast direction (v14 experiment)
+
+Branch `codex/original-roast-v14` is a separate preview experiment. It restores
+the original Hermes 4 405B writer's five example banks from `0fddc35` verbatim:
+shock, raunchy, deranged, confession and gross. The original taste calibration
+examples and unweighted reaction + specificity − interchangeable formula are
+restored, with a new adult insult-room brief. This is an adaptation of the old
+creative setup, not a full runtime rollback.
+
+Removed creative restrictions: blanket bans on adult body/intelligence/family
+roasts; invitation-keyword gating of the raunchy lane (prompt, normal results,
+stragglers and rescue); mandatory exact-word anchors and separate comic turns;
+and automatic rejection of ordinary vocabulary such as “apparently,” “landlord”
+or animal names. Same-sender continuity and readability remain taste gates.
+The original 18-word ceiling is restored; the brief still asks for under twelve
+and an immediate stop at the payoff. The requested trailing-insult cleanup stays.
+The current safety judge, input classifier, animal-contact regression guard,
+normalization fixes and strongest-first selection behavior are retained.
+
+Preview-only branch settings: `WILDCARD_MODEL=nousresearch/hermes-4-405b` and
+`LIVE_DEMOS=1`. The latter makes every homepage chip use real generation rather
+than the fixed demo bank. No production database credentials are added. Cache
+version: `original-roast-v14b`. Main, production and the original reference
+preview are unchanged.
+
+Validation: 20 automated tests pass, including the full handler's uncued raunchy
+path and live-demo path, vocabulary filtering, short-tail regression and existing
+safety behavior. All five example banks were compared with the original commit;
+the safety implementation was checked unchanged from the preceding branch.
+The first live smoke run exposed numeric taste scores being parsed as rejection
+reasons when the judge omitted a separator. Explicit output examples and a
+bounded parser now handle the observed numeric formats; malformed data does not
+become a fabricated rejection. The cache version was bumped for the repair.
+`bake/original-roast-smoke-v14.json` freezes four functional-check inputs before
+deployment. These are smoke checks, not a blind quality benchmark; no improvement
+claim or owner rating is implied.
+
+The corrected live preview returned four of four own-model Hermes first reveals,
+including the uncued family/looks inputs and `k` through live generation. Every
+lead stayed within the 18-word ceiling. One family input needed the normal fill
+round and took 12.65 seconds. Both the initial run (three reveals, one stall) and
+the corrected run are saved in `bake/reviews/original-roast-v14/`; regenerated
+outputs are not presented as a controlled quality improvement. No owner ratings
+have been collected for this experiment.
+
 ## Do not add yet
 
 Accounts, a feed, a chatbot, analytics that store pastes.

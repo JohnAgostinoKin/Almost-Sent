@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "baseReference": "0fddc35c8dd14e98a839dad29e8b9787203b6b57",
+  "experimentBranch": "codex/original-roast-v14",
+  "model": "nousresearch/hermes-4-405b",
+  "inputs": "bake/original-roast-smoke-v14.json",
+  "settings": {
+    "liveDemos": true,
+    "wordCeiling": 18,
+    "temperature": 1,
+    "maxTokensPerGeneration": 1100,
+    "requestBudgetMs": 10000
+  },
+  "method": "Four functional-check inputs frozen in the first experiment commit. The initial run exposed numeric taste scores being interpreted as rejection reasons. After repairing prompt formatting and parsing, the same four inputs were rerun once on a new deployment. Both runs remain recorded; no quality improvement can be inferred from these unblinded, regenerated samples. No manual rerolls within either run. Standard in-request retries/rescue remain active.",
+  "runs": [
+    {
+      "name": "initial",
+      "commit": "3adaede8e8606ac62ad159bfd13fddcc1099ad0a",
+      "attempts": 4,
+      "ownModelReveals": 3,
+      "stalls": 1,
+      "fallbacks": 0
+    },
+    {
+      "name": "fixed",
+      "commit": "48c96558de12700ad612c38812f49886d2853bea",
+      "attempts": 4,
+      "ownModelReveals": 4,
+      "stalls": 0,
+      "fallbacks": 0
+    }
+  ],
+  "testsPassed": 20,
+  "ownerRatings": 0,
+  "limits": [
+    "One corrected family-roast request required a normal fill round and took 12.65 seconds end to end.",
+    "Safety exclusions remain; removing creative restrictions does not disable the safety judge.",
+    "No claim of stronger comedy or consistent shock has been established."
+  ]
+}

@@ -17,8 +17,7 @@ let calls = 0;
 let judged = [];
 require('../lib/llm').callLLM = async function (key, model, sent, opts) {
   calls++;
-  // Include a rogue raunchy candidate even on uninvited inputs, to verify
-  // that the handler's invitation filter actually executes.
+  // Include an additional raunchy candidate to exercise deduplication.
   const lanes = opts.lanes.concat('raunchy');
   return { text: JSON.stringify({ candidates: lanes.map(lane => ({ lane, anchor: sent.split(' ')[0], text: lines[lane] })) }), latencyMs: 1 };
 };
@@ -53,10 +52,20 @@ test('full generation retains the chosen lead and does not spend another round f
   assert.equal(calls, 2);
 });
 
-test('full generation filters an uninvited raunchy candidate without crashing', async () => {
+test('full generation sends raunchy candidates to judging without invitation keywords', async () => {
   const body = await request('your proposal has seven appendices');
   assert.ok(judged.length);
-  assert.ok(judged.every(c => c.lane !== 'raunchy'));
+  assert.ok(judged.some(c => c.lane === 'raunchy'));
   assert.equal(body.drafts[0].text, lines.shock);
   assert.equal(calls, 2);
+});
+
+
+test('the experimental live-demo setting makes homepage chips exercise the writer', async () => {
+  process.env.LIVE_DEMOS = '1';
+  try {
+    const body = await request('k');
+    assert.equal(body.drafts[0].text, lines.shock);
+    assert.equal(calls, 2);
+  } finally { delete process.env.LIVE_DEMOS; }
 });

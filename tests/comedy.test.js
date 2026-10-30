@@ -38,12 +38,12 @@ test('the owner-requested insult tail is removed before word limits and scoring'
   }
 });
 
-test('continuations and teaching examples respect the shorter ceiling', () => {
+test('continuations and original teaching examples respect the original eighteen-word ceiling', () => {
   assert.equal(WORD_CAP, require('../lib/postprocess').WORD_CAP);
   for (const lane of Object.values(LANES)) {
     for (const example of lane.examples) assert.ok(example.after.trim().split(/\s+/).length <= WORD_CAP);
   }
-  const result = filterLines([{lane:'shock', text:'. one two three four five six seven eight nine ten eleven twelve thirteen fourteen'}], 'Thanks.');
+  const result = filterLines([{lane:'shock', text:'. ' + Array.from({length: WORD_CAP}, (_, i) => 'word' + i).join(' ')}], 'Thanks.');
   assert.equal(result.kept.length, 0);
   assert.equal(result.droppedWords, 1);
 });
@@ -123,10 +123,11 @@ test('all demo chips return usable first results through the real handler withou
   }
 });
 
-test('invitation planning supports desire without treating hot weather as a proposition', () => {
-  assert.ok(lanePlansFor('thinking about you').B.includes('raunchy'));
-  assert.ok(lanePlansFor("can't sleep").B.includes('raunchy'));
-  assert.ok(!lanePlansFor('the hot water is broken').B.includes('raunchy'));
+test('the original five voices are available without invitation keywords', () => {
+  for (const sent of ['thinking about you', 'the hot water is broken', 'your proposal is ready']) {
+    const plan = lanePlansFor(sent);
+    assert.deepEqual(new Set(plan.A.concat(plan.B)), new Set(['shock','raunchy','deranged','confession','gross']));
+  }
   for (const sent of ['you up', 'can you cover my shift']) {
     const plan = lanePlansFor(sent);
     assert.equal(plan.A.concat(plan.B).length, 6);
@@ -152,4 +153,28 @@ test('animal contact regression is blocked before judging without removing ordin
   assert.equal(result.droppedWall, 1);
   assert.equal(result.all[0].filter, 'animal-sexual-contact');
   assert.equal(result.all[0].text, '[blocked: sexual contact involving an animal]');
+});
+
+
+test('ordinary creative vocabulary is judged instead of mechanically discarded', () => {
+  const result = filterLines([
+    {lane:'shock', text:'. apparently the landlord found your personality in the drain'},
+    {lane:'deranged', text:'. the raccoon is my accountant now'},
+    {lane:'gross', text:'. hold on, i deleted this one twice already'}
+  ], 'I found a new place.');
+  assert.equal(result.kept.length, 2);
+  assert.equal(result.all[2].filter, 'crutch');
+});
+
+
+test('judge score-format variations cannot silently become rejection reasons', () => {
+  const {parseCompactJudgeLines} = require('../lib/judge');
+  const rows = parseCompactJudgeLines('1|0|8,7,4\n2|8,7,4\n3|8|7|4\n4|continues\n5|clear\n6|8\n7|0|99,7,4\n8|anchor_present');
+  for (const index of [1,2,3]) {
+    assert.equal(rows[index].eliminated, false);
+    assert.deepEqual(rows[index].scores, {reaction:8,specificity:7,interchangeable:4});
+  }
+  assert.equal(rows[4].killedBy, 'continues');
+  assert.equal(rows[5].killedBy, 'clear');
+  for (const index of [6,7,8]) assert.equal(rows[index], undefined);
 });
