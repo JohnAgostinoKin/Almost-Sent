@@ -257,10 +257,39 @@ there were no manual rerolls and no swaps to later reveals.
 
 Rate the actual first reveals blind at
 `/scripts/bake-rate.html?review=roast-model-v12&systems=CLAUDE,HERMES&rubric=impact-v1`.
-The failed attempt remains visible as a no-reveal placeholder. There are no
-owner ratings for this comparison yet; automatic scores do not establish
-which writer has the better roast voice. Production and the main Sonnet
-preview configuration are unchanged.
+The failed attempt remains visible as a no-reveal placeholder. All eleven
+reviewable outputs now have owner ratings in `owner-feedback.json`, alongside
+the original CSV. Hermes won three of five paired ratings; Claude won one and
+one tied. Each model earned one STRONG rating and zero screenshot picks.
+Two outputs were flagged too long. The unrated Hermes stall is kept separate
+from real outputs; no NONE rating is invented for it. Neither writer has
+established a launch-quality voice.
+
+## Short roast revision (v13)
+
+The owner's next direction is an abrupt, filthy reveal that stops on its
+strongest word. Aim for six to ten continuation words, with fourteen as a
+hard ceiling. The exact tail `, you fucking cockroach` weakened a reviewed
+line; a narrow cleanup removes terminal comma-led name-calling before the
+word cap and judges run. It preserves an insult that is the entire reveal
+or part of a substantive clause; it does not truncate at arbitrary commas.
+
+Writer examples are shorter, using the owner's non-graphic excuse/sister
+and party references as calibration. Safety boundaries remain in place,
+including the exclusion of graphic sexual-act descriptions. Two roast slots
+are balanced with exposure, grossness and an unhinged admission, instead of
+three roast slots. The judge now sees the latest NONE-rated examples rather
+than treating bizarre imagery or profanity as automatically high impact.
+Cache version: `short-roast-v13`. Seventeen automated tests cover the known
+tail regression, preserved clauses, short word cap, model parameter
+compatibility and existing generation behavior.
+
+The next model comparison uses six fresh inputs in
+`bake/short-roast-inputs-v13.json`, with Claude Sonnet 5.5 as the control and
+Mistral Large 4 / DeepSeek V4.1 Flash 1017 as challengers. These are test
+candidates, not established better writers. Mistral uses supported low
+reasoning; DeepSeek uses its supported non-thinking mode. Production remains
+unchanged while this revision is evaluated.
 
 ## Do not add yet
 

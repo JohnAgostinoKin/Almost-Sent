@@ -88,5 +88,6 @@
       }
     ]
   },
-  "ownerRatings": 0
+  "ownerRatings": 11,
+  "ownerFeedback": "owner-feedback.json"
 }

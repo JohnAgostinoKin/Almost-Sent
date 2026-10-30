@@ -1,0 +1,26 @@
+[
+  {
+    "category": "logistics",
+    "sent": "He offered to give me a ride."
+  },
+  {
+    "category": "gross",
+    "sent": "She said the bathroom was clean."
+  },
+  {
+    "category": "question",
+    "sent": "Why did he leave so early?"
+  },
+  {
+    "category": "dating",
+    "sent": "I heard you got back together."
+  },
+  {
+    "category": "ego",
+    "sent": "He thinks everyone wants him."
+  },
+  {
+    "category": "dating",
+    "sent": "I'm bringing my new girlfriend."
+  }
+]

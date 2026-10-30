@@ -1,0 +1,253 @@
+{
+  "source": "owner-ratings.csv",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "schema": "impact-v1",
+  "raters": 1,
+  "method": "All 11 reviewable outputs rated and joined by system, input index and exact input. The Hermes emergency-contact stall has no rating and is not assigned an invented NONE. Same frozen prompts, six fresh inputs, one unreplicated draw per system. Strength, screenshot intent and failure reasons remain separate.",
+  "conclusion": "Hermes wins three of five rated pairs, Claude wins one and one ties. Each writer earns one STRONG rating; neither earns a screenshot pick. Claude emergency-contact and Hermes setup-date lines are marked too long. This is not a launch-quality result. The owner explicitly wants much shorter, more shocking and insulting reveals, and says the Hermes setup-date line is better without its trailing insult.",
+  "summary": [
+    {
+      "system": "CLAUDE",
+      "attempts": 6,
+      "reviewableOutputs": 6,
+      "rated": 6,
+      "strong": 1,
+      "mild": 2,
+      "none": 3,
+      "screenshots": 0,
+      "failureReasons": {
+        "too long": 1
+      }
+    },
+    {
+      "system": "HERMES",
+      "attempts": 6,
+      "reviewableOutputs": 5,
+      "rated": 5,
+      "strong": 1,
+      "mild": 3,
+      "none": 1,
+      "screenshots": 0,
+      "failureReasons": {
+        "too long": 1
+      }
+    }
+  ],
+  "pairedSummary": {
+    "CLAUDE": 1,
+    "HERMES": 3,
+    "tie": 1
+  },
+  "pairedComparisons": [
+    {
+      "inputIndex": 0,
+      "input": "He calls himself a life coach.",
+      "claude": "mild",
+      "hermes": "none",
+      "strongerReaction": "CLAUDE"
+    },
+    {
+      "inputIndex": 1,
+      "input": "Your new tattoo is definitely noticeable.",
+      "claude": "none",
+      "hermes": "mild",
+      "strongerReaction": "HERMES"
+    },
+    {
+      "inputIndex": 2,
+      "input": "She says everyone at work is jealous of her.",
+      "claude": "none",
+      "hermes": "strong",
+      "strongerReaction": "HERMES"
+    },
+    {
+      "inputIndex": 4,
+      "input": "You should hear him sing.",
+      "claude": "mild",
+      "hermes": "mild",
+      "strongerReaction": "tie"
+    },
+    {
+      "inputIndex": 5,
+      "input": "Thanks for setting me up with your friend.",
+      "claude": "none",
+      "hermes": "mild",
+      "strongerReaction": "HERMES"
+    }
+  ],
+  "unrated": [
+    {
+      "system": "HERMES",
+      "inputIndex": 3,
+      "source": "stall",
+      "hasReviewableOutput": false,
+      "reason": "safety-eliminated-all"
+    }
+  ],
+  "ownerDirection": {
+    "targetWords": "6-10 preferred; 14-word maximum for next experiment",
+    "edit": {
+      "input": "Thanks for setting me up with your friend.",
+      "removeTrailingPhrase": "you fucking cockroach",
+      "preferredContinuation": ". i didn't realize you were so desperate to spread the misery around."
+    },
+    "interpretation": "Stop at the reveal. Avoid appended name-calling, explanations and elaborate metaphors. Continue blunt non-graphic sexual humor and roast material; no graphic sexual-act generation."
+  },
+  "ratings": [
+    {
+      "system": "HERMES",
+      "inputIndex": 0,
+      "input": "He calls himself a life coach.",
+      "text": "He calls himself a life coach. he made me journal my 'gratitude' for him not shitting on my carpet.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 16,
+        "reaction": 9
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 0,
+      "input": "He calls himself a life coach.",
+      "text": "He calls himself a life coach. which is a fucking hilarious title for a man whose own life needs a goddamn tow truck.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 7
+      }
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 1,
+      "input": "Your new tattoo is definitely noticeable.",
+      "text": "Your new tattoo is definitely noticeable. mostly for how fucking desperate you are for people to acknowledge your existence.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 1,
+      "input": "Your new tattoo is definitely noticeable.",
+      "text": "Your new tattoo is definitely noticeable. like a fucking stop sign on a guy who's been running red lights since birth.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 2,
+      "input": "She says everyone at work is jealous of her.",
+      "text": "She says everyone at work is jealous of her. i'm so jealous i've started practicing my own fucking funeral speech about her. it's mostly 'finally.'",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 8
+      }
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 2,
+      "input": "She says everyone at work is jealous of her.",
+      "text": "She says everyone at work is jealous of her. I started a betting pool for when she finally realizes it's fucking hatred.",
+      "rating": "strong",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 3,
+      "input": "I put you down as my emergency contact.",
+      "text": "I put you down as my emergency contact. the other nine people i asked all changed their fucking numbers, so congratulations on being last.",
+      "rating": "strong",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "too long",
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      }
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 4,
+      "input": "You should hear him sing.",
+      "text": "You should hear him sing. that voice could curdle fucking concrete.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 7,
+        "reaction": 6
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 4,
+      "input": "You should hear him sing.",
+      "text": "You should hear him sing. like a wet fart trapped in a fucking clogged drain, then he hits the high note.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      }
+    },
+    {
+      "system": "HERMES",
+      "inputIndex": 5,
+      "input": "Thanks for setting me up with your friend.",
+      "text": "Thanks for setting me up with your friend. i didn't realize you were so desperate to spread the misery around, you fucking cockroach.",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "too long",
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 8
+      }
+    },
+    {
+      "system": "CLAUDE",
+      "inputIndex": 5,
+      "input": "Thanks for setting me up with your friend.",
+      "text": "Thanks for setting me up with your friend. he spent the whole date asking if I was always this ugly or if you warned him.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "",
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      }
+    }
+  ]
+}

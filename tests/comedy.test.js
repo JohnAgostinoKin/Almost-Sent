@@ -16,13 +16,36 @@ const { buildWildcardRequest } = require('../lib/prompt');
 const { buildTasteJudgeRequest } = require('../lib/judge');
 
 test('the newer writer uses supported low reasoning without consuming compact judges\' token budget', async () => {
-  for (const model of ['openai/gpt-6.1-sol', 'anthropic/claude-sonnet-5.5', 'x-ai/grok-4.7']) {
+  for (const model of ['openai/gpt-6.1-sol', 'anthropic/claude-sonnet-5.5', 'x-ai/grok-4.7', 'mistralai/mistral-large-4-0']) {
     const request = await buildWildcardRequest(model, 'an unseen rehearsal message', { lanes: ['confession'] });
     assert.deepEqual(request.reasoning, { effort: 'low' });
     assert.equal(request.model, model);
   }
+  const deepseek = await buildWildcardRequest('deepseek/deepseek-v4.1-flash-1017', 'an unseen rehearsal message', { lanes: ['confession'] });
+  assert.deepEqual(deepseek.reasoning, { enabled: false });
   const taste = buildTasteJudgeRequest('an unseen rehearsal message', [], 'openai/gpt-5.4');
   assert.equal(taste.reasoning, undefined);
+});
+
+test('the owner-requested insult tail is removed before word limits and scoring', () => {
+  const result = filterLines([{ lane: 'shock', anchor: 'friend',
+    text: ". i didn't realize you were so desperate to spread the misery around, you fucking cockroach." }],
+    'Thanks for setting me up with your friend.');
+  assert.equal(result.kept.length, 1);
+  assert.equal(result.kept[0].text, ". i didn't realize you were so desperate to spread the misery around.");
+  for (const text of [', you fucking asshole.', '. please stay home, you idiot. leave some fun for us.', '. you are the punchline.']) {
+    assert.equal(filterLines([{ lane: 'shock', text }], 'Great.').kept[0].text, text);
+  }
+});
+
+test('continuations and teaching examples respect the shorter ceiling', () => {
+  assert.equal(WORD_CAP, require('../lib/postprocess').WORD_CAP);
+  for (const lane of Object.values(LANES)) {
+    for (const example of lane.examples) assert.ok(example.after.trim().split(/\s+/).length <= WORD_CAP);
+  }
+  const result = filterLines([{lane:'shock', text:'. one two three four five six seven eight nine ten eleven twelve thirteen fourteen'}], 'Thanks.');
+  assert.equal(result.kept.length, 0);
+  assert.equal(result.droppedWords, 1);
 });
 
 function candidate(lane, text, reaction, q) {
