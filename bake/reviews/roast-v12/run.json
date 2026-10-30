@@ -1,7 +1,7 @@
 {
   "date": "2026-10-29",
   "rubric": "impact-v1",
-  "method": "Six same-input comparisons using the same Claude writer, one first-reveal request per version. The first input is the owner-provided tone reference and is a direction check, not held-out evidence; the other five inputs are fresh. BEFORE uses the prior reaction-v11 configuration; AFTER changes writing examples, lane mix, tone calibration and safety framing for an opt-in adult roast. No regeneration or cherry-picking after responses. Failed, blocked and alternate-model responses remain attempts and are never substituted. Profanity is a descriptive voice measure, not a quality score. No human ratings yet.",
+  "method": "Six same-input comparisons using the same Claude writer, one first-reveal request per version. The first input is the owner-provided tone reference and is a direction check, not held-out evidence; the other five inputs are fresh. BEFORE uses the prior reaction-v11 configuration; AFTER changes writing examples, lane mix, tone calibration and safety framing for an opt-in adult roast. No regeneration or cherry-picking after responses. Failed, blocked and alternate-model responses remain attempts and are never substituted. Profanity is a descriptive voice measure, not a quality score. Complete owner ratings are recorded separately in owner-ratings.csv and owner-feedback.json.",
   "profanityPattern": "\\b(?:fuck\\w*|shit\\w*|bullshit|asshole\\w*|bitch\\w*|cunt\\w*)\\b",
   "systems": [
     {
@@ -27,5 +27,6 @@
       "medianElapsedMs": 9287.5
     }
   ],
-  "ownerRatings": 0
+  "ownerRatings": 12,
+  "ownerFeedback": "owner-feedback.json"
 }

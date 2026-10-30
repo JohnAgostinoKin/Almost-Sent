@@ -1,0 +1,13 @@
+rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure,schema,reactions
+anonymous,2026-10-30T01:23:19.245Z,0,man is he a weirdo,AFTER,0,strong,yes,,impact-v1,laugh
+anonymous,2026-10-30T01:23:35.734Z,0,man is he a weirdo,BEFORE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T01:23:50.383Z,1,He's really proud of that promotion.,AFTER,0,mild,no,,impact-v1,
+anonymous,2026-10-30T01:24:12.355Z,1,He's really proud of that promotion.,BEFORE,1,strong,no,,impact-v1,laugh
+anonymous,2026-10-30T01:24:34.575Z,2,Thanks for bringing your boyfriend.,BEFORE,0,strong,no,,impact-v1,brutal
+anonymous,2026-10-30T01:24:46.632Z,2,Thanks for bringing your boyfriend.,AFTER,1,strong,no,,impact-v1,
+anonymous,2026-10-30T01:25:37.005Z,3,That was quite a speech.,AFTER,0,none,no,too far,impact-v1,
+anonymous,2026-10-30T01:26:04.454Z,3,That was quite a speech.,BEFORE,1,none,no,,impact-v1,
+anonymous,2026-10-30T01:26:31.339Z,4,You look different in your profile picture.,AFTER,0,strong,yes,,impact-v1,brutal
+anonymous,2026-10-30T01:26:52.827Z,4,You look different in your profile picture.,BEFORE,1,strong,no,,impact-v1,
+anonymous,2026-10-30T01:27:03.806Z,5,We should do dinner again.,AFTER,0,mild,no,,impact-v1,
+anonymous,2026-10-30T01:27:24.949Z,5,We should do dinner again.,BEFORE,1,none,no,,impact-v1,

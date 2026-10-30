@@ -207,7 +207,7 @@ owner's supplied example and is a direction check, not held-out evidence.
 The other five inputs are fresh. Compare the prior and roast-v12 versions
 with the same Claude writer and preserve all failed or fallback attempts.
 More profanity establishes a change in voice, not a proven improvement in
-impact; that still requires owner ratings.
+impact; the owner's completed review is summarized below.
 
 The recorded comparison is ready at
 `/scripts/bake-rate.html?review=roast-v12&systems=BEFORE,AFTER&rubric=impact-v1`.
@@ -215,7 +215,28 @@ Both versions returned six own-model first reveals without fallback. The
 previous version used profanity in one of six leads; roast-v12 used it in six
 of six. One previous-version lead was unscored after the taste judge failed;
 that fact is retained in the snapshot. No results were replaced or rerolled.
-All fifteen automated tests pass. Human impact ratings are still pending.
+All fifteen automated tests pass.
+
+The completed owner review is preserved as `owner-ratings.csv`, joined to
+the exact recorded outputs in `owner-feedback.json`. Both versions earned
+three STRONG ratings. BEFORE also earned one MILD and two NONE; AFTER earned
+two MILD and one NONE. Screenshot picks increased from zero to two: the new
+weirdo/mother-return roast and the profile-picture roast. Pairwise reaction
+strength improved on two inputs, declined on one, and tied on three. The
+previous promotion line beat the new one despite its unavailable automatic
+taste score. The new speech line was marked NONE / too far; this is specific
+feedback, not a blanket ban on family jokes, since the mother-return line
+was a screenshot pick.
+
+One of those two screenshot picks was on the supplied tone-reference input.
+Across the five fresh inputs, AFTER earned two STRONG ratings and one
+screenshot pick; BEFORE earned three STRONG ratings and no screenshot picks.
+This supports the voice direction but does not establish consistent shock
+or a broad quality win. No shock, embarrassment or disgust tags were selected;
+optional omissions do not prove those reactions were absent. These ratings
+are saved as evidence and have not changed runtime prompts. A future
+calibration should retain the positively rated examples and test fresh inputs,
+with strength, share intent and unwanted reactions still measured separately.
 
 ## Do not add yet
 
