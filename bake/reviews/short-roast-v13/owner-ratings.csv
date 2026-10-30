@@ -1,0 +1,12 @@
+rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure,schema,reactions
+anonymous,2026-10-30T02:29:09.396Z,0,He offered to give me a ride.,DEEPSEEK,0,mild,no,,impact-v1,
+anonymous,2026-10-30T02:29:28.478Z,0,He offered to give me a ride.,CLAUDE,1,strong,no,,impact-v1,
+anonymous,2026-10-30T02:29:42.181Z,1,She said the bathroom was clean.,DEEPSEEK,0,mild,no,,impact-v1,
+anonymous,2026-10-30T02:29:53.578Z,1,She said the bathroom was clean.,CLAUDE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T02:30:07.757Z,2,Why did he leave so early?,CLAUDE,0,mild,no,,impact-v1,
+anonymous,2026-10-30T02:30:25.432Z,2,Why did he leave so early?,DEEPSEEK,1,mild,no,,impact-v1,
+anonymous,2026-10-30T02:30:41.214Z,3,I heard you got back together.,DEEPSEEK,0,mild,no,,impact-v1,
+anonymous,2026-10-30T02:31:10.190Z,3,I heard you got back together.,CLAUDE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T02:31:25.856Z,4,He thinks everyone wants him.,DEEPSEEK,0,none,no,,impact-v1,
+anonymous,2026-10-30T02:31:40.291Z,4,He thinks everyone wants him.,CLAUDE,1,mild,no,,impact-v1,
+anonymous,2026-10-30T02:33:13.278Z,5,I'm bringing my new girlfriend.,CLAUDE,1,mild,no,,impact-v1,

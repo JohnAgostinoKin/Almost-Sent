@@ -298,9 +298,13 @@ retries and rescue were enabled, with no manual rerolls or later-reveal swaps.
 Median HTTP time was 7.93 seconds for Sonnet, 8.40 for DeepSeek and 14.35 for
 the unsuccessful Mistral Large 4 attempts. All twelve valid continuations fit
 the 14-word app ceiling (Sonnet: 9–13; DeepSeek: 9–14, using the app's whitespace
-count, which can count standalone punctuation). Manual inspection still finds
-generic insults and weak reveals; no owner ratings or model winner exist for
-this sample. One Sonnet snapshot preserves a duplicated question mark from
+count, which can count standalone punctuation). The owner's eleven ratings
+are saved in `owner-ratings.csv` and joined to the exact outputs in
+`owner-feedback.json`: Sonnet has one STRONG and five MILD; DeepSeek has four
+MILD and one NONE, with its sixth real output unrated. Both have zero screenshot
+picks. Sonnet wins two of five rated pairs, with three ties. The owner rejects
+this direction; these results do not establish a launch-quality writer.
+One Sonnet snapshot preserves a duplicated question mark from
 the existing composer, rather than silently altering the recorded result.
 
 Rate the twelve valid first reveals at
@@ -308,6 +312,35 @@ Rate the twelve valid first reveals at
 Mistral Large 4 is excluded from this rating UI because it has no own-model
 outputs to rate; its failures remain part of the recorded test. Production
 and the preview's Sonnet writer configuration remain unchanged.
+
+## Recovered original five-category reference
+
+The owner recalls an early setup with shock, gross and deranged among five
+categories. The original v7 setup at `0fddc35c8dd14e98a839dad29e8b9787203b6b57`
+matches: **shock, raunchy, deranged, confession, gross**. Its writer is
+`nousresearch/hermes-4-405b`, with the original prompt examples and judge/selection
+rules. Later Hermes experiments rewrote those rules; the model name alone does
+not identify the version. These category keys also survive in later versions,
+so the category clue is a match rather than proof of the owner's exact memory.
+
+The existing immutable reference preview is
+https://almost-sent-fsvlosw65-agostino-technology-group.vercel.app . Vercel metadata
+confirms that preview's original commit, and captured first-run traces confirm
+Hermes for all 19 real outputs (one further attempt stalled). The original
+20-attempt blind review in `bake/reviews/comedy-model-v8/` received seven LOL
+ratings and three screenshot picks, versus three LOLs and zero picks for the
+first rewrite using the same writer. That older laughter rubric is not pooled
+with the later impact rubric.
+
+Two recognition examples from the owner's original screenshot picks:
+
+- "I added you to the team photo. i also added myself to all your childhood photos. we go way back."
+- "I left my umbrella at your place yesterday. and my underwear. you'll find them both soaked."
+
+This recovery records and reopens the original reference. It does not rewrite
+prompts again, start another model bake, or change production or preview writer
+configuration. The latest partial owner ratings are preserved before any next
+creative revision.
 
 ## Do not add yet
 

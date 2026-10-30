@@ -122,11 +122,12 @@
   "excludedFromRatingUI": {
     "MISTRAL": "Zero own-model reveals: five responses used mistralai/mistral-large-2512 fallback and one stalled. All six attempts are preserved in MISTRAL.json; fallback output is not attributed to Large 4."
   },
-  "ownerRatings": 0,
+  "ownerRatings": 11,
   "observations": [
     "Every valid first continuation meets the 14-token whitespace-count ceiling used by the app; the leading punctuation can itself count as a token.",
     "No writer winner is established. Manual inspection still finds generic insults and weak reveals; profanity alone is not evidence of impact.",
     "One Sonnet result has duplicated question punctuation under the frozen composer. The snapshot preserves the actual rendered output rather than silently repairing the test.",
     "Input safety metadata describes the input classifier; it is not a certificate for the generated output."
-  ]
+  ],
+  "ownerFeedback": "owner-feedback.json"
 }
