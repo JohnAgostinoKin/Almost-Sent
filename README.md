@@ -140,6 +140,24 @@ Two new attempts have no reviewable Claude lead: one was blocked by the
 animal-contact safety correction, and one fell back to a different writer.
 Both stay visible as no-reveal attempts; neither was replaced or rerolled.
 
+The owner's partial impact review is preserved in `owner-ratings.csv` and
+joined to exact outputs in `owner-feedback.json` within that review directory.
+
+| Version | Rated | Strong | Mild | None | Screenshot picks |
+| --- | --- | --- | --- | --- | --- |
+| Previous | 4 | 0 | 2 | 2 | 0 |
+| Reaction-v11 | 3 | 1 | 0 | 2 | 1 |
+
+The new dessert reveal earned STRONG shock and the only screenshot pick.
+The new last-night and airport reveals both earned NONE with a `random`
+failure reason. Of three rated pairs, the new version wins on strength once
+and the previous version twice. Three valid outputs remain unrated; the two
+excluded attempts remain separate. This supplies a specific positive example,
+not a consistent overall win. A plausible next writing hypothesis is a clear,
+personal revelation carried by a detail in the setup; arbitrary gross details
+or a switch to an unrelated situation did not land here. This is an inference
+from one owner's small sample, not a new automated acceptance rule.
+
 For a real model comparison, run the same held-out 20-text corpus against
 both checkouts with the same development model credentials:
 

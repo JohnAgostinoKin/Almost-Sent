@@ -1,0 +1,180 @@
+{
+  "source": "owner-ratings.csv",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "schema": "impact-v1",
+  "raters": 1,
+  "method": "Seven owner ratings joined to exact recorded first reveals by system, index and input. Partial review: three valid outputs remain unrated; two other attempts have no reviewable Claude output. Missing ratings are not negative reactions. Reaction tags, strength, screenshot intent and failure reasons remain separate. Same Claude writer, previously seen inputs, one unreplicated sample. Historical laughter ratings are not pooled.",
+  "conclusion": "The updated dessert reveal earned STRONG shock and the only screenshot pick. The updated last-night and airport reveals both earned NONE with a random failure reason. Of three rated pairs the updated version has one stronger response and the previous version has two. This identifies a promising example, not a consistent overall win.",
+  "summary": [
+    {
+      "system": "BEFORE",
+      "attempts": 6,
+      "reviewableOutputs": 6,
+      "rated": 4,
+      "strong": 0,
+      "mild": 2,
+      "none": 2,
+      "screenshots": 0,
+      "failureReasons": {},
+      "reactionTags": {
+        "embarrassment": 1
+      }
+    },
+    {
+      "system": "AFTER",
+      "attempts": 6,
+      "reviewableOutputs": 4,
+      "rated": 3,
+      "strong": 1,
+      "mild": 0,
+      "none": 2,
+      "screenshots": 1,
+      "failureReasons": {
+        "random": 2
+      },
+      "reactionTags": {
+        "disgust": 1,
+        "shock": 1
+      }
+    }
+  ],
+  "pairedComparisons": [
+    {
+      "inputIndex": 1,
+      "input": "Let's not tell anyone about last night.",
+      "before": "mild",
+      "after": "none",
+      "strongerReaction": "BEFORE"
+    },
+    {
+      "inputIndex": 2,
+      "input": "I brought dessert.",
+      "before": "none",
+      "after": "strong",
+      "strongerReaction": "AFTER"
+    },
+    {
+      "inputIndex": 4,
+      "input": "Can you pick me up from the airport?",
+      "before": "mild",
+      "after": "none",
+      "strongerReaction": "BEFORE"
+    }
+  ],
+  "unrated": [
+    {
+      "system": "BEFORE",
+      "inputIndex": 0,
+      "input": "Your dog likes me more than you.",
+      "source": "model",
+      "hasReviewableOutput": true
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 5,
+      "input": "Please stop replying all.",
+      "source": "model",
+      "hasReviewableOutput": true
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 0,
+      "input": "Your dog likes me more than you.",
+      "source": "blocked",
+      "hasReviewableOutput": false
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 3,
+      "input": "Thanks for inviting my ex.",
+      "source": "fallback",
+      "hasReviewableOutput": false
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 5,
+      "input": "Please stop replying all.",
+      "source": "model",
+      "hasReviewableOutput": true
+    }
+  ],
+  "ratings": [
+    {
+      "system": "BEFORE",
+      "inputIndex": 1,
+      "input": "Let's not tell anyone about last night.",
+      "text": "Let's not tell anyone about last night. especially the part where you called me by your ex's name and I answered",
+      "rating": "mild",
+      "reactions": [
+        "embarrassment"
+      ],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 1,
+      "input": "Let's not tell anyone about last night.",
+      "text": "Let's not tell anyone about last night. i'm still finding parts of it in my sheets. one's crunchy. i'm keeping it",
+      "rating": "none",
+      "reactions": [
+        "disgust"
+      ],
+      "screenshot": false,
+      "failure": "random"
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 2,
+      "input": "I brought dessert.",
+      "text": "I brought dessert. it's the one you said you were allergic to. i've been calling your bluff since march",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 2,
+      "input": "I brought dessert.",
+      "text": "I brought dessert. it's the same cake from your ex's party. she gave me the leftovers after we fucked",
+      "rating": "strong",
+      "reactions": [
+        "shock"
+      ],
+      "screenshot": true,
+      "failure": ""
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 3,
+      "input": "Thanks for inviting my ex.",
+      "text": "Thanks for inviting my ex. we're getting a place together, so really you're the matchmaker.",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    },
+    {
+      "system": "AFTER",
+      "inputIndex": 4,
+      "input": "Can you pick me up from the airport?",
+      "text": "Can you pick me up from the airport? i'm not at the airport. i'm at your place, and your roommate's wearing your robe",
+      "rating": "none",
+      "reactions": [],
+      "screenshot": false,
+      "failure": "random"
+    },
+    {
+      "system": "BEFORE",
+      "inputIndex": 4,
+      "input": "Can you pick me up from the airport?",
+      "text": "Can you pick me up from the airport?? it's the only time anyone's gotten picked up by you without lying about their name",
+      "rating": "mild",
+      "reactions": [],
+      "screenshot": false,
+      "failure": ""
+    }
+  ]
+}

@@ -24,5 +24,11 @@
       "fallbacks": 1
     }
   ],
-  "ownerRatings": 0
+  "ownerRatings": 7,
+  "ownerReview": {
+    "source": "owner-feedback.json",
+    "complete": false,
+    "schema": "impact-v1",
+    "rated": 7
+  }
 }

@@ -1,0 +1,8 @@
+rater,timestamp,input_index,input,system,position_shown,rating,screenshot,failure,schema,reactions
+anonymous,2026-10-30T00:47:57.029Z,1,Let's not tell anyone about last night.,BEFORE,0,mild,no,,impact-v1,embarrassment
+anonymous,2026-10-30T00:48:58.567Z,1,Let's not tell anyone about last night.,AFTER,1,none,no,random,impact-v1,disgust
+anonymous,2026-10-30T00:49:12.632Z,2,I brought dessert.,BEFORE,0,none,no,,impact-v1,
+anonymous,2026-10-30T00:49:55.339Z,2,I brought dessert.,AFTER,1,strong,yes,,impact-v1,shock
+anonymous,2026-10-30T00:50:09.953Z,3,Thanks for inviting my ex.,BEFORE,1,none,no,,impact-v1,
+anonymous,2026-10-30T00:50:40.091Z,4,Can you pick me up from the airport?,AFTER,0,none,no,random,impact-v1,
+anonymous,2026-10-30T00:50:53.699Z,4,Can you pick me up from the airport?,BEFORE,1,mild,no,,impact-v1,
