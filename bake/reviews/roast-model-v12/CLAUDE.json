@@ -1,0 +1,171 @@
+{
+  "system": "CLAUDE",
+  "label": "Claude Sonnet 5.5, roast-v12",
+  "model": "anthropic/claude-sonnet-5.5",
+  "commit": "5c8d63101f8585fb14501befd4f355532cee6756",
+  "deployment": "https://almost-sent-rb80mt7wy-agostino-technology-group.vercel.app",
+  "results": [
+    {
+      "input": "He calls himself a life coach.",
+      "category": "ego",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "He calls himself a life coach. which is a fucking hilarious title for a man whose own life needs a goddamn tow truck."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 10400,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 12,
+        "reaction": 7
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 564ms, sum 2562ms across 6 calls) · taste: openai/gpt-5.4 (1368ms) — [shock] q:10 reaction:7, [shock] q:7 reaction:6, [gross] q:4 reaction:5, [shock] q:12 reaction:7, [confession] q:15 reaction:8, [deranged] q:4 reaction:5 [safety-flagged] · pairwise: #2 won from both positions (570ms), swapped · stages: t_cold=31ms t_parse=1ms t_block=0ms t_wildcardA=2329ms t_wildcardB=2272ms t_wildcard=2329ms t_judge=1943ms t_response=0ms"
+    },
+    {
+      "input": "Your new tattoo is definitely noticeable.",
+      "category": "looks",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Your new tattoo is definitely noticeable. like a fucking stop sign on a guy who's been running red lights since birth."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 7547,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 11,
+        "reaction": 7
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 1 — words 2 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 558ms, sum 1782ms across 4 calls) · taste: openai/gpt-5.4 (1240ms) — [shock] q:11 reaction:7, [shock] q:10 reaction:8, [gross] q:14 reaction:8 [safety-flagged], [shock] q:10 reaction:7 · pairwise: split verdict (2/2 — position bias), q order kept · stages: t_cold=7780ms t_parse=0ms t_block=0ms t_wildcardA=2186ms t_wildcardB=2375ms t_wildcard=2375ms t_judge=1660ms t_response=0ms"
+    },
+    {
+      "input": "She says everyone at work is jealous of her.",
+      "category": "work",
+      "top3": [
+        {
+          "tag": "deranged",
+          "text": "She says everyone at work is jealous of her. i'm so jealous i've started practicing my own fucking funeral speech about her. it's mostly 'finally.'"
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8342,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 9,
+        "reaction": 8
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 1 — words 2 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 2 — words 1 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 1 dropped · safety model: openai/gpt-5.4-nano (wall 437ms, sum 1113ms across 3 calls) · taste: openai/gpt-5.4 (1089ms) — [shock] q:10 reaction:7, [shock] q:7 reaction:6 [safety-flagged], [deranged] q:9 reaction:8 · pairwise: #2 won from both positions (382ms), swapped · stages: t_cold=15681ms t_parse=0ms t_block=0ms t_wildcardA=2913ms t_wildcardB=2590ms t_wildcard=2913ms t_judge=1473ms t_response=0ms"
+    },
+    {
+      "input": "I put you down as my emergency contact.",
+      "category": "friends",
+      "top3": [
+        {
+          "tag": "confession",
+          "text": "I put you down as my emergency contact. the other nine people i asked all changed their fucking numbers, so congratulations on being last."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 6905,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — words 1 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 2 — words 1 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 3 dropped · safety model: openai/gpt-5.4-nano (wall 382ms, sum 1336ms across 4 calls) · taste: openai/gpt-5.4 (1238ms) — [shock] q:11 reaction:7 [safety-flagged], [gross] q:10 reaction:8 [safety-flagged], [shock] q:11 reaction:7 [safety-flagged], [confession] q:14 reaction:8 · stages: t_cold=24187ms t_parse=0ms t_block=0ms t_wildcardA=2329ms t_wildcardB=2598ms t_wildcard=2598ms t_judge=1239ms t_response=0ms"
+    },
+    {
+      "input": "You should hear him sing.",
+      "category": "talent",
+      "top3": [
+        {
+          "tag": "gross",
+          "text": "You should hear him sing. like a wet fart trapped in a fucking clogged drain, then he hits the high note."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 9607,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 10,
+        "reaction": 7
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — crutch 1 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 3 [Google] · model: anthropic/claude-sonnet-5.5 (retry) · safety: 2 dropped · safety model: openai/gpt-5.4-nano (wall 906ms, sum 2349ms across 5 calls) · taste: openai/gpt-5.4 (1207ms) — [shock] q:8 reaction:7 [safety-flagged], [gross] q:10 reaction:7, [shock] q:6 reaction:6 [safety-flagged], [confession] q:13 reaction:8, [deranged] q:9 reaction:7 · pairwise: #2 won from both positions (396ms), swapped · stages: t_cold=30585ms t_parse=0ms t_block=0ms t_wildcardA=2241ms t_wildcardB=4400ms t_wildcard=4400ms t_judge=1605ms t_response=0ms"
+    },
+    {
+      "input": "Thanks for setting me up with your friend.",
+      "category": "dating",
+      "top3": [
+        {
+          "tag": "shock",
+          "text": "Thanks for setting me up with your friend. he spent the whole date asking if I was always this ugly or if you warned him."
+        }
+      ],
+      "source": "model",
+      "actualModel": "anthropic/claude-sonnet-5.5",
+      "modelTag": "anthropic/claude-sonnet-5.5",
+      "note": "",
+      "elapsedMs": 8097,
+      "weakLead": false,
+      "stallReason": null,
+      "inputSafety": {
+        "state": "clear",
+        "source": "classifier"
+      },
+      "automaticFirstReveal": {
+        "q": 14,
+        "reaction": 8
+      },
+      "provider": "Google",
+      "pipelineTrace": "wildcard: A: ok, kept 2 — self-harm 1 [Google] · model: anthropic/claude-sonnet-5.5 · B: ok, kept 2 — words 1 [Google] · model: anthropic/claude-sonnet-5.5 · safety: 0 dropped · safety model: openai/gpt-5.4-nano (wall 452ms, sum 1538ms across 4 calls) · taste: openai/gpt-5.4 (1247ms) — [shock] q:4 reaction:6, [gross] q:13 reaction:7, [shock] q:14 reaction:8, [deranged] q:8 reaction:7 · pairwise: #1 won from both positions (481ms), held · stages: t_cold=40740ms t_parse=0ms t_block=0ms t_wildcardA=2388ms t_wildcardB=2553ms t_wildcard=2553ms t_judge=1730ms t_response=0ms"
+    }
+  ]
+}

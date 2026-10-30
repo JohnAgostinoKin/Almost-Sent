@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "commit": "5c8d63101f8585fb14501befd4f355532cee6756",
+  "rubric": "impact-v1",
+  "method": "Six fresh inputs, one first-reveal HTTP request per model per input. Same frozen roast-v12 code, initial prompt messages, lane mix, examples, safety and taste judges, temperature, token cap and runtime request deadlines. No prompt changes from the latest owner ratings. Normal in-request retries, selection and rescue behavior remain enabled for both. No manual rerolls, substitutions or selected later reveals. Model-compatible provider routing and reasoning settings remain as implemented: Claude low effort, Hermes no override. Separate preview deployments have no production database credentials. Output model identities were checked against response tags and pipeline traces. Failed attempts remain visible as no-reveal placeholders. This is one unreplicated exploratory sample, not a population estimate.",
+  "inputs": "bake/roast-model-inputs-v12.json",
+  "settings": {
+    "temperature": 1,
+    "maxTokensPerGeneration": 1100,
+    "requestBudgetMs": 10000,
+    "generationSoftDeadlineMs": 3500,
+    "tasteModel": "openai/gpt-5.4",
+    "safetyModel": "openai/gpt-5.4-nano",
+    "crisisModel": "mistralai/mistral-small-2603",
+    "claudeReasoning": {
+      "effort": "low"
+    },
+    "hermesReasoning": null
+  },
+  "systems": [
+    {
+      "system": "CLAUDE",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 6,
+      "ownReveals": 6,
+      "stalls": 0,
+      "fallbacks": 0,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 8219.5
+    },
+    {
+      "system": "HERMES",
+      "model": "nousresearch/hermes-4-405b",
+      "attempts": 6,
+      "ownReveals": 5,
+      "stalls": 1,
+      "fallbacks": 0,
+      "unscoredFirstReveals": 0,
+      "medianElapsedMs": 8643.5
+    }
+  ],
+  "promptVerification": {
+    "messagesIdenticalAcrossModels": true,
+    "hashAlgorithm": "sha256",
+    "inputs": [
+      {
+        "input": "He calls himself a life coach.",
+        "initialRequestMessagesSha256": [
+          "bd1e02fd522f785e72466ac8635da947fa6738c2e1f44cfafbc1486bae1b880d",
+          "daf91a6cce54e68637f288f254432f93c68db8c090cdb989f07619f31d7b9064"
+        ]
+      },
+      {
+        "input": "Your new tattoo is definitely noticeable.",
+        "initialRequestMessagesSha256": [
+          "aef6a7ffc66856a185b1485c2ce1642ed2923ed779f35dfaa63f2675689bf2c4",
+          "6f3d4f4ec012ef36b3fb3b81db1a84fdb44c80fde0e62ae98dcac351b29d43ed"
+        ]
+      },
+      {
+        "input": "She says everyone at work is jealous of her.",
+        "initialRequestMessagesSha256": [
+          "203a40279111da9d49fe51f77925b82db91ca6120293282ef350b62e8951aad3",
+          "e476e5f216556fbda27934d130756b485a250279a3fc9d00ab184459d6800f0a"
+        ]
+      },
+      {
+        "input": "I put you down as my emergency contact.",
+        "initialRequestMessagesSha256": [
+          "05f8ef5733465edca92722fdba7d888579b7fe0bacafadf205b7bf015bc264a6",
+          "3d028e086e0850d54d216ac4acc12807ed0d13fbddfd2566d7399888a092c8ee"
+        ]
+      },
+      {
+        "input": "You should hear him sing.",
+        "initialRequestMessagesSha256": [
+          "bff3f61a8be0d142060e53cdcb16882feb2bb62bfb2aa4f738bde0445fd4e178",
+          "aa4c96c553989be5a297b14304c8eda5fd154a00b12bda407c035d51b842f186"
+        ]
+      },
+      {
+        "input": "Thanks for setting me up with your friend.",
+        "initialRequestMessagesSha256": [
+          "b9faea96f49d9306f76a5ac1d65d210517be04185e2941793940dae97bc95be9",
+          "6d14b65f61dce9dd6fc8f9e5fb775304c4e31fd919b0cabf8377bedd92c0867f"
+        ]
+      }
+    ]
+  },
+  "ownerRatings": 0
+}

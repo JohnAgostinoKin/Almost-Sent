@@ -238,6 +238,30 @@ are saved as evidence and have not changed runtime prompts. A future
 calibration should retain the positively rated examples and test fresh inputs,
 with strength, share intent and unwanted reactions still measured separately.
 
+## Hermes versus Sonnet with the roast voice
+
+`bake/reviews/roast-model-v12/` records a separate model comparison using six
+fresh inputs from `bake/roast-model-inputs-v12.json`. Both previews ran commit
+`5c8d63101f8585fb14501befd4f355532cee6756`, with identical initial writer
+messages, lane mix, examples, judging and runtime deadlines. The latest owner
+ratings were not used to change those prompts. Initial message hashes and
+the model-compatible reasoning settings are recorded in `run.json`.
+
+Claude Sonnet 5.5 produced six of six own-model first reveals; Hermes 4 405B
+produced five of six. Hermes' emergency-contact attempt stalled after its
+candidates were filtered by safety. No fallback writer appeared. Median
+HTTP roundtrip was 8.22 seconds for Claude and 8.64 seconds for Hermes across
+all six attempts each. These are observed run timings, not a general speed
+benchmark. Normal in-request retry and rescue behavior was left intact, but
+there were no manual rerolls and no swaps to later reveals.
+
+Rate the actual first reveals blind at
+`/scripts/bake-rate.html?review=roast-model-v12&systems=CLAUDE,HERMES&rubric=impact-v1`.
+The failed attempt remains visible as a no-reveal placeholder. There are no
+owner ratings for this comparison yet; automatic scores do not establish
+which writer has the better roast voice. Production and the main Sonnet
+preview configuration are unchanged.
+
 ## Do not add yet
 
 Accounts, a feed, a chatbot, analytics that store pastes.
